@@ -1,0 +1,389 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+
+model Utilisateur {
+  id           Int      @id @default(autoincrement())
+  login        String   @unique
+  motDePasse   String
+  actif        Boolean  @default(true)
+  dateCreation DateTime @default(now())
+
+ roles        UtilisateurRole[]
+  compteAgent  CompteAgent?
+
+  congesCrees         DemandeConge[] @relation("CongeConfirmPar")
+  congesValides       DemandeConge[] @relation("CongeValidePar")
+  congesTypeCrees  TypeConge[]
+
+  presencesConfirmees Presence [] @relation("ConfirmePresence")
+  presencesValidees Presence [] @relation("ValidePresence")
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  key         String?
+  nom         String  @unique
+  description String?
+  actif       Boolean @default(true)
+  notification Notification[]
+  utilisateurs UtilisateurRole[]
+}
+
+model UtilisateurRole {
+  id              Int      @id @default(autoincrement())
+  utilisateurId   Int
+  roleId          Int
+  dateAttribution DateTime @default(now())
+  attribuePar     Int
+
+  utilisateur Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  role        Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([utilisateurId, roleId])
+}
+
+enum genre {
+  MASCULIN
+  FEMININ
+}
+
+model Agent {
+  id         Int      @id @default(autoincrement())
+  matricule  String   @unique
+  nom        String
+  prenom     String
+  genre      String?  
+  photo      String?  @default("")
+  datenais   DateTime? 
+  statut     String
+  dateEntree DateTime
+  actif      Boolean  @default(true)
+
+  compte     CompteAgent?
+  historique HistoriqueAgent[]
+  affectations Affectation[]
+  paie Paie[]
+  demandeConge DemandeConge[]
+   presences     Presence[]
+}
+
+model CompteAgent {
+  id            Int      @id @default(autoincrement())
+  agentId       Int      @unique
+  utilisateurId Int      @unique
+  dateLiaison   DateTime @default(now())
+  liePar        Int
+
+  agent       Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  utilisateur Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  Rapport Rapport[]
+  Notification Notification[]
+}
+
+model HistoriqueAgent {
+  id             Int      @id @default(autoincrement())
+  agentId        Int
+  champ          String
+  ancienneValeur String?
+  nouvelleValeur String?
+  date           DateTime @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+// GESTION DES AFFECTATIONS //
+model Direction {
+id          Int      @id @default(autoincrement())
+  code        String       @unique
+  libelle     String
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  departements Departement[]
+  affectations Affectation[] 
+}
+
+model Departement {
+  id          Int      @id @default(autoincrement())
+  code        String       @unique
+  nom         String
+  directionId Int
+  direction   Direction    @relation(fields: [directionId], references: [id], onDelete: Cascade)
+
+  postes      Poste[]
+  sites       SiteDepartement[]
+  affectations Affectation[]
+}
+
+model Site {
+  id          Int      @id @default(autoincrement())
+  nom         String
+  adresse     String
+  ville       String
+
+  departements SiteDepartement[]
+  affectations Affectation[]
+}
+
+model SiteDepartement {
+  siteId        Int
+  departementId Int
+
+  site          Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  departement   Departement @relation(fields: [departementId], references: [id], onDelete: Cascade)
+
+  @@id([siteId, departementId])
+}
+
+model Poste {
+  id          Int      @id @default(autoincrement())
+  code        String       @unique
+  libelle     String
+
+  departementId Int
+  departement   Departement  @relation(fields: [departementId], references: [id])
+
+  fonctions     Fonction[]
+  affectations  Affectation[]
+}
+
+model Fonction {
+  id          Int      @id @default(autoincrement())
+  code        String       @unique
+  libelle     String
+
+  posteId     Int?
+  poste       Poste?       @relation(fields: [posteId], references: [id])
+
+  affectations Affectation[]
+}
+
+model Grade {
+ id          Int      @id @default(autoincrement())
+  code            String       @unique
+  libelle         String
+  indiceSalarial  Int
+
+  affectations    Affectation[]
+}
+enum TypeAffectation {
+  PROMOTION        // Changement de grade supérieur
+  MUTATION         // Changement de service ou lieu
+  NOMINATION       // Nomination à un poste
+  AFFECTATION      // Nouvelle affectation simple
+  INTERIM          // Affectation temporaire
+  REINTEGRATION    // Retour après suspension/congé
+  DETACHEMENT      // Détachement vers une autre structure
+  MONTEE_GRADE     // Montée en grade
+  RETROGRADATION   // Baisse de grade
+}
+
+enum TypeContrat {
+  CDI
+  CDD
+  STAGE
+  CONSULTANT
+  INTERIM
+  PRESTATION
+}
+
+enum StatutContrat {
+  ACTIF
+  TERMINE
+  SUSPENDU
+  RESILIE
+}
+
+model Affectation {
+  id                Int            @id @default(autoincrement())
+  agentId           Int
+  posteId           Int
+  fonctionId        Int?
+  gradeId           Int
+  departementId     Int
+  directionId       Int
+  siteId            Int
+  dateDebut         DateTime
+  dateFin           DateTime?
+  statut            StatutConge?     @default(EN_ATTENTE)
+  motif             String?
+  typeContrat       TypeContrat?
+  statutContrat     StatutContrat?
+  type              TypeAffectation? @default(AFFECTATION)
+
+  agent             Agent                @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  poste             Poste                @relation(fields: [posteId], references: [id], onDelete: Cascade)
+  fonction          Fonction?            @relation(fields: [fonctionId], references: [id], onDelete: Cascade)
+  grade             Grade                @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  departement       Departement          @relation(fields: [departementId], references: [id], onDelete: Cascade)
+  direction         Direction            @relation(fields: [directionId], references: [id], onDelete: Cascade)
+  site              Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  historique        HistoriqueAffectation[]
+}
+
+model HistoriqueAffectation {
+ id          Int      @id @default(autoincrement())
+  affectationId     Int
+  dateChangement    DateTime   @default(now())
+  ancienPoste       String?
+  nouveauPoste      String?
+  ancienGrade       String?
+  nouveauGrade      String?
+  motif             String
+
+  affectation       Affectation @relation(fields: [affectationId], references: [id], onDelete: Cascade)
+}
+
+model Paie {
+  id                Int      @id @default(autoincrement())
+  agentId           Int
+  periode           String
+  datePaiement      DateTime?
+  salaireBase       Decimal
+  brut              Decimal
+  net               Decimal
+  etat              String
+
+  agent             Agent        @relation(fields: [agentId], references: [id])
+
+  primes            Prime[]
+}
+
+model Prime {
+  id                Int       @id @default(autoincrement())
+  paieId            Int
+  type              String
+  montant           Decimal
+
+  paie              Paie         @relation(fields: [paieId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  compteId  Int?
+  dateEnvoi DateTime @default(now())
+  titre     String
+  message   String
+  type      String
+  url       String?
+  roleId    Int?
+  statut    String   @default("NON_LU")
+  expedider String   @default("NON")
+  icon      String
+
+  role      Role?         @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  compte    CompteAgent? @relation(fields: [compteId], references: [id], onDelete: Cascade)
+}
+
+
+model Rapport {
+  id                  Int      @id @default(autoincrement())
+  compteId            Int
+  type                String
+  Libelle             String?
+  periodeDebut        DateTime
+  periodeFin          DateTime
+  dateGeneration      DateTime     @default(now())
+  fichierPath         String?
+
+  compte              CompteAgent @relation(fields: [compteId], references: [id])
+}
+
+model TypeConge {
+  id       Int    @id @default(autoincrement())
+  code     String @unique
+  libelle  String
+  dureeMax Int
+  allocationConge Float @default(0)
+  actif     Boolean  @default(true)
+  
+  createurId     Int
+  createur       Utilisateur    @relation(fields: [createurId], references: [id])
+  demande DemandeConge[]
+}
+
+enum StatutConge{
+  EN_ATTENTE
+  CONFIRME
+  VALIDE
+  REJETE
+}
+
+model DemandeConge {
+  id        Int      @id @default(autoincrement())
+  agentId   Int
+  typeCongeId Int
+  dateDemande DateTime
+  dateDebut DateTime?
+  dateFin   DateTime?
+  motif     String?
+  statut    StatutConge @default(EN_ATTENTE)
+  statusAllocation Boolean @default(true)
+
+
+  dateValidation DateTime?
+  agent Agent @relation(fields: [agentId], references: [id])
+  typeConge TypeConge @relation(fields: [typeCongeId], references: [id])
+
+  confirmePar   Int?
+  confirmParUtilisateur   Utilisateur? @relation("CongeConfirmPar", fields: [confirmePar], references: [id])
+  validePar Int?
+  valideParUtilisateur Utilisateur? @relation("CongeValidePar", fields: [validePar], references: [id])
+}
+
+
+enum StatutPresence {
+  BROUILLON       
+  PRESENT        
+  ABSENT
+  RETARD       
+}
+
+model Presence {
+  id              Int       @id @default(autoincrement())
+
+  agentId         Int
+  agent           Agent     @relation(fields: [agentId], references: [id])
+
+  date            DateTime  @db.Date
+
+  heureArrivee    DateTime?
+  heureDepart     DateTime?
+
+  statut          StatutPresence @default(BROUILLON)
+
+  confirmeParId   Int?
+  confirmePar     Utilisateur? @relation("ConfirmePresence", fields: [confirmeParId], references: [id])
+
+  valideParId     Int?
+  validePar       Utilisateur? @relation("ValidePresence", fields: [valideParId], references: [id])
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([agentId, date]) // One presence per agent per day
+}
+
+
+
+
+
+
+
