@@ -23,6 +23,22 @@ type Presence = {
   statut: string
 }
 
+type TodayPresenceResponse = {
+  working?: boolean
+  canCheckIn?: boolean
+  canCheckOut?: boolean
+  getData?: Presence | null
+  message?: string
+  schedule?: {
+    nomHoraire?: string
+    heureDebut?: string
+    heureFin?: string
+    jours?: string
+    plage?: string
+    configurePar?: string
+  } | null
+}
+
 const PAGE_SIZE = 14
 
 export default function AgentDashPresence() {
@@ -30,13 +46,21 @@ export default function AgentDashPresence() {
   const [history, setHistory] = useState<Presence[]>([])
   const [loading, setLoading] = useState(false)
   const [isworking, setIsworking] = useState(false)
+  const [canCheckIn, setCanCheckIn] = useState(false)
+  const [canCheckOut, setCanCheckOut] = useState(false)
+  const [todayMessage, setTodayMessage] = useState("")
+  const [todaySchedule, setTodaySchedule] = useState<TodayPresenceResponse["schedule"]>(null)
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
 
   async function fetchToday() {
-    const data: any = await GetTodayPresence()
+    const data = (await GetTodayPresence()) as TodayPresenceResponse
     setIsworking(Boolean(data?.working))
+    setCanCheckIn(Boolean(data?.canCheckIn))
+    setCanCheckOut(Boolean(data?.canCheckOut))
     setTodayPresence(data?.getData ?? null)
+    setTodayMessage(data?.message ?? "")
+    setTodaySchedule(data?.schedule ?? null)
   }
 
   async function fetchHistory() {
@@ -150,61 +174,84 @@ export default function AgentDashPresence() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isworking ? (
-            <>
-              {todayPresence ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline">{computePresenceStatus(todayPresence)}</Badge>
-                    <div className="text-sm text-muted-foreground">{formatDate(todayPresence.date)}</div>
-                  </div>
+          {todayMessage && (
+            <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              {todayMessage}
+            </div>
+          )}
 
-                  <div className="space-y-1 text-sm">
-                    <p>
-                      Arrivee :{" "}
-                      {todayPresence.heureArrivee
-                        ? new Date(todayPresence.heureArrivee).toLocaleTimeString("fr-FR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                        : "--"}
-                    </p>
-                    <p>
-                      Depart :{" "}
-                      {todayPresence.heureDepart
-                        ? new Date(todayPresence.heureDepart).toLocaleTimeString("fr-FR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                        : "--"}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-3">
-                    {!todayPresence.heureArrivee && (
-                      <Button onClick={handleCheckIn} disabled={loading}>
-                        <LogIn size={16} className="mr-2" />
-                        Pointer arrivee
-                      </Button>
-                    )}
-
-                    {todayPresence.heureArrivee && !todayPresence.heureDepart && (
-                      <Button onClick={() => handleCheckOut(todayPresence.id)} disabled={loading}>
-                        <LogOut size={16} className="mr-2" />
-                        Pointer depart
-                      </Button>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <Button onClick={handleCheckIn} disabled={loading}>
-                  <LogIn size={16} className="mr-2" />
-                  Pointer arrivee
-                </Button>
+          {todaySchedule?.nomHoraire && (
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <div>
+                Horaire actif : {todaySchedule.nomHoraire} ({todaySchedule.heureDebut} - {todaySchedule.heureFin})
+              </div>
+              {todaySchedule.plage && (
+                <div>
+                  {todaySchedule.plage}
+                  {todaySchedule.jours ? ` | Jours: ${todaySchedule.jours}` : ""}
+                  {todaySchedule.configurePar ? ` | Configure par: ${todaySchedule.configurePar}` : ""}
+                </div>
               )}
+            </div>
+          )}
+
+          {todayPresence ? (
+            <>
+              <div className="flex items-center justify-between">
+                <Badge variant="outline">{computePresenceStatus(todayPresence)}</Badge>
+                <div className="text-sm text-muted-foreground">{formatDate(todayPresence.date)}</div>
+              </div>
+
+              <div className="space-y-1 text-sm">
+                <p>
+                  Arrivee :{" "}
+                  {todayPresence.heureArrivee
+                    ? new Date(todayPresence.heureArrivee).toLocaleTimeString("fr-FR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                    : "--"}
+                </p>
+                <p>
+                  Depart :{" "}
+                  {todayPresence.heureDepart
+                    ? new Date(todayPresence.heureDepart).toLocaleTimeString("fr-FR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                    : "--"}
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                {!todayPresence.heureArrivee && canCheckIn && (
+                  <Button onClick={handleCheckIn} disabled={loading}>
+                    <LogIn size={16} className="mr-2" />
+                    Pointer arrivee
+                  </Button>
+                )}
+
+                {todayPresence.heureArrivee && !todayPresence.heureDepart && canCheckOut && (
+                  <Button onClick={() => handleCheckOut(todayPresence.id)} disabled={loading}>
+                    <LogOut size={16} className="mr-2" />
+                    Pointer depart
+                  </Button>
+                )}
+              </div>
             </>
           ) : (
-            "l'heure actuelle est off. les heure de travail est entre 8:00 a 16:00"
+            canCheckIn && (
+              <Button onClick={handleCheckIn} disabled={loading}>
+                <LogIn size={16} className="mr-2" />
+                Pointer arrivee
+              </Button>
+            )
+          )}
+
+          {!todayPresence && !canCheckIn && !loading && (
+            <div className="text-sm text-muted-foreground">
+              Le pointage est indisponible pour le moment.
+            </div>
           )}
         </CardContent>
       </Card>

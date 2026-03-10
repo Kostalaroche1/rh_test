@@ -3,11 +3,14 @@
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { getAuthenticatedUser } from "@/security/auth"
+import {
+  getAgentIdFromUtilisateurId,
+  getTodayHoraireForUtilisateur,
+} from "@/server/horaireAgent"
 
 export const POST = async (req: Request) => {
   const data = await req.json()
   const { todayDate } = data
-  const todayDay = new Date().toISOString().split("T")[0]
   const arrivee = new Date(todayDate)
 
   const utilisateur = await getAuthenticatedUser()
@@ -19,10 +22,28 @@ export const POST = async (req: Request) => {
     return NextResponse.json({ status: 400, message: "Date de pointage invalide" }, { status: 400 })
   }
 
+  const schedule = await getTodayHoraireForUtilisateur(utilisateur.userId)
+  if (!schedule) {
+    return NextResponse.json(
+      { status: 400, message: "Aucun horaire de travail actif n'est configure pour aujourd'hui." },
+      { status: 400 }
+    )
+  }
+
+  if (!schedule.isWithinSchedule) {
+    return NextResponse.json(
+      {
+        status: 400,
+        message: `Pointage indisponible. Votre horaire de travail aujourd'hui est de ${schedule.startLabel} a ${schedule.endLabel}.`,
+      },
+      { status: 400 }
+    )
+  }
+
   const existingPresence = await prisma.presence.findFirst({
     where: {
-      agentId: utilisateur.userId,
-      date: new Date(todayDay),
+      agentId: schedule.agentId,
+      date: schedule.todayDate,
     },
   })
 
@@ -48,9 +69,9 @@ export const POST = async (req: Request) => {
   const result = await prisma.presence.create({
     data: {
       heureArrivee: arrivee,
-      agentId: utilisateur.userId,
+      agentId: schedule.agentId,
       statut: "BROUILLON",
-      date: new Date(todayDay),
+      date: schedule.todayDate,
     },
   })
 
@@ -82,6 +103,14 @@ export const PUT = async (req: Request) => {
 
     let result
     if (role === "agent") {
+      const schedule = await getTodayHoraireForUtilisateur(utilisateur.userId)
+      if (!schedule) {
+        return NextResponse.json(
+          { status: 400, message: "Aucun horaire de travail actif n'est configure pour aujourd'hui." },
+          { status: 400 }
+        )
+      }
+
       result = await prisma.presence.update({
         where: { id: id },
         data: {
@@ -122,8 +151,13 @@ export const GET = async () => {
     throw new Error("no authorize")
   }
 
+  const agentId = await getAgentIdFromUtilisateurId(utilisateur.userId)
+  if (!agentId) {
+    return NextResponse.json({ status: 200, rest: "GET", getData: [] }, { status: 200 })
+  }
+
   const getData = await prisma.presence.findMany({
-    where: { agentId: utilisateur.userId },
+    where: { agentId },
     include: { agent: true },
   })
 
