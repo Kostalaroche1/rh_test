@@ -1,7 +1,16 @@
 "use client";
 
-import { useMemo, useState, type FormEvent, type ReactNode } from "react";
-import { IconDotsVertical, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronsLeft,
+  IconChevronsRight,
+  IconDotsVertical,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import { toast } from "sonner";
 
 import {
@@ -122,6 +131,14 @@ const defaultForm: FormState = {
   dimanche: false,
 };
 
+function getTodayInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = `${today.getMonth() + 1}`.padStart(2, "0");
+  const day = `${today.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function formatDate(value?: string | null) {
   if (!value) {
     return "--";
@@ -167,6 +184,8 @@ export default function TableHoraireAgent() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<HoraireAgentItem | null>(null);
   const [form, setForm] = useState<FormState>(defaultForm);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
   const { data, isPending } = useGet<HoraireAgentResponse>(
     ["HoraireAgentAll"],
@@ -200,11 +219,28 @@ export default function TableHoraireAgent() {
     });
   }, [rows, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRows = filteredRows.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
   const isEditing = Boolean(form.id);
   const submitting = creating || updating;
+  const todayInputValue = getTodayInputValue();
 
   function resetForm() {
     setForm(defaultForm);
+  }
+
+  function handlePageSizeChange(value: string) {
+    setPageSize(Number(value));
+    setPage(1);
   }
 
   function openCreate() {
@@ -235,6 +271,21 @@ export default function TableHoraireAgent() {
 
     if (!form.agentId || !form.horaireId || !form.dateDebut) {
       toast.error("Agent, horaire et date debut sont obligatoires");
+      return;
+    }
+
+    if (form.dateDebut < todayInputValue) {
+      toast.error("La date debut ne peut pas etre dans le passe");
+      return;
+    }
+
+    if (form.dateFin && form.dateFin < todayInputValue) {
+      toast.error("La date fin ne peut pas etre dans le passe");
+      return;
+    }
+
+    if (form.dateFin && form.dateFin < form.dateDebut) {
+      toast.error("La date fin doit etre superieure ou egale a la date debut");
       return;
     }
 
@@ -324,7 +375,7 @@ export default function TableHoraireAgent() {
         </TableHeader>
         <TableBody>
           {!isPending &&
-            filteredRows.map((row) => (
+            paginatedRows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell>
                   {row.agent?.matricule} - {row.agent?.nom} {row.agent?.prenom}
@@ -385,6 +436,64 @@ export default function TableHoraireAgent() {
         </TableBody>
       </Table>
 
+      {!isPending && filteredRows.length > 0 && (
+        <div className="mt-4 flex flex-col gap-3 border-t pt-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Lignes par page</span>
+            <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="w-[84px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[5, 10, 20, 50].map((size) => (
+                  <SelectItem key={size} value={size.toString()}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setPage(1)}
+              disabled={currentPage <= 1}
+            >
+              <IconChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage <= 1}
+            >
+              <IconChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-2 text-sm">
+              Page {currentPage} sur {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              <IconChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setPage(totalPages)}
+              disabled={currentPage >= totalPages}
+            >
+              <IconChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -438,16 +547,32 @@ export default function TableHoraireAgent() {
                 <Label>Date debut</Label>
                 <Input
                   type="date"
+                  min={todayInputValue}
                   value={form.dateDebut}
-                  onChange={(e) => setForm((prev) => ({ ...prev, dateDebut: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => {
+                      const nextDateDebut = e.target.value;
+                      const nextDateFin =
+                        prev.dateFin && prev.dateFin < nextDateDebut ? nextDateDebut : prev.dateFin;
+
+                      return {
+                        ...prev,
+                        dateDebut: nextDateDebut,
+                        dateFin: nextDateFin,
+                      };
+                    })
+                  }
                 />
               </div>
               <div className="space-y-2">
                 <Label>Date fin (optionnel)</Label>
                 <Input
                   type="date"
+                  min={form.dateDebut || todayInputValue}
                   value={form.dateFin}
-                  onChange={(e) => setForm((prev) => ({ ...prev, dateFin: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, dateFin: e.target.value }))
+                  }
                 />
               </div>
             </div>

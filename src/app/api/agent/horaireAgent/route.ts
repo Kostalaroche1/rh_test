@@ -18,6 +18,12 @@ function toDateOnly(value: string) {
   return parsed;
 }
 
+function getTodayStart() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
 export async function GET() {
   const auth = await getAuthenticatedUser();
   if (!auth) {
@@ -25,7 +31,7 @@ export async function GET() {
   }
 
   try {
-    await requireRole(["admin", "rh", "chiefservice"]);
+    await requireRole(["admin", "rh", "chefservice"]);
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -46,7 +52,6 @@ export async function GET() {
       orderBy: { id: "desc" },
     }),
     prisma.agent.findMany({
-      where: { actif: true },
       select: { id: true, nom: true, prenom: true, matricule: true },
       orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     }),
@@ -69,7 +74,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    await requireRole(["admin", "rh", "chiefservice"]);
+    await requireRole(["admin", "rh", "chefservice"]);
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -79,10 +84,25 @@ export async function POST(req: Request) {
   const horaireId = Number(payload.horaireId);
   const dateDebut = toDateOnly(payload.dateDebut);
   const dateFin = payload.dateFin ? toDateOnly(payload.dateFin) : null;
+  const todayStart = getTodayStart();
 
   if (!agentId || !horaireId || !dateDebut) {
     return NextResponse.json(
       { message: "agentId, horaireId et dateDebut sont requis" },
+      { status: 400 }
+    );
+  }
+
+  if (dateDebut < todayStart) {
+    return NextResponse.json(
+      { message: "dateDebut doit etre aujourd'hui ou dans le futur" },
+      { status: 400 }
+    );
+  }
+
+  if (dateFin && dateFin < todayStart) {
+    return NextResponse.json(
+      { message: "dateFin doit etre aujourd'hui ou dans le futur" },
       { status: 400 }
     );
   }
@@ -121,7 +141,7 @@ export async function PUT(req: Request) {
   }
 
   try {
-    await requireRole(["admin", "rh", "chiefservice"]);
+    await requireRole(["admin", "rh", "chefservice"]);
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -132,10 +152,25 @@ export async function PUT(req: Request) {
   const horaireId = Number(payload.horaireId);
   const dateDebut = toDateOnly(payload.dateDebut);
   const dateFin = payload.dateFin ? toDateOnly(payload.dateFin) : null;
+  const todayStart = getTodayStart();
 
   if (!id || !agentId || !horaireId || !dateDebut) {
     return NextResponse.json(
       { message: "id, agentId, horaireId et dateDebut sont requis" },
+      { status: 400 }
+    );
+  }
+
+  if (dateDebut < todayStart) {
+    return NextResponse.json(
+      { message: "dateDebut doit etre aujourd'hui ou dans le futur" },
+      { status: 400 }
+    );
+  }
+
+  if (dateFin && dateFin < todayStart) {
+    return NextResponse.json(
+      { message: "dateFin doit etre aujourd'hui ou dans le futur" },
       { status: 400 }
     );
   }
@@ -175,7 +210,7 @@ export async function DELETE(req: Request) {
   }
 
   try {
-    await requireRole(["admin", "rh", "chiefservice"]);
+    await requireRole(["admin", "rh", "chefservice"]);
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
