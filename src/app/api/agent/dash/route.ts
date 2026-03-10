@@ -1,48 +1,53 @@
-// app/api/agent/stats/route.ts
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
 import { NextResponse } from "next/server";
+import { getCurrentAgentId } from "@/server/access/context";
 
 export async function GET() {
   try {
-    // On récupère l'ID de l'agent depuis les params ou session
-    // Pour l'exemple on hardcode l'agentId = 1
-    const users  : any = await getAuthenticatedUser()
-    const agentId = users.userId
-    
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    }
 
-    const absences = await prisma.presence.count({
-      where: { agentId, statut: "ABSENT" },
-    });
+    const agentId = await getCurrentAgentId(user);
+    if (!agentId) {
+      return NextResponse.json(
+        { error: "Aucun profil agent lie a ce compte." },
+        { status: 403 }
+      );
+    }
 
-    const presences = await prisma.presence.count({
-      where: { agentId, statut: 'PRESENT' },
-    });
-    const conges = await prisma.demandeConge.findMany({
-      where: { agentId, statut: "VALIDE" },
-    });
-    const demandeconges = await prisma.demandeConge.count({
-      where: { agentId },
-    });
+    const [absences, presences, conges, demandeconges] = await Promise.all([
+      prisma.presence.count({ where: { agentId, statut: "ABSENT" } }),
+      prisma.presence.count({
+        where: {
+          agentId,
+          heureArrivee: { not: null },
+          statut: { notIn: ["ABSENT"] },
+        },
+      }),
+      prisma.demandeConge.findMany({ where: { agentId, statut: "VALIDE" } }),
+      prisma.demandeConge.count({ where: { agentId } }),
+    ]);
+
     let totalJoursConge = 0;
-    if(conges.length!==0){
-        for (const conge of conges) {
+    for (const conge of conges) {
       if (conge.dateDebut && conge.dateFin) {
-        const debut = new Date(conge.dateDebut);
-        const fin = new Date(conge.dateFin);
-
-        const diffTime = fin.getTime() - debut.getTime();
-        const diffDays = diffTime / (1000 * 60 * 60 * 24) + 1; // +1 pour inclure le jour de début
-
-        totalJoursConge += diffDays;
+        const diffTime = conge.dateFin.getTime() - conge.dateDebut.getTime();
+        totalJoursConge += diffTime / (1000 * 60 * 60 * 24) + 1;
       }
     }
-    }
-  
-    console.log({ absences, presences, conges : totalJoursConge , demandeconges } , "dash Agents")
-    return NextResponse.json({data : { absences, presences, conges : totalJoursConge , demandeconges }});
+
+    return NextResponse.json(
+      { data: { absences, presences, conges: totalJoursConge, demandeconges } },
+      { status: 200 }
+    );
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Impossible de récupérer les stats" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Impossible de recuperer les stats" },
+      { status: 500 }
+    );
   }
 }

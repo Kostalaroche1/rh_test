@@ -17,11 +17,12 @@ export async function GET() {
 
     const data = agents.map(a => ({
       ...a,
-      age: currentYear - a.datenais.getFullYear(),
+      age: a.datenais ? currentYear - a.datenais.getFullYear() : null,
     }));
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Erreur serveur";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

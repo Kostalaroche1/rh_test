@@ -20,6 +20,7 @@ import { FichePresencePDF } from "@/utilities/exportPdf";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { AnnulerAbsence } from "@/app/action/agent/presence/signalerAbsence/action";
 import { toast } from "sonner";
+import { computePresenceStatus } from "@/utilities/presence";
 import {
   ChartContainer,
   ChartTooltip,
@@ -29,7 +30,7 @@ import {
 
 export default function GestionPresenceAbsenceRich() {
   const [dialogOuvert, setDialogOuvert] = useState(false);
-  const { data: donneesStats, isPending: enChargementStats , refetch : refetchGetAdmin } = useGet(["DashAgentAdmin"], GetDashAgentAdmin);
+  const { data: donneesStats, isPending: enChargementStats, refetch: refetchGetAdmin } = useGet(["DashAgentAdmin"], GetDashAgentAdmin);
 
   const donneesCamembert = [
     { name: "Actif", value: donneesStats?.actif ?? 0, color: "#16a34a" },
@@ -58,6 +59,12 @@ export default function GestionPresenceAbsenceRich() {
         return "bg-rose-100 text-rose-700";
       case "RETARD":
         return "bg-amber-100 text-amber-700";
+      case "CONGE":
+        return "bg-indigo-100 text-indigo-700";
+      case "MISSION":
+        return "bg-cyan-100 text-cyan-700";
+      case "MALADIE":
+        return "bg-fuchsia-100 text-fuchsia-700";
       default:
         return "bg-slate-100 text-slate-700";
     }
@@ -81,8 +88,9 @@ export default function GestionPresenceAbsenceRich() {
         ...agent,
         presences: (agent.presences || []).filter((p: any) => {
           const datePresence = new Date(p.date);
+          const statutCalcule = computePresenceStatus(p);
 
-          if (statut !== "ALL" && p.statut !== statut) return false;
+          if (statut !== "ALL" && statutCalcule !== statut) return false;
 
           switch (periode) {
             case "TODAY":
@@ -134,10 +142,10 @@ export default function GestionPresenceAbsenceRich() {
     return agentsFiltres.slice(indexDepart, indexDepart + ELEMENTS_PAR_PAGE);
   }, [agentsFiltres, page]);
 
-  const {mutateAsync : annulerAbsences , isPending : isPendingAnnulerAbsences}  = usePut(AnnulerAbsence)
+  const { mutateAsync: annulerAbsences, isPending: isPendingAnnulerAbsences } = usePut(AnnulerAbsence)
 
   const annulerAbsence = async (id: any) => {
-    const responses = await annulerAbsences({agentId : parseInt(id)})
+    const responses = await annulerAbsences({ agentId: parseInt(id) })
 
     toast.info(responses.status === 200 ? responses.message : responses.message)
     refetchGetAdmin()
@@ -168,7 +176,7 @@ export default function GestionPresenceAbsenceRich() {
       <Separator />
 
       <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 md :flex align-center">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="tableau">Tableau</TabsTrigger>
           <TabsTrigger value="calendrier">Calendrier</TabsTrigger>
@@ -265,30 +273,30 @@ export default function GestionPresenceAbsenceRich() {
                   <SelectItem value="LAST_YEAR">Annee passee</SelectItem>
                 </SelectContent>
               </Select>
-                <PDFDownloadLink
-    document={
-      <FichePresencePDF
-        ficheData={{
-          orgName: "RADIO TELEVISION NATIONALE CONGOLAISE (RTNC)",
-          orgAddress: "Chaine de télévision",
-          periodeLabel: `________________________________________________`,
-          responsable: "_____________________",
-          // export EXACTEMENT la liste filtrée
-          agents: agentsFiltres,
-        }}
-      />
-    }
-    fileName={`fiche-presence-${periode}-${statut}-${matricule}.pdf`}
-  >
-    {({ loading }) => (
-      <Button variant="outline" disabled={loading}>
-        <FileText className="mr-2 h-4 w-4" />
-        {loading ? "Génération..." : "Exporter liste (PDF)"}
-      </Button>
-    )}
-  </PDFDownloadLink>
+              <PDFDownloadLink
+                document={
+                  <FichePresencePDF
+                    ficheData={{
+                      orgName: "RADIO TELEVISION NATIONALE CONGOLAISE (RTNC)",
+                      orgAddress: "Chaine de télévision",
+                      periodeLabel: `________________________________________________`,
+                      responsable: "_____________________",
+                      // export EXACTEMENT la liste filtrée
+                      agents: agentsFiltres,
+                    }}
+                  />
+                }
+                fileName={`fiche-presence-${periode}-${statut}-${matricule}.pdf`}
+              >
+                {({ loading }) => (
+                  <Button variant="outline" disabled={loading}>
+                    <FileText className="mr-2 h-4 w-4" />
+                    {loading ? "Génération..." : "Exporter liste (PDF)"}
+                  </Button>
+                )}
+              </PDFDownloadLink>
             </CardContent>
-            
+
 
           </Card>
 
@@ -314,42 +322,45 @@ export default function GestionPresenceAbsenceRich() {
 
                   <TableBody>
                     {agentsPages.flatMap((agent: any) =>
-                      agent.presences.map((p: any) => (
-                        <React.Fragment key={p.id}>
-                        <TableRow  className="hover:bg-slate-50">
-                             <TableCell>
-                            {agent.nom} {agent.prenom}
-                          </TableCell>
+                      agent.presences.map((p: any) => {
+                        const statutCalcule = computePresenceStatus(p);
+                        return (
+                          <React.Fragment key={p.id}>
+                            <TableRow className="hover:bg-slate-50">
+                              <TableCell>
+                                {agent.nom} {agent.prenom}
+                              </TableCell>
 
-                          <TableCell>
-                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${couleurStatut(p.statut)}`}>
-                              {p.statut}
-                            </span>
-                          </TableCell>
+                              <TableCell>
+                                <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${couleurStatut(statutCalcule)}`}>
+                                  {statutCalcule}
+                                </span>
+                              </TableCell>
 
-                          <TableCell>{new Date(p.date).toLocaleDateString()}</TableCell>
+                              <TableCell>{new Date(p.date).toLocaleDateString()}</TableCell>
 
-                          <TableCell>
-                            {p.heureDepart
-                              ? new Date(p.heureDepart).toLocaleTimeString("fr-FR", {
-                                  hour: "2-digit",
-                                  minute: "2-digit"
-                                })
-                              : "-"}
-                          </TableCell>
+                              <TableCell>
+                                {p.heureDepart
+                                  ? new Date(p.heureDepart).toLocaleTimeString("fr-FR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit"
+                                  })
+                                  : "-"}
+                              </TableCell>
 
-                          <TableCell>
-                            {p.statut === "ABSENT" && (
-                              <Button size="sm" disabled={isPendingAnnulerAbsences} variant="destructive" onClick={() => annulerAbsence(agent.id)}>
-                                Annuler
-                              </Button>
-                            )}
-                          </TableCell>
-                       
-                        </TableRow>
+                              <TableCell>
+                                {statutCalcule === "ABSENT" && (
+                                  <Button size="sm" disabled={isPendingAnnulerAbsences} variant="destructive" onClick={() => annulerAbsence(agent.id)}>
+                                    Annuler
+                                  </Button>
+                                )}
+                              </TableCell>
+
+                            </TableRow>
                           </React.Fragment>
-                      ))
-                    )}
+                        )
+                      }
+                      ))}
                   </TableBody>
                 </Table>
 

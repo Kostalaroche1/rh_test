@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function LoginPage() {
-  const { auth }: any = useAuth();
+  const { auth } = useAuth() as { auth?: unknown };
   const router = useRouter();
 
   useEffect(() => {
@@ -16,8 +16,8 @@ export default function LoginPage() {
   }, [auth, router]);
 
   return (
-    <div className="relative grid min-h-svh place-items-center p-4 md:p-8">
-      <div className="erp-panel w-full max-w-md rounded-3xl p-6 md:p-8">
+    <div className="relative grid min-h-svh place-items-center p-4 md:p-8 motion-safe:animate-in motion-safe:fade-in-0">
+      <div className="erp-panel w-full max-w-md rounded-3xl p-6 md:p-8 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:slide-in-from-bottom-3">
         <LoginForm />
       </div>
     </div>

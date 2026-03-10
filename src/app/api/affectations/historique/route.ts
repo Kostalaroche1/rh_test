@@ -1,37 +1,51 @@
 import { NextResponse } from "next/server"
 import  prisma  from "@/lib/prisma"
 
-/* =========================
-   GET
-   - tous les historiques
-   - ou par affectationId
-========================= */
+type HistoriquePayload = {
+  affectationId?: number
+  ancienPoste?: string | null
+  nouveauPoste?: string | null
+  ancienGrade?: string | null
+  nouveauGrade?: string | null
+  motif?: string
+}
+
+function parsePositiveInt(value: string | null): number | null {
+  if (!value) return null
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const affectationId = searchParams.get("affectationId")
+    const id = parsePositiveInt(searchParams.get("id"))
+    const affectationId = parsePositiveInt(searchParams.get("affectationId"))
 
     const data = await prisma.historiqueAffectation.findMany({
-      where: affectationId ? { affectationId } : undefined,
+      where: {
+        ...(id ? { id } : {}),
+        ...(affectationId ? { affectationId } : {}),
+      },
       orderBy: { dateChangement: "desc" },
     })
 
     return NextResponse.json({ data })
   } catch (error) {
     console.error("GET HistoriqueAffectation error:", error)
-    return NextResponse.json(
-      { data: [] },
-      { status: 500 }
-    )
+    return NextResponse.json({ data: [] }, { status: 500 })
   }
 }
 
-/* =========================
-   POST
-========================= */
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
+    const body = (await req.json()) as HistoriquePayload
+    if (!body.affectationId || !body.motif) {
+      return NextResponse.json(
+        { message: "affectationId et motif sont requis." },
+        { status: 400 }
+      )
+    }
 
     const data = await prisma.historiqueAffectation.create({
       data: {
@@ -44,57 +58,28 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json({ data })
+    return NextResponse.json({ data }, { status: 201 })
   } catch (error) {
     console.error("POST HistoriqueAffectation error:", error)
-    return NextResponse.json(
-      { data: null },
-      { status: 500 }
-    )
-  }
-
-/* =========================
-   GET by ID
-========================= */
-export async function GET(
-  _: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const data = await prisma.historiqueAffectation.findUnique({
-      where: { id: params.id },
-    })
-
-    return NextResponse.json({ data })
-  } catch (error) {
-    console.error("GET HistoriqueAffectation by id error:", error)
-    return NextResponse.json(
-      { data: null },
-      { status: 500 }
-    )
+    return NextResponse.json({ data: null }, { status: 500 })
   }
 }
 
-/* =========================
-   DELETE
-========================= */
-export async function DELETE(
-  _: Request,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(req: Request) {
   try {
-    await prisma.historiqueAffectation.delete({
-      where: { id: params.id },
-    })
+    const { searchParams } = new URL(req.url)
+    const id = parsePositiveInt(searchParams.get("id"))
+    if (!id) {
+      return NextResponse.json(
+        { message: "Paramètre id invalide." },
+        { status: 400 }
+      )
+    }
 
+    await prisma.historiqueAffectation.delete({ where: { id } })
     return NextResponse.json({ data: true })
   } catch (error) {
     console.error("DELETE HistoriqueAffectation error:", error)
-    return NextResponse.json(
-      { data: false },
-      { status: 500 }
-    )
+    return NextResponse.json({ data: false }, { status: 500 })
   }
-}
-
 }

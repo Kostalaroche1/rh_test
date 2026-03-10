@@ -1,43 +1,63 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/security/auth";
+import { isAdmin, isRh } from "@/security/roles";
+import { notifyCompteAndRoles } from "@/server/services/notification.service";
 
-// Créer une nouvelle affectation / décision
-export async function PUT(req : Request) {
+export async function PUT(req: Request) {
   try {
-    const body = await req.json();
-    console.log(body , 'body agent affectation approuve')
-    if(body.statut === "REJETE")
-    {
-        const affectation = await prisma.affectation.update({
-        where : {
-            id : body.agentId,
-        },
-        data : {
-            statut : body.statut,
-        }
-    });
+    const auth = await getAuthenticatedUser();
+    if (!auth) {
+      return NextResponse.json({ message: "Non autorise" }, { status: 401 });
     }
-    
-     if(body.statut !== "REJETE")
-    {
-        const affectation = await prisma.affectation.update({
-        where : {
-            id : body.agentId,
-        },
-        data : {
-            dateFin : new Date(body.dateFin),
-            statutContrat : 'ACTIF',
-            statut : body.statut,
-            typeContrat : body.typeContrat
-        }
-    });
+    if (!isRh(auth) && !isAdmin(auth)) {
+      return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
     }
-    
 
-    return NextResponse.json({status : 200});
-  } catch (error : any) {
-    console.log(error , "error Validation affectation")
-    return NextResponse.json({ status: 500 });
+    const body = await req.json();
+    const affectationId = Number(body.agentId);
+    if (!Number.isFinite(affectationId)) {
+      return NextResponse.json({ message: "Affectation invalide" }, { status: 400 });
+    }
+
+    const data = await prisma.affectation.update({
+      where: { id: affectationId },
+      data:
+        body.statut === "REJETE"
+          ? {
+              statut: "REJETE",
+            }
+          : {
+              dateFin: body.dateFin ? new Date(body.dateFin) : null,
+              statutContrat: "ACTIF",
+              statut: body.statut ?? "VALIDE",
+              typeContrat: body.typeContrat ?? undefined,
+            },
+      include: {
+        agent: {
+          include: {
+            compte: { select: { id: true } },
+          },
+        },
+      },
+    });
+
+    await notifyCompteAndRoles(
+      data.agent?.compte?.id ?? null,
+      ["admin", "rh"],
+      {
+        titre: "Validation de parcours",
+        message: `Le parcours de ${data.agent.nom} ${data.agent.prenom} est passe en statut ${data.statut}.`,
+        type: "AFFECTATION",
+        icon: "check-circle",
+        url: "/dashboard/carrieres",
+      }
+    );
+
+    return NextResponse.json({ status: 200 }, { status: 200 });
+  } catch (error) {
+    console.error("PUT /api/affectations/validation failed:", error);
+    return NextResponse.json({ status: 500 }, { status: 500 });
   }
 }
 

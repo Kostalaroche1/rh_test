@@ -1,4 +1,4 @@
-export async function AddNotification(data: any) {
+export async function AddNotification(data: unknown) {
   try {
     const res = await fetch("/api/notification", {
       method: "POST",
@@ -20,21 +20,22 @@ export async function GetNotifications() {
       method: "GET",
     });
     const json = await res.json();
-    return json;
+    return Array.isArray(json?.data) ? json.data : [];
   } catch (error) {
     console.error("Erreur GetNotifications:", error);
-    throw error;
+    return [];
   }
 }
 
 export async function MarkNotificationRead(payload: { id: number; statut?: "LU" | "NON_LU" }) {
-  const res = await fetch("/api/notifications", {
+  const res = await fetch("/api/notification", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
   if (!res.ok) throw new Error("Failed to mark notification read");
-  return res.json();
+  const json = await res.json();
+  return json?.data ?? json;
 }
 

@@ -19,13 +19,14 @@ import { useDelete, useGet, usePost } from "@/hooks/useApi"
 import { GetAgent } from "@/app/action/agent/getAgent/action"
 import Select from "react-select"
 import { toast } from "sonner"
-  import { PDFDownloadLink } from "@react-pdf/renderer";
+import { PDFDownloadLink } from "@react-pdf/renderer";
 import { BulletinPDF } from "../paie/bulletinPdf"; // chemin selon ton projet
 import { useNotification } from "@/app/contexts/notification/context"
 import { ChartPaieDate } from "@/services/chartPaie"
 import { ChartPaie } from "./chartPaie"
 import { DateFormatFr } from "@/services/dateFormat"
 import { DataEmptyPadding } from "../AdminDashboard/composant"
+import { appReactSelectStyles, getSelectPortalTarget } from "@/components/ui/react-select-theme"
 
 
 // ... dans ton composant PaieAvantagesDashboard
@@ -45,13 +46,22 @@ const canManagePaie = (role?: string) =>
 
 /* ---------------- COMPONENT ---------------- */
 export default function PaieAvantagesDashboard({ session }: any) {
+  const selectThemeProps = {
+    styles: appReactSelectStyles,
+    menuPortalTarget: getSelectPortalTarget(),
+    menuPosition: "fixed" as const,
+  }
+  const dialogSelectProps = {
+    styles: appReactSelectStyles,
+  }
+
   const [openDialog, setOpenDialog] = useState(false)
   const [selectedPaie, setSelectedPaie] = useState<any>(null)
   const [agentFilter, setAgentFilter] = useState<number | null>(null)
-  
+
   const {
-      sendNotification,
-    } : any = useNotification()
+    sendNotification,
+  }: any = useNotification()
 
   const [form, setForm] = useState({
     agentId: "",
@@ -61,18 +71,29 @@ export default function PaieAvantagesDashboard({ session }: any) {
     net: ""
   })
 
-  const [primes, setPrimes] = useState<{ type: string; montant: number }[]>([])
+  // const [primes, setPrimes] = useState<{ type: string; montant: number }[]>([])
+
+  const [primes, setPrimes] = useState<{
+    type: string;
+    montant: number;
+    tag: "+" | "-"
+  }[]>([])
 
   const { data: paies = [], refetch } = useGet(['PaieAll'], getPaies)
   const { data: agents = [] } = useGet(['agents'], GetAgent)
 
-  const { mutateAsync: payerAgent , isPending : isPendingPayerAgent } = usePost(createPaie)
+  const { mutateAsync: payerAgent, isPending: isPendingPayerAgent } = usePost(createPaie)
   const { mutate: supprimerPaie } = useDelete(deletePaie)
 
   /* -------- CALCUL AUTO -------- */
   useEffect(() => {
     const salaireBase = Number(form.salaireBase) || 0
-    const totalPrimes = primes.reduce((acc, p) => acc + p.montant, 0)
+    // const totalPrimes = primes.reduce((acc, p) => acc + p.montant, 0)
+
+    const totalPrimes = primes.reduce((acc, p) => {
+      if (p.tag === "+") return acc + p.montant
+      return acc - p.montant   // default minus
+    }, 0)
 
     const brut = salaireBase + totalPrimes
     const net = brut - brut * TAUX_RETENUE
@@ -84,6 +105,7 @@ export default function PaieAvantagesDashboard({ session }: any) {
     }))
   }, [form.salaireBase, primes])
 
+  console.log(paies, "paies nest PaieAvantageDasgbord")
   /* -------- INDICATEURS -------- */
   const totalSalaires = paies.reduce((acc: number, p: any) => acc + Number(p.net), 0)
   const salaireMoyen = paies.length ? (totalSalaires / paies.length).toFixed(2) : "0"
@@ -93,7 +115,7 @@ export default function PaieAvantagesDashboard({ session }: any) {
     { title: "Bulletins", value: paies.length, tone: "dashboard-stat-tone-sky" },
   ]
 
-  const handleSubmit = async(e: any) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault()
     const response = await payerAgent(
       {
@@ -105,21 +127,21 @@ export default function PaieAvantagesDashboard({ session }: any) {
         etat: "PAYE",
         primes
       })
-          setOpenDialog(false)
-          toast.info(response.message)
-          setForm({ agentId: "", periode: "", salaireBase: "", brut: "", net: "" })
-          setPrimes([])
-          refetch()
-          if(response.status !==200) return;
-          sendNotification({
-            compteId : form.agentId,
-            titre : "Paiement salaire",
-            url : '',
-            icon : '',
-            roleId : 1,
-            message : "Vous avez été payer ",
-            type:  "INFO",
-          }) 
+    setOpenDialog(false)
+    toast.info(response.message)
+    setForm({ agentId: "", periode: "", salaireBase: "", brut: "", net: "" })
+    setPrimes([])
+    refetch()
+    if (response.status !== 200) return;
+    sendNotification({
+      compteId: form.agentId,
+      titre: "Paiement salaire",
+      url: '',
+      icon: '',
+      roleId: 1,
+      message: "Vous avez été payer ",
+      type: "INFO",
+    })
   }
 
   const paiesFiltrees = agentFilter
@@ -127,6 +149,18 @@ export default function PaieAvantagesDashboard({ session }: any) {
     : paies
 
   const chartData = ChartPaieDate(paiesFiltrees)
+  const agentOptions = agents
+    .map((a: any) => {
+      const agent = a?.compteAgent?.agent
+      if (!agent?.id) return null
+      const name = `${agent?.nom || ""} ${agent?.prenom || ""}`.trim()
+      return {
+        value: agent.id,
+        label: agent.matricule,
+        name: name || agent.matricule,
+      }
+    })
+    .filter(Boolean)
 
 
 
@@ -168,8 +202,8 @@ export default function PaieAvantagesDashboard({ session }: any) {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {paies.length !==0 ? (
-           <ChartPaie chartData={chartData}/>
+              {paies.length !== 0 ? (
+                <ChartPaie chartData={chartData} />
               ) : (
                 <p className="text-center text-sm text-muted-foreground py-12">Aucune donnée à afficher</p>
               )}
@@ -179,73 +213,76 @@ export default function PaieAvantagesDashboard({ session }: any) {
 
         <TabsContent value="bulletins">
           <div className="flex gap-2">
-             <Button className="mb-4"  onClick={() => setOpenDialog(true)} >
-            <FileText className="w-4 h-4 mr-2" /> Payer un agent
-          </Button>
+            <Button className="mb-4" onClick={() => setOpenDialog(true)} >
+              <FileText className="w-4 h-4 mr-2" /> Payer un agent
+            </Button>
             <PDFDownloadLink
-  document={
-    <BulletinPDF
-      paie={''}
-      paies={paies}
-      devise="$"
-      entreprise={{ nom: "RTNC", adresse: "Av. ...", ville: "Kinshasa", telephone: "+243..." }}
-    />
-  }
-  fileName={`bulletin-${paies?.agent?.matricule || "agent"}.pdf`}
->
-  {({ loading }) => (
-    <Button variant="outline" disabled={loading}>
-      {loading ? "Génération..." : "Exporter bulletin (PDF)"}
-    </Button>
-  )}
-</PDFDownloadLink>
+              document={
+                <BulletinPDF
+                  paie={''}
+                  paies={paies}
+                  devise="$"
+                  entreprise={{ nom: "RTNC", adresse: "Av. ...", ville: "Kinshasa", telephone: "+243..." }}
+                />
+              }
+              fileName={`bulletin-${paies?.agent?.matricule || "agent"}.pdf`}
+            >
+              {({ loading }) => (
+                <Button variant="outline" disabled={loading}>
+                  {loading ? "Génération..." : "Exporter bulletin (PDF)"}
+                </Button>
+              )}
+            </PDFDownloadLink>
           </div>
           <Card>
-            {paies.length !==0 ? 
-             <CardContent>
-              <Select
-                options={agents.map((a: any) => ({
-                  value: a?.compteAgent?.agent.id,
-                  label: a?.compteAgent?.agent.matricule
-                }))}
-                onChange={(opt: any) => setAgentFilter(opt?.value || null)}
-                isClearable
-                placeholder="Filtrer par agent"
-              />
-            
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Période</TableHead>
-                    <TableHead>Agent</TableHead>
-                    <TableHead>Net</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paiesFiltrees.map((p: any) => (
-                    <TableRow key={p.id}>
-                      <TableCell>{""+ DateFormatFr(p.datePaiement)}</TableCell>
-                      <TableCell>{p.agent?.nom}</TableCell>
-                      <TableCell>${parseInt(p.net)}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded ${statutColor(p.etat)}`}>{p.etat}</span>
-                      </TableCell>
-                      <TableCell className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => setSelectedPaie(p)}>Voir</Button>
-                        {canManagePaie(session?.user?.role) && (
-                          <Button size="sm" variant="destructive" onClick={() => supprimerPaie(p.id, { onSuccess: refetch })}>Supprimer</Button>
-                        )}
-                      </TableCell>
+            {paies.length !== 0 ?
+              <CardContent>
+                <Select
+                  options={agentOptions}
+                  onChange={(opt: any) => setAgentFilter(opt?.value || null)}
+                  isClearable
+                  placeholder="Filtrer par agent"
+                  {...selectThemeProps}
+                  formatOptionLabel={(option: any) => (
+                    <div title={option.name} className="truncate">
+                      {option.label}
+                    </div>
+                  )}
+                />
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Période</TableHead>
+                      <TableHead>Agent</TableHead>
+                      <TableHead>Net</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>: 
-            <DataEmptyPadding/>
+                  </TableHeader>
+                  <TableBody>
+                    {paiesFiltrees.map((p: any) => (
+                      <TableRow key={p.id}>
+                        <TableCell>{"" + DateFormatFr(p.datePaiement)}</TableCell>
+                        <TableCell>{p.agent?.nom}</TableCell>
+                        <TableCell>${parseInt(p.net)}</TableCell>
+                        <TableCell>
+                          <span className={`px-2 py-1 rounded ${statutColor(p.etat)}`}>{p.etat}</span>
+                        </TableCell>
+                        <TableCell className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setSelectedPaie(p)}>Voir</Button>
+                          {canManagePaie(session?.user?.role) && (
+                            <Button size="sm" variant="destructive" onClick={() => supprimerPaie(p.id, { onSuccess: refetch })}>Supprimer</Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent> :
+              <DataEmptyPadding />
             }
-           
+
           </Card>
         </TabsContent>
       </Tabs>
@@ -256,25 +293,58 @@ export default function PaieAvantagesDashboard({ session }: any) {
           <DialogHeader><DialogTitle>Payer un agent</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <Select
-              options={agents.map((a: any) => ({
-                value: a?.compteAgent?.agent.id,
-                label: a?.compteAgent?.agent.matricule
-              }))}
-              onChange={(opt: any) => setForm({ ...form, agentId: opt?.value })}
-              placeholder="Sélectionner un agent"
+              options={agentOptions}
+              onChange={opt => setForm({ ...form, agentId: opt?.value })}
+              placeholder="-- Sélectionnez un agent --"
+              isClearable
+              {...dialogSelectProps}
+              formatOptionLabel={(option: any) => (
+                <div title={option.name} className="truncate">
+                  {option.label}
+                </div>
+              )}
+              className="min-w-[200px]"
             />
+
+            <Input type="date" placeholder="Période de paiement" value={form.periode} onChange={e => setForm({
+              ...form,
+              periode: e.target.value
+            })} />
             <Input type="number" placeholder="Salaire de base" value={form.salaireBase} onChange={e => setForm({ ...form, salaireBase: e.target.value })} />
 
             <div className="space-y-2">
               <h4 className="font-semibold flex items-center gap-2"><Gift className="w-4 h-4" /> Primes</h4>
               {primes.map((p, i) => (
                 <div key={i} className="flex gap-2">
+                  <select
+                    value={p.tag}
+                    onChange={(e) => {
+                      const copy = [...primes];
+                      copy[i].tag = e.target.value as "+" | "-";
+                      setPrimes(copy);
+                    }}
+                    className="border rounded px-2"
+                  >
+                    <option value="-">-</option>
+                    <option value="+">+</option>
+                  </select>
                   <Input placeholder="Type" value={p.type} onChange={e => { const copy = [...primes]; copy[i].type = e.target.value; setPrimes(copy) }} />
                   <Input type="number" placeholder="Montant" value={p.montant} onChange={e => { const copy = [...primes]; copy[i].montant = Number(e.target.value); setPrimes(copy) }} />
                   <Button type="button" variant="destructive" onClick={() => setPrimes(primes.filter((_, idx) => idx !== i))}>✕</Button>
                 </div>
               ))}
-              <Button type="button" variant="outline" onClick={() => setPrimes([...primes, { type: "", montant: 0 }])}>+ Ajouter une prime</Button>
+
+              {/* <Button type="button" variant="outline"
+                onClick={() => setPrimes([...primes, { type: "", montant: 0 }])}
+              >+ Ajouter une prime</Button> */}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPrimes([
+                  ...primes,
+                  { type: "", montant: 0, tag: "-" }
+                ])}
+              >+ Ajouter une prime</Button>
             </div>
 
             <Separator />
@@ -287,40 +357,51 @@ export default function PaieAvantagesDashboard({ session }: any) {
       </Dialog>
 
       {/* BULLETIN PDF SÉCURISÉ */}
- 
-{selectedPaie && (
-  <Dialog open onOpenChange={() => setSelectedPaie(null)}>
-    <DialogContent style={{ maxWidth: "400px" }}>
-      <DialogHeader>
-        <DialogTitle>Bulletin de paie</DialogTitle>
-      </DialogHeader>
 
-      <div className="space-y-2 text-sm">
-             <p><b>Agent :</b> {selectedPaie.agent?.nom}</p>
-             <p><b>Période :</b> {new Date(selectedPaie.datePaiement).toLocaleDateString()}</p>
-             <p><b>Salaire de base :</b> ${selectedPaie.salaireBase}</p>
-             <p><b>Primes :</b> {selectedPaie.primes.map((prime : any , idx : any)=>(
-              <p className="px-15" key={idx}>{prime.type} : {prime.montant}$</p>
-             ))}</p>
-             <p><b>Brut :</b> ${selectedPaie.brut}</p>
-             <p><b>Net :</b> ${selectedPaie.net}</p>
-           </div>
+      {selectedPaie && (
+        <Dialog open onOpenChange={() => setSelectedPaie(null)}>
+          <DialogContent style={{ maxWidth: "400px" }}>
+            <DialogHeader>
+              <DialogTitle>Bulletin de paie</DialogTitle>
+            </DialogHeader>
 
-      <PDFDownloadLink
-        document={<BulletinPDF paie={selectedPaie} entreprise={'RTNC'} devise="$"  />}
-        fileName={`bulletin-${selectedPaie.agent?.nom}.pdf`}
-      >
-        {({ loading }) => (
-          <Button className="mt-4">
-            <FileText className="w-4 h-4 mr-2" />
-            {loading ? "Génération..." : "Télécharger PDF"}
-          </Button>
-        )}
-      </PDFDownloadLink>
-    </DialogContent>
-  </Dialog>
-)}
+            <div className="space-y-2 text-sm">
+              <p><b>Agent :</b> {selectedPaie.agent?.nom}</p>
+              <p><b>Période :</b> {new Date(selectedPaie.datePaiement).toLocaleDateString()}</p>
+              <p><b>Salaire de base :</b> ${selectedPaie.salaireBase}</p>
+              {/* <p><b>Primes :</b> {selectedPaie.primes.map((prime: any, idx: any) => (
+                <p className="px-15" key={idx}>{prime.type} : {prime.montant}$</p>
+              ))}</p> */}
+              <div>
+                <b>Primes :</b>
+                {selectedPaie.primes.map((prime: any, idx: any) => (
+                  <div key={idx} className="ml-4">
+                    {prime.tag} {prime.type} : {prime.montant}$
+                  </div>
+                ))}
+              </div>
+              <p><b>Brut :</b> ${selectedPaie.brut}</p>
+              <p><b>Net :</b> ${selectedPaie.net}</p>
+            </div>
+
+            <PDFDownloadLink
+              document={<BulletinPDF paie={selectedPaie} entreprise={'RTNC'} devise="$" />}
+              fileName={`bulletin-${selectedPaie.agent?.nom}.pdf`}
+            >
+              {({ loading }) => (
+                <Button className="mt-4">
+                  <FileText className="w-4 h-4 mr-2" />
+                  {loading ? "Génération..." : "Télécharger PDF"}
+                </Button>
+              )}
+            </PDFDownloadLink>
+          </DialogContent>
+        </Dialog>
+      )}
 
     </div>
   )
 }
+
+
+

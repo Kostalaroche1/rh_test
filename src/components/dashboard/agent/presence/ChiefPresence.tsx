@@ -1,172 +1,216 @@
 "use client"
-
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+// Gabriel code
+import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle } from "lucide-react"
-import { GetPresence, UpdatePresence } from "@/app/action/agent/presence/action"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { CheckCircle } from "lucide-react"
+import { getAllPresence, UpdatePresence } from "@/app/action/agent/presence/action"
+import { getStatutBadgeColor } from "../../chefServiceDashBoard/publicMethod"
+import { toast } from "sonner"
+import { computePresenceStatus } from "@/utilities/presence"
 
 type TeamPresence = {
-    id: number
-    agent: {
-        nom: string
-        prenom: string
-    }
-    date: string
-    heureArrivee: string | null
-    heureDepart: string | null
-    statut: string
+  id: number
+  agent: {
+    nom: string
+    prenom: string
+  }
+  date: string
+  heureArrivee: string | null
+  heureDepart: string | null
+  statut: string
 }
 
-const data = [
-    {
-        id: 1,
-        agent: { nom: "KOSTA", prenom: "Jean" },
-        date: "2026-02-12",
-        heureArrivee: "2026-02-12T08:10:00.000Z",
-        heureDepart: null,
-        statut: "BROUILLON",
-    },
-    {
-        id: 2,
-        agent: { nom: "Mbuyi", prenom: "Paul" },
-        date: "2026-02-12",
-        heureArrivee: "2026-02-12T08:00:00.000Z",
-        heureDepart: "2026-02-12T17:00:00.000Z",
-        statut: "CONFIRME",
-    },
-    {
-        id: 3,
-        agent: { nom: "Ilunga", prenom: "Marc" },
-        date: "2026-02-12",
-        heureArrivee: null,
-        heureDepart: null,
-        statut: "ABSENT",
-    },
-]
+const PAGE_SIZE = 14
 
 export default function ChefTeamPresence() {
-    const [presences, setPresences] = useState<TeamPresence[]>([])
-    const [loadingId, setLoadingId] = useState<number | null>(null)
+  const [presences, setPresences] = useState<TeamPresence[]>([])
+  const [loadingId, setLoadingId] = useState<number | null>(null)
+  const [search, setSearch] = useState("")
+  const [page, setPage] = useState(1)
 
+  async function fetchPresences() {
+    const data = await getAllPresence()
+    if (!data) {
+      return
+    }
+    setPresences(data)
+  }
 
+  useEffect(() => {
+    fetchPresences()
+  }, [])
 
-    async function fetchPresences() {
-        // const res = await fetch("/api/chef/presence/today")
-        // const data = await res.json()
-        const data = await GetPresence()
-        console.log(data, "data from get presence nest fetcPresence function")
-        if (!data) {
-            return
-        }
-        setPresences(data)
+  async function handleConfirm(id: number) {
+    const toastId = toast.loading("Confirmation de la presence en cours...")
+    try {
+      setLoadingId(id)
+      const todayDate = new Date()
+      const data = await UpdatePresence({ id, role: "chiefservice", todayDate })
+      if (!data.success) {
+        toast.error(data.message, { id: toastId })
+        return
+      }
+      await fetchPresences()
+      toast.success("Depart enregistre avec succes.", { id: toastId })
+    } catch (error) {
+      toast.error("Impossible d'enregistrer le depart.", { id: toastId })
+    } finally {
+      setLoadingId(null)
+    }
+  }
+
+  const filteredPresences = useMemo(() => {
+    const query = search.trim().toLowerCase()
+    if (!query) {
+      return presences
     }
 
-    useEffect(() => {
-        async function datapresence() {
-            fetchPresences()
-        }
-        datapresence()
-    }, [])
+    return presences.filter((item) => {
+      const agent = `${item.agent.nom} ${item.agent.prenom}`.toLowerCase()
+      const date = formatDate(item.date).toLowerCase()
+      const arrivee = formatTime(item.heureArrivee).toLowerCase()
+      const depart = formatTime(item.heureDepart).toLowerCase()
+      const statut = computePresenceStatus(item).toLowerCase()
 
-    async function handleConfirm(id: number) {
-        setLoadingId(id)
-        const todayDate = new Date()
+      return (
+        agent.includes(query) ||
+        date.includes(query) ||
+        arrivee.includes(query) ||
+        depart.includes(query) ||
+        statut.includes(query)
+      )
+    })
+  }, [presences, search])
 
-        const data = await UpdatePresence({ id, role: "chiefservice", todayDate })
-        console.log(data, 'data from database nest handleconfirm function')
-        await fetchPresences()
-        setLoadingId(null)
-    }
+  useEffect(() => {
+    setPage(1)
+  }, [search])
 
-    function formatTime(time: string | null) {
-        if (!time) return "--"
+  const totalPages = Math.max(1, Math.ceil(filteredPresences.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedPresences = filteredPresences.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  )
 
-        return new Date(time).toLocaleTimeString("fr-FR", {
-            hour: "2-digit",
-            minute: "2-digit",
-        })
-    }
+  return (
+    <div className="p-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Presences de mon service (Aujourd'hui)</CardTitle>
+        </CardHeader>
 
-    function getBadgeVariant(statut: string) {
-        switch (statut) {
-            case "VALIDE":
-                return "default"
-            case "CONFIRME":
-                return "secondary"
-            case "ABSENT":
-                return "destructive"
-            case "CONGE":
-                return "outline"
-            default:
-                return "outline"
-        }
-    }
+        <CardContent>
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher agent, date, heure, statut..."
+              className="w-full md:max-w-sm"
+            />
+            <p className="text-sm text-muted-foreground">
+              Total: {presences.length} | Resultats: {filteredPresences.length}
+            </p>
+          </div>
 
-    return (
-        <div className="p-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Présences de mon service (Aujourd’hui)</CardTitle>
-                </CardHeader>
+          <div className="overflow-x-auto">
+            <Table className="w-full text-sm">
+              <TableHeader className="border-b text-muted-foreground">
+                <TableRow>
+                  <TableCell className="text-left py-2">Agent</TableCell>
+                  <TableCell className="text-left py-2">Date</TableCell>
+                  <TableCell className="text-left py-2">Arrivee</TableCell>
+                  <TableCell className="text-left py-2">Depart</TableCell>
+                  <TableCell className="text-left py-2">Statut</TableCell>
+                  <TableCell className="text-left py-2">Action</TableCell>
+                </TableRow>
+              </TableHeader>
 
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <Table className="w-full text-sm">
-                            <TableHeader className="border-b text-muted-foreground">
-                                <TableRow>
-                                    <TableCell className="text-left py-2">Agent</TableCell>
-                                    <TableCell className="text-left py-2">Arrivée</TableCell>
-                                    <TableCell className="text-left py-2">Départ</TableCell>
-                                    <TableCell className="text-left py-2">Statut</TableCell>
-                                    <TableCell className="text-left py-2">Action</TableCell>
-                                </TableRow>
-                            </TableHeader>
+              <TableBody>
+                {paginatedPresences.map((item) => (
+                  <TableRow key={item.id} className="border-b">
+                    <TableCell className="py-2">
+                      {item.agent.nom} {item.agent.prenom}
+                    </TableCell>
+                    <TableCell>{formatDate(item.date)}</TableCell>
+                    <TableCell>{formatTime(item.heureArrivee)}</TableCell>
+                    <TableCell>{formatTime(item.heureDepart)}</TableCell>
 
-                            <TableBody>
-                                {presences.map((item) => (
-                                    <TableRow key={item.id} className="border-b">
-                                        <TableCell className="py-2">
-                                            {item.agent.nom} {item.agent.prenom}
-                                        </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const displayStatut = computePresenceStatus(item)
+                        return (
+                          <Badge className={getStatutBadgeColor(displayStatut)}>{displayStatut}</Badge>
+                        )
+                      })()}
+                    </TableCell>
 
-                                        <TableCell>{formatTime(item.heureArrivee)}</TableCell>
-                                        <TableCell>{formatTime(item.heureDepart)}</TableCell>
+                    <TableCell>
+                      {item.statut === "BROUILLON" ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleConfirm(item.id)}
+                          disabled={loadingId === item.id}
+                        >
+                          <CheckCircle size={14} className="mr-1" />
+                          Confirmer
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">--</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginatedPresences.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-4 text-center text-muted-foreground">
+                      Aucun resultat
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
-                                        <TableCell>
-                                            <Badge variant={getBadgeVariant(item.statut)}>
-                                                {item.statut}
-                                            </Badge>
-                                        </TableCell>
+          <div className="mt-4 flex items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage <= 1}
+            >
+              Precedent
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              Suivant
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
 
-                                        <TableCell>
-                                            {item.statut === "BROUILLON" && (
-                                                <Button
-                                                    size="sm"
-                                                    variant="secondary"
-                                                    onClick={() => handleConfirm(item.id)}
-                                                    disabled={loadingId === item.id}
-                                                >
-                                                    <CheckCircle size={14} className="mr-1" />
-                                                    {Confirmer}
-                                                </Button>
-                                            )}
+export function formatTime(time: string | null) {
+  if (!time) return "--"
+  return new Date(time).toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
 
-                                            {item.statut !== "BROUILLON" && (
-                                                <span className="text-muted-foreground text-xs">
-                                                    —
-                                                </span>
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-    )
+export function formatDate(date: string) {
+  return new Date(date).toLocaleDateString("fr-FR")
 }

@@ -1,9 +1,12 @@
+// habacuk code
+
+
 import prisma from "@/lib/prisma"
 import { getAuthenticatedUser } from "@/security/auth"
 import { NextResponse } from "next/server"
 
 export const POST = async (req: Request) => {
-    const body = await req.json()
+  const body = await req.json()
   const utilisateur = await getAuthenticatedUser()
 
   if (!utilisateur) {
@@ -11,24 +14,24 @@ export const POST = async (req: Request) => {
   }
 
   if (!body.agentId) {
-     return NextResponse.json({
+    return NextResponse.json({
       status: 404,
       message: "Agent non trouvé."
     })
   }
 
-   const IsAffect = await prisma.affectation.findFirst({
+  const IsAffect = await prisma.affectation.findFirst({
     where: {
       agentId: body.agentId,
     }
   })
 
- if(!IsAffect){
+  if (!IsAffect) {
     return NextResponse.json({
       status: 404,
       message: "cet Agent n'est pas encore affecté à un service , veuillez signaler à la direction ou à l'administration."
     })
- }
+  }
   // Date du jour sans heure
   const today = new Date()
   const todayDay = new Date(today.toISOString().split("T")[0])
@@ -66,17 +69,17 @@ export const POST = async (req: Request) => {
 }
 
 export const DELETE = async (req: Request) => {
-    const body = await req.json()
+  const body = await req.json()
   const utilisateur = await getAuthenticatedUser()
 
   if (!utilisateur) {
     throw new Error("Non autorisé")
   }
 
-  console.log(body , "AGENT ABSENT")
+  console.log(body, "AGENT ABSENT")
 
   if (!body.agentId) {
-     return NextResponse.json({
+    return NextResponse.json({
       status: 404,
       message: "Agent non trouvé."
     })
@@ -93,18 +96,18 @@ export const DELETE = async (req: Request) => {
     }
   })
 
- if(!IsAffect){
+  if (!IsAffect) {
     return NextResponse.json({
       status: 404,
       message: "cet Agent n'est pas encore affecté à un service , veuillez signaler à la direction ou à l'administration."
     })
- }
+  }
 
   const existingPresence = await prisma.presence.findFirst({
     where: {
       agentId: body.agentId,
       date: todayDay,
-      statut : 'ABSENT'
+      statut: 'ABSENT'
     }
   })
 
@@ -118,7 +121,7 @@ export const DELETE = async (req: Request) => {
   // Créer une absence
   const absence = await prisma.presence.delete({
     where: {
-      id : existingPresence.id,
+      id: existingPresence.id,
       agentId: body.agentId,
       date: todayDay,
       statut: "ABSENT",

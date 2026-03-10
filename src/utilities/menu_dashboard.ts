@@ -99,16 +99,16 @@ export const data = {
       //   { title: "Historique de paie", url: "#" },
       // ],
     },
-    {
-      title: "Reporting & Analytics",
-      url: "#",
-      icon: BarChart3,
-      // items: [
-      //   { title: "Tableaux de bord", url: "#" },
-      //   { title: "Rapports standards", url: "#" },
-      //   { title: "Export de données", url: "#" },
-      // ],
-    },
+    // {
+    //   title: "Reporting & Analytics",
+    //   url: "#",
+    //   icon: BarChart3,
+    //   // items: [
+    //   //   { title: "Tableaux de bord", url: "#" },
+    //   //   { title: "Rapports standards", url: "#" },
+    //   //   { title: "Export de données", url: "#" },
+    //   // ],
+    // },
   ],
   navSecondary: [
     {

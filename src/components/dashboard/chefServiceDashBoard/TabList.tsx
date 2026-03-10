@@ -6,10 +6,12 @@ export function TypeCongeList({
   typeConges,
   onEdit,
   onDelete,
+  readOnly = true,
 }: {
   typeConges: TypeConge[]
   onEdit: (type: TypeConge) => void
   onDelete: (id: number) => void
+  readOnly?: boolean
 }) {
   return (
     <Table>
@@ -36,21 +38,27 @@ export function TypeCongeList({
             </TableCell>
             <TableCell className="text-end">{type.allocationConge} </TableCell>
             <TableCell className="flex gap-4 justify-end ">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onEdit(type)}
-              >
-                Modifier
-              </Button>
+              {readOnly ? (
+                <span className="text-sm text-muted-foreground">Lecture seule</span>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onEdit(type)}
+                  >
+                    Modifier
+                  </Button>
 
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={() => onDelete(type.id)}
-              >
-                Supprimer
-              </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => onDelete(type.id)}
+                  >
+                    Supprimer
+                  </Button>
+                </>
+              )}
             </TableCell>
           </TableRow>
 

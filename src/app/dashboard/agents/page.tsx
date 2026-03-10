@@ -22,14 +22,16 @@ export default function Page() {
   
       //  const { currentRole } = useDashboard();
       // if (!currentRole) return <div>Chargement...</div>;
-   if (isPending || !auth) {
+   
+    useEffect(() => {
+      if(isPending) return;
+      if (!auth) {
+        Router.push("/");
+      }
+    }, [auth, isPending, Router]);
+    if (isPending) {
       return <DashLoad />;
     }
-    // useEffect(() => {
-    //   if (!isPending && !auth && auth==undefined || auth==null) {
-    //     Router.push("/");
-    //   }
-    // }, [auth, isPending, Router]);
    
   return (
     <>

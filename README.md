@@ -1,59 +1,43 @@
-POST /api/auth/login
+# Cria Refonte
 
-POST /api/auth/logout
+## Documentation utilisateur
 
-Utilisateurs
+La documentation destinee aux utilisateurs est disponible ici:
 
-GET /api/utilisateurs
+- [Guide utilisateur](docs/USER_GUIDE.md)
+- [Guide non technique (PDF)](docs/Guide_Utilisateur_Non_Technique.pdf)
+- [Source du PDF (HTML)](docs/Guide_Utilisateur_Non_Technique.html)
 
-POST /api/utilisateurs
+## Endpoints principaux (resume)
 
-PUT /api/utilisateurs
+### Authentification
 
-POST /api/utilisateurs/roles
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `POST /api/agent/forgotPassword`
+- `POST /api/agent/resetPassword`
 
-DELETE /api/utilisateurs/roles
+### Utilisateurs
 
-Agents
+- `GET /api/utilisateur`
+- `POST /api/utilisateur`
+- `PUT /api/utilisateur`
+- `POST /api/utilisateur/utilisateur-role`
+- `DELETE /api/utilisateur/utilisateur-role`
 
-GET /api/agents
+### Agents
 
-POST /api/agents
+- `GET /api/agent`
+- `POST /api/agent`
+- `PUT /api/agent`
+- `GET /api/agent/historique-agent?agentId=ID`
 
-PUT /api/agents
+## Flux Frontend -> Backend
 
-POST /api/agents/compte
-
-DELETE /api/agents/compte
-
-GET /api/agents/historique?agentId=ID
-Flux Frontend ↔ Backend
-
-Login → cookie JWT créé
-
-Frontend appelle les API (cookie envoyé automatiquement)
-
-Backend :
-
-vérifie authentification
-
-vérifie autorisation par rôle
-
-exécute la logique métier
-
-Réponse JSON
-
-Périmètre Sprint 1
-Inclus
-
-Gestion des utilisateurs
-
-Gestion des rôles
-
-Gestion des agents
-
-Liaisons agent ↔ utilisateur
-
-Historique des agents
-
-Sécurité (auth + RBAC)
+1. Login reussi -> cookie JWT `auth_token` cree.
+2. Le frontend appelle les API (cookie envoye automatiquement).
+3. Le backend:
+   - verifie l'authentification
+   - verifie l'autorisation par role
+   - execute la logique metier
+4. Reponse JSON retournee au frontend.

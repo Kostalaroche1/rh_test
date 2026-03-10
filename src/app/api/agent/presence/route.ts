@@ -1,142 +1,165 @@
-
+// gabriel code
 
 import { NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
 import { getAuthenticatedUser } from "@/security/auth"
 
-
 export const POST = async (req: Request) => {
   const data = await req.json()
-  const { todayDate } = data // heure envoyée (ex: "2026-02-18T07:45:00")
+  const { todayDate } = data
+  const todayDay = new Date().toISOString().split("T")[0]
+  const arrivee = new Date(todayDate)
 
   const utilisateur = await getAuthenticatedUser()
   if (!utilisateur) {
     throw new Error("no authorize")
   }
 
-  // Date du jour (sans heure)
-  const today = new Date()
-  const todayDay = new Date(today.toISOString().split("T")[0])
-
-  // Heure d'arrivée envoyée
-  const heureArrivee = new Date(todayDate)
-   const isPresent = await prisma.presence.findFirst({
-    where: {
-      agentId: utilisateur.userId,
-      date: todayDay
-    }
-  })
-
-  if(isPresent){
-     return NextResponse.json({
-    status: 200,
-    message: 'vous avez déjà une présence signée'
-  })
+  if (Number.isNaN(arrivee.getTime())) {
+    return NextResponse.json({ status: 400, message: "Date de pointage invalide" }, { status: 400 })
   }
 
-  // Heure limite 07h30
-  const heureLimite = new Date(todayDay)
-  heureLimite.setHours(7, 30, 0, 0)
+  const existingPresence = await prisma.presence.findFirst({
+    where: {
+      agentId: utilisateur.userId,
+      date: new Date(todayDay),
+    },
+  })
 
-  // Détermination du statut
-  let statut = "PRESENT"
-  if (heureArrivee > heureLimite) {
-    statut = "RETARD"
+  if (existingPresence) {
+    if (existingPresence.statut === "ABSENT" && !existingPresence.heureArrivee) {
+      const updated = await prisma.presence.update({
+        where: { id: existingPresence.id },
+        data: {
+          heureArrivee: arrivee,
+          statut: "BROUILLON",
+          updatedAt: new Date(),
+        },
+      })
+      return NextResponse.json({ status: 200, result: updated }, { status: 200 })
+    }
+
+    return NextResponse.json(
+      { status: 200, message: "Presence deja signee aujourd'hui." },
+      { status: 200 }
+    )
   }
 
   const result = await prisma.presence.create({
     data: {
-      heureArrivee: heureArrivee,
+      heureArrivee: arrivee,
       agentId: utilisateur.userId,
-      statut: statut,
-      date: todayDay
-    }
+      statut: "BROUILLON",
+      date: new Date(todayDay),
+    },
   })
 
-   return NextResponse.json({
-    status: 200,
-    message: ' présence signée avec success'
-  })
+  return NextResponse.json({ status: 200, result }, { status: 200 })
 }
 
-
 export const PUT = async (req: Request) => {
+  const data = await req.json()
+  const { todayDate, id, role } = data
 
-    const data = await req.json()
-    const { todayDate, id, role } = data
+  const upDate = new Date()
+  const depart = new Date(todayDate)
 
-    const upDate = new Date()
+  const utilisateur = await getAuthenticatedUser()
+  console.log(
+    utilisateur,
+    "utilisateur from  cookie side in PUT rest to api/agent/presence",
+    data,
+    "sigle data from data"
+  )
 
-    const utilisateur = await getAuthenticatedUser()
-    console.log(utilisateur, "utilisateur from  cookie side in PUT rest to api/agent/presence", data,
-        "sigle data from data")
-
+  try {
     if (!utilisateur) {
-        throw new Error("vous n'etes pas autorisé")
+      throw new Error(" pas vous n'etes pas autorise")
     }
-    const userPresence = await prisma.presence.findUnique({
-        where: { id: id, date: todayDate }
-    })
-  
+    if (Number.isNaN(depart.getTime())) {
+      return NextResponse.json({ status: 400, message: "Date invalide" }, { status: 400 })
+    }
 
-  if(userPresence){
-     return NextResponse.json({
-    status: 200,
-    message: 'vous avez déjà une présence signée'
-  })
+    let result
+    if (role === "agent") {
+      result = await prisma.presence.update({
+        where: { id: id },
+        data: {
+          heureDepart: depart,
+          updatedAt: upDate,
+        },
+      })
+    }
+
+    if (role === "chiefservice") {
+      result = await prisma.presence.update({
+        where: { id: id },
+        data: {
+          confirmePar: { connect: { id: utilisateur.userId } },
+          updatedAt: upDate,
+          statut: "CONFIRME",
+        },
+      })
+    } else if (role === "RH") {
+      result = await prisma.presence.update({
+        where: { id: id },
+        data: {
+          validePar: { connect: { id: utilisateur.userId } },
+          updatedAt: upDate,
+          statut: "VALIDE",
+        },
+      })
+    }
+    return NextResponse.json({ status: 200, result }, { status: 200 })
+  } catch (error) {
+    return NextResponse.json({ status: 500 })
   }
-    const result = await prisma.presence.update({
-            where: {
-                id: id
-            },
-            data: {
-                heureDepart: todayDate,
-                updatedAt: upDate
-            }
-        })
-
-    return NextResponse.json({ status: 500, rest: "PUT" })
 }
 
 export const GET = async () => {
+  const utilisateur = await getAuthenticatedUser()
+  if (!utilisateur) {
+    throw new Error("no authorize")
+  }
 
-    const utilisateur = await getAuthenticatedUser()
-    if (!utilisateur) {
-        throw new Error("no authorize");
-    }
+  const getData = await prisma.presence.findMany({
+    where: { agentId: utilisateur.userId },
+    include: { agent: true },
+  })
 
-    const getData = await prisma.presence.findMany({
-        include: {
-            agent: true,
-
-        }
-    })
-
-    return NextResponse.json({ status: 500, rest: "GET", getData })
+  return NextResponse.json({ status: 200, rest: "GET", getData }, { status: 200 })
 }
 
 export const DELETE = async (req: Request) => {
+  const data = await req.json()
+  const { id } = data
+  const utilisateur = await getAuthenticatedUser()
+  console.log(
+    utilisateur,
+    "utilisateur from  cookie side in DELETE rest to api/agent/presence",
+    data,
+    "sigle data from data",
+    id
+  )
 
-    const data = await req.json()
-    const { id } = data
-    const utilisateur = await getAuthenticatedUser()
-    console.log(utilisateur, "utilisateur from  cookie side in DELETE rest to api/agent/conge", data, "sigle data from data", id)
+  if (!utilisateur) {
+    throw new Error(" pas vous n'etes pas autorise")
+  }
+  if (!id) {
+    return NextResponse.json({ status: 400, message: "ID invalide" }, { status: 400 })
+  }
+  try {
+    const result = await prisma.presence.delete({
+      where: {
+        id: id,
+        agentId: utilisateur.userId,
+      },
+    })
+    console.log(result, "result from database")
 
-    // if (!utilisateur) {
-    //     throw new Error(" pas vous n'etes pas autorisé")
-    // }
-    // try {
-    //     const result = await prisma.typeConge.delete({
-    //         where: {
-    //             id: id
-    //         }
-    //     })
-    //     console.log(result, "result from database")
-
-    //     return NextResponse.json({ status: 200 })
-    // } catch (error) {
-    //     console.log(error, "error catch")
-    //     return NextResponse.json({ status: 500 })
-    // }
-    return NextResponse.json({ status: 500, rest: "DELETE" })
+    return NextResponse.json({ status: 200, result }, { status: 200 })
+  } catch (error) {
+    console.log(error, "error catch")
+    return NextResponse.json({ status: 500 })
+  }
 }

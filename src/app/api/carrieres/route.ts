@@ -26,7 +26,8 @@ export async function POST(req : Request) {
 
     return NextResponse.json(affectation);
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Erreur serveur";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -82,6 +83,7 @@ export async function GET() {
     console.log(carrieres , "carrieres agents")
     return NextResponse.json({data:carrieres});
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Erreur serveur";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

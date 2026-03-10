@@ -1,167 +1,123 @@
-import { NextResponse } from "next/server"
-import { getAuthenticatedUser } from "@/security/auth"
-import { requireRole } from "@/security/authorization"
-import { listerUtilisateurs } from "@/app/application/utilisateur/listerUtilisateurs"
-import { creerUtilisateur } from "@/app/application/utilisateur/creerUtilisateur"
-import { modifierUtilisateur } from "@/app/application/utilisateur/modifierUtilisateur"
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient()
+import prisma from "@/lib/prisma";
+import { modifierUtilisateur } from "@/app/application/utilisateur/modifierUtilisateur";
+import { listerUtilisateurs } from "@/app/application/utilisateur/listerUtilisateurs";
+import { requireRole } from "@/security/authorization";
+import { getAuthenticatedUser } from "@/security/auth";
 
-/**
- * GET /api/utilisateurs
- * Rôles autorisés : ADMIN, RH
- */
+type CreateUserPayload = {
+  login?: string;
+  motDePasse?: string;
+};
+
 export async function GET() {
-    // 1️⃣ Vérifier authentification
-    const auth = getAuthenticatedUser()
-    if (!auth) {
-        return NextResponse.json(
-            { message: "Non authentifié" },
-            { status: 401 }
-        )
-    }
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ message: "Non authentifie" }, { status: 401 });
+  }
 
-    // 2️⃣ Vérifier autorisation (rôles)
-    try {
-        await requireRole(["ADMIN", "RH"])
-    } catch {
-        return NextResponse.json(
-            { message: "Accès interdit" },
-            { status: 403 },
-        )
-    }
+  try {
+    await requireRole(["ADMIN", "RH"]);
+  } catch {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
+  }
 
-    // 3️⃣ Action métier
-    const users = await listerUtilisateurs()
-    return NextResponse.json(users)
+  const users = await listerUtilisateurs();
+  return NextResponse.json(users);
 }
 
-/**
- * POST /api/utilisateurs
- * Rôles autorisés : ADMIN
- */
 export async function POST(req: Request) {
-    const auth : any = await getAuthenticatedUser()
-    // console.log(auth,"here auth")
-    // if (!auth) {
-    //     return NextResponse.json(
-    //         { message: "Non authentifié" },
-    //         { status: 401 }
-    //     )
-    // }
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ message: "Non authentifie" }, { status: 401 });
+  }
 
-    // // try {
-    // //     await requireRole(["ADMIN"])
-    // // } catch {
-    // //     return NextResponse.json(
-    // //         { message: "Accès interdit" },
-    // //         { status: 403 }
-    // //     )
-    // // }
+  try {
+    await requireRole(["ADMIN"]);
+  } catch {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
+  }
 
-    // // const { login, motDePasse, roleId }
-    const data = await req.json()
-    // console.log(data,"data from user client side")
+  const data = (await req.json()) as CreateUserPayload;
+  const login = data.login?.trim();
+  const motDePasse = data.motDePasse?.trim();
 
-    // const user = await creerUtilisateur(
-    //     login,
-    //     motDePasse,
-    //     roleId,
-    //     auth.userId
-    // )
+  if (!login || !motDePasse) {
+    return NextResponse.json(
+      { message: "login et motDePasse sont requis" },
+      { status: 400 }
+    );
+  }
 
-    // return NextResponse.json(
-    //     // user
-    //     {status:"ok"}
-
-    // )
-
-  const hashedPassword = await bcrypt.hash(data.motDePasse, 10)
-
-  const utilisateur = await prisma.utilisateur.create({
-    data: {
-      login: data.login,
-      motDePasse: hashedPassword,
+  const roleUtilisateur = await prisma.role.findFirst({
+    where: {
+      OR: [{ nom: "Utilisateur" }, { key: "utilisateur" }],
       actif: true,
-      // dateCreation : automatique si @default(now())
     },
-  })
-  console.log('Utilisateur créé :', utilisateur)
+    orderBy: { id: "asc" },
+  });
 
-  // -----------------------
-  // 3️⃣ Ajouter un agent
-  // -----------------------
-//   const agent = await prisma.agent.create({
-//     data: {
-//       matricule: 'AGT00124',
-//       nom: 'Dupont1',
-//       prenom: 'Alice2',
-//       statut: 'Actif',
-//       dateEntree: new Date('2022-01-01'),
-//       actif: true,
-//     },
-//   })
-//   console.log('Agent créé :', agent.nom, agent.prenom)
+  if (!roleUtilisateur) {
+    return NextResponse.json(
+      { message: "Role utilisateur introuvable" },
+      { status: 400 }
+    );
+  }
 
-  const roles = await prisma.role.findFirst({
-    where : {nom : "Utilisateur"}
-  })
-  console.log('roles find créé :', roles)
+  const exists = await prisma.utilisateur.findUnique({ where: { login } });
+  if (exists) {
+    return NextResponse.json(
+      { message: "Ce login existe deja" },
+      { status: 409 }
+    );
+  }
 
-  // -----------------------
-  // 4️⃣ Associer l’utilisateur à un rôle
-  // -----------------------
-  const utilisateurRole = await prisma.utilisateurRole.create({
-    data: {
-      utilisateurId: utilisateur.id,
-      roleId:roles?.id,
-      attribuePar: auth.role[0].id
-    },
-  })
+  const hashedPassword = await bcrypt.hash(motDePasse, 10);
+  const created = await prisma.$transaction(async (tx) => {
+    const utilisateur = await tx.utilisateur.create({
+      data: {
+        login,
+        motDePasse: hashedPassword,
+        actif: true,
+      },
+    });
 
-//   const compteAgent = await prisma.compteAgent.create({
-//     data : {
-//       agentId : agent.id,
-//       utilisateurId : utilisateur.id,
-//       liePar : 1
-//     }
-//   })
-    console.log(
-    `UtilisateurRole créé : utilisateurId`
-  )
-  console.log(
-    `UtilisateurRole créé : utilisateurId`
-  )
+    await tx.utilisateurRole.create({
+      data: {
+        utilisateurId: utilisateur.id,
+        roleId: roleUtilisateur.id,
+        attribuePar: auth.userId,
+      },
+    });
+
+    return utilisateur;
+  });
+
+  return NextResponse.json({ data: created }, { status: 201 });
 }
 
-
-
-/**
- * PUT /api/utilisateurs
- * Rôles autorisés : ADMIN
- */
 export async function PUT(req: Request) {
-    const auth = getAuthenticatedUser()
-    if (!auth) {
-        return NextResponse.json(
-            { message: "Non authentifié" },
-            { status: 401 }
-        )
-    }
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ message: "Non authentifie" }, { status: 401 });
+  }
 
-    try {
-        await requireRole(["ADMIN"])
-    } catch {
-        return NextResponse.json(
-            { message: "Accès interdit" },
-            { status: 403 }
-        )
-    }
+  try {
+    await requireRole(["admin" , "rh"]);
+  } catch {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
+  }
 
-    const { id, data } = await req.json()
-    const user = await modifierUtilisateur(id, data)
+  const { id, data } = await req.json();
+  if (!id || !data) {
+    return NextResponse.json(
+      { message: "id et data sont requis" },
+      { status: 400 }
+    );
+  }
 
-    return NextResponse.json(user)
+  const user = await modifierUtilisateur(id, data);
+  return NextResponse.json(user);
 }

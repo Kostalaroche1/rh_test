@@ -209,6 +209,7 @@ export type PaieWithPrimes = {
 // }
 
 export type TypeConge = {
+  createur: any;
   id: number
   code: string
   libelle: string
@@ -218,30 +219,44 @@ export type TypeConge = {
 
 export type DemandeConge = {
   id: number
-  dateDebut: Date
-  dateFin: Date
-  dateDemande: Date
-  motif: string
+  dateDebut: string | Date
+  dateFin: string | Date
+  dateDemande: string | Date
+  motif?: string
   statut: string
-  typeConge: Object
-  agent: Object
-    role: string
+  typeConge: {
+    id: number
+    libelle?: string
+    code: string
+    dureeMax?: number
+  }
+  agent: {
+    id: number
+    nom: string
+    prenom: string
+    postnom?: string
+  }
+  role: string
 }
 
-export const emptyDemande: EmptyDemande = {
+export const emptyDemande: DemandeConge = {
   id: 0,
-  typeConge:  {
+  dateDebut: "",
+  dateFin: "",
+  dateDemande: "",
+  motif: "",
+  statut: "",
+  typeConge: {
     id: 0,
+    code: "",
+    dureeMax: 0,
   },
-  agent:  {
+  agent: {
     id: 0,
     nom: "",
+    prenom: "",
+    postnom: "",
   },
   role: "",
 }
-export type EmptyDemande = {
-  id: number
-  typeConge: Object,
-  agent:Object,
-  role: string
-}
+export type EmptyDemande = DemandeConge

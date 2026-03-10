@@ -48,6 +48,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Label } from '@/components/ui/label'
+import { appReactSelectStyles } from "@/components/ui/react-select-theme"
 
 export type ActiveForm =
   | "SITE" | "DIRECTION" | "STRUCTURE" | "AFFECTATION"
@@ -55,6 +56,10 @@ export type ActiveForm =
   | null
 
 export default function OrganisationDashboard() {
+  const selectThemeProps = {
+    styles: appReactSelectStyles,
+  }
+
   const [openDialog, setOpenDialog] = useState(false)
   const [activeForm, setActiveForm] = useState<ActiveForm>(null)
   const [formData, setFormData] = useState<any>({})
@@ -76,14 +81,22 @@ const openForm = (types: any, item?: any) => {
   };
 
   /* ========================= GET DATA ========================= */
-  const { data: sites = [], refetch: refetchSites } = useGet(['sites'], GetSites)
-  const { data: directions = [], refetch: refetchDirections } = useGet(['directions'], GetDirections)
-  const { data: departements = [], refetch: refetchDepartements } = useGet(['departements'], GetDepartements)
-  const { data: affectations = [], refetch: refetchAffectations } = useGet(['affectations'], GetAffectations)
-  const { data: agents = [] } = useGet(['agents'], GetAgent)
-  const { data: postes = [], refetch: refetchPostes } = useGet(['postes'], GetPostes)
-  const { data: fonctions = [], refetch: refetchFonctions } = useGet(['fonctions'], GetFonctions)
-  const { data: grades = [], refetch: refetchGrades } = useGet(['grades'], GetGrades)
+  const { data: sitesRaw = [], refetch: refetchSites } = useGet(['sites'], GetSites)
+  const { data: directionsRaw = [], refetch: refetchDirections } = useGet(['directions'], GetDirections)
+  const { data: departementsRaw = [], refetch: refetchDepartements } = useGet(['departements'], GetDepartements)
+  const { data: affectationsRaw = [], refetch: refetchAffectations } = useGet(['affectations'], GetAffectations)
+  const { data: agentsRaw = [] } = useGet(['agents'], GetAgent)
+  const { data: postesRaw = [], refetch: refetchPostes } = useGet(['postes'], GetPostes)
+  const { data: fonctionsRaw = [], refetch: refetchFonctions } = useGet(['fonctions'], GetFonctions)
+  const { data: gradesRaw = [], refetch: refetchGrades } = useGet(['grades'], GetGrades)
+  const sites = Array.isArray(sitesRaw) ? (sitesRaw as any[]) : []
+  const directions = Array.isArray(directionsRaw) ? (directionsRaw as any[]) : []
+  const departements = Array.isArray(departementsRaw) ? (departementsRaw as any[]) : []
+  const affectations = Array.isArray(affectationsRaw) ? (affectationsRaw as any[]) : []
+  const agents = Array.isArray(agentsRaw) ? (agentsRaw as any[]) : []
+  const postes = Array.isArray(postesRaw) ? (postesRaw as any[]) : []
+  const fonctions = Array.isArray(fonctionsRaw) ? (fonctionsRaw as any[]) : []
+  const grades = Array.isArray(gradesRaw) ? (gradesRaw as any[]) : []
 
   /* ========================= MUTATIONS ========================= */
   const { mutateAsync: createSite } = usePost(CreateSite)
@@ -501,6 +514,7 @@ console.log(formData , "form all")
   onChange={opt => handleChange("agentId", opt?.value)}
   placeholder="-- Sélectionnez un agent --"
   isClearable
+      {...selectThemeProps}
   formatOptionLabel={(option: any) => (
     <div title={option.name} className="truncate">
       {option.label}
@@ -516,6 +530,7 @@ console.log(formData , "form all")
       onChange={opt => handleChange("posteId", opt?.value)}
       placeholder="-- Sélectionnez le poste --"
       isClearable
+      {...selectThemeProps}
     />
     {/* Fonction */}
     <Select
@@ -524,6 +539,7 @@ console.log(formData , "form all")
       onChange={opt => handleChange("fonctionId", opt?.value)}
       placeholder="-- Sélectionnez la fonction --"
       isClearable
+      {...selectThemeProps}
     />
     {/* Grade */}
     <Select
@@ -532,6 +548,7 @@ console.log(formData , "form all")
       onChange={opt => handleChange("gradeId", opt?.value)}
       placeholder="-- Sélectionnez le grade --"
       isClearable
+      {...selectThemeProps}
     />
     {/* Direction */}
     <Select
@@ -540,6 +557,7 @@ console.log(formData , "form all")
       onChange={opt => handleChange("directionId", opt?.value)}
       placeholder="-- Sélectionnez la direction --"
       isClearable
+      {...selectThemeProps}
     />
     {/* Département */}
     <Select
@@ -548,6 +566,7 @@ console.log(formData , "form all")
       onChange={opt => handleChange("departementId", opt?.value)}
       placeholder="-- Sélectionnez le département --"
       isClearable
+      {...selectThemeProps}
     />
     {/* Site */}
     <Select
@@ -556,9 +575,11 @@ console.log(formData , "form all")
       onChange={opt => handleChange("siteId", opt?.value)}
       placeholder="-- Sélectionnez le site --"
       isClearable
+      {...selectThemeProps}
     />
     {/* Date début */}
-    <input type="date" value={formData.dateDebut || ""} onChange={e => handleChange("dateDebut", e.target.value)} />
+    <label htmlFor="dates"> Date debut</label>
+    <input type="date" id='dates' value={formData.dateDebut || ""} onChange={e => handleChange("dateDebut", e.target.value)} />
 
     {/* Motif */}
     <Input placeholder="Motif" value={formData.motif || ""} onChange={e => handleChange("motif", e.target.value)} />

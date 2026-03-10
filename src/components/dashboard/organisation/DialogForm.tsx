@@ -3,9 +3,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { SubmitEventHandler } from 'react';
 import Select from 'react-select'
+import { appReactSelectStyles } from "@/components/ui/react-select-theme"
 export function DialogForm({handleSubmit , agents , handleChange , postes , fonctions , grades , directions , departements , sites , formData , activeForm , openDialog , setOpenDialog} : 
     {handleSubmit : SubmitEventHandler<HTMLFormElement> , agents : any , handleChange : any, postes : any, fonctions : any, grades : any, directions : any, departements : any, sites : any, formData : any , activeForm : any , openDialog : any , setOpenDialog : any}
 ){
+    const selectThemeProps = {
+      styles: appReactSelectStyles,
+    }
+
     return (
         <Dialog open={openDialog} onOpenChange={() => setOpenDialog(false)}>
         <DialogContent>
@@ -160,6 +165,7 @@ export function DialogForm({handleSubmit , agents , handleChange , postes , fonc
                   onChange={opt => handleChange("agentId", opt?.value)}
                   placeholder="-- Sélectionnez un agent --"
                   isClearable
+                  {...selectThemeProps}
                 />
                 {/* Poste */}
                 <Select
@@ -168,6 +174,7 @@ export function DialogForm({handleSubmit , agents , handleChange , postes , fonc
                   onChange={opt => handleChange("posteId", opt?.value)}
                   placeholder="-- Sélectionnez le poste --"
                   isClearable
+                  {...selectThemeProps}
                 />
                 {/* Fonction */}
                 <Select
@@ -176,6 +183,7 @@ export function DialogForm({handleSubmit , agents , handleChange , postes , fonc
                   onChange={opt => handleChange("fonctionId", opt?.value)}
                   placeholder="-- Sélectionnez la fonction --"
                   isClearable
+                  {...selectThemeProps}
                 />
                 {/* Grade */}
                 <Select
@@ -184,6 +192,7 @@ export function DialogForm({handleSubmit , agents , handleChange , postes , fonc
                   onChange={opt => handleChange("gradeId", opt?.value)}
                   placeholder="-- Sélectionnez le grade --"
                   isClearable
+                  {...selectThemeProps}
                 />
                 {/* Direction */}
                 <Select
@@ -192,6 +201,7 @@ export function DialogForm({handleSubmit , agents , handleChange , postes , fonc
                   onChange={opt => handleChange("directionId", opt?.value)}
                   placeholder="-- Sélectionnez la direction --"
                   isClearable
+                  {...selectThemeProps}
                 />
                 {/* Département */}
                 <Select
@@ -200,6 +210,7 @@ export function DialogForm({handleSubmit , agents , handleChange , postes , fonc
                   onChange={opt => handleChange("departementId", opt?.value)}
                   placeholder="-- Sélectionnez le département --"
                   isClearable
+                  {...selectThemeProps}
                 />
                 {/* Site */}
                 <Select
@@ -208,6 +219,7 @@ export function DialogForm({handleSubmit , agents , handleChange , postes , fonc
                   onChange={opt => handleChange("siteId", opt?.value)}
                   placeholder="-- Sélectionnez le site --"
                   isClearable
+                  {...selectThemeProps}
                 />
                 {/* Dates */}
                 <input type="date" value={formData.dateDebut || ""} onChange={e => handleChange("dateDebut", e.target.value)} />

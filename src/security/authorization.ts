@@ -9,7 +9,7 @@ export async function requireRole(rolesAutorises: string[]) {
     if (!auth) throw new Error("Non authentifié")
 
     const user = await utilisateurRepository.findById(auth.userId)
-    const roles = user?.roles.map((r: { role: { nom: any } }) => r.role.nom) ?? []
+    const roles = user?.roles.map((r: { role: { key: any } }) => r.role.key) ?? []
 
     const ok = rolesAutorises.some(r => roles.includes(r))
     if (!ok) throw new Error("Accès interdit")

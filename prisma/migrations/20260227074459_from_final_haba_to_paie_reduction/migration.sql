@@ -206,6 +206,7 @@ CREATE TABLE `Prime` (
     `paieId` INTEGER NOT NULL,
     `type` VARCHAR(191) NOT NULL,
     `montant` DECIMAL(65, 30) NOT NULL,
+    `tag` VARCHAR(191) NOT NULL DEFAULT '-',
 
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -280,7 +281,7 @@ CREATE TABLE `Presence` (
     `date` DATE NOT NULL,
     `heureArrivee` DATETIME(3) NULL,
     `heureDepart` DATETIME(3) NULL,
-    `statut` ENUM('BROUILLON', 'PRESENT', 'ABSENT', 'RETARD') NOT NULL DEFAULT 'BROUILLON',
+    `statut` ENUM('BROUILLON', 'CONFIRME', 'VALIDE', 'CONGE', 'MISSION', 'MALADIE', 'ABSENT', 'PRESENCE', 'RETARD') NOT NULL DEFAULT 'BROUILLON',
     `confirmeParId` INTEGER NULL,
     `valideParId` INTEGER NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

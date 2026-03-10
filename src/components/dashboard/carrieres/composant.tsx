@@ -55,9 +55,12 @@ export default function GestionCarriere() {
   });
 
   // ✅ Fetch des données
-  const { data: agents = [], isPending: loadingAgents , refetch : refetchCarriere } = useGet(['agentsCarriere'], GetAgentsForCarriere);
-  const { data: carrieres = [], isPending: loadingCarrieres ,refetch : refetchCarriereAff} = useGet(['carrieres'], GetAffectations);
-  const { data: prochesRetraite = [], isPending: loadingRetraite } = useGet(['prochesRetraite'], GetAgentsProchesRetraite);
+  const { data: agentsRaw = [], isPending: loadingAgents , refetch : refetchCarriere } = useGet(['agentsCarriere'], GetAgentsForCarriere);
+  const { data: carrieresRaw = [], isPending: loadingCarrieres ,refetch : refetchCarriereAff} = useGet(['carrieres'], GetAffectations);
+  const { data: prochesRetraiteRaw = [], isPending: loadingRetraite } = useGet(['prochesRetraite'], GetAgentsProchesRetraite);
+  const agents = Array.isArray(agentsRaw) ? (agentsRaw as any[]) : [];
+  const carrieres = Array.isArray(carrieresRaw) ? (carrieresRaw as any[]) : [];
+  const prochesRetraite = Array.isArray(prochesRetraiteRaw) ? (prochesRetraiteRaw as any[]) : [];
 
   // ✅ Mutation pour créer une décision
   const {mutateAsync : CreateValidation , isPending : isPendingValidation} = usePut(ValidationCarriere);

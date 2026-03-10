@@ -1,192 +1,199 @@
-// app/api/agent/stats/route.ts
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
+import { isAdmin, isChefService, isRh } from "@/security/roles";
 import { AgentWithDetails } from "@/utilities/type";
 import { NextResponse } from "next/server";
+import { getChefDepartementIds } from "@/server/access/context";
+import { emitAffectationExpiryAlerts } from "@/server/services/affectation-alert.service";
 
 export async function GET() {
   try {
-    // On récupère l'ID de l'agent depuis les params ou session
-    // Pour l'exemple on hardcode l'agentId = 1
-    const users  : any = await getAuthenticatedUser()
-    const agentsActif = await prisma.agent.count({
-      where: {  actif : true },
-    });
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    }
 
-    const absences = await prisma.presence.count({
-      where: {  statut: 'ABSENT' },
-    });
+    const chefDepartements = isChefService(user) ? await getChefDepartementIds(user) : [];
+    const scoped =
+      chefDepartements.length > 0
+        ? {
+            affectations: {
+              some: {
+                departementId: { in: chefDepartements },
+                OR: [{ dateFin: null }, { dateFin: { gte: new Date() } }],
+              },
+            },
+          }
+        : {};
 
-    const presences = await prisma.presence.count({
-      where: { statut: 'PRESENT' },
-    });
+    if (isAdmin(user) || isRh(user)) {
+      await emitAffectationExpiryAlerts(7);
+    }
 
-    const conges = await prisma.demandeConge.findMany({
-      where: { statut: 'VALIDE' },
-    });
-    const demandeconges = await prisma.demandeConge.count();
-     const congesAttente = await prisma.demandeConge.count({
-      where : {
-        statut : 'EN_ATTENTE'
-      }
-     });
-     const congesConfirme = await prisma.demandeConge.count({
-      where : {
-        statut : 'CONFIRME'
-      }
-     });
-     const congesRejete = await prisma.demandeConge.count({
-      where : {
-        statut : 'REJETE'
-      }
-     });
-     const sites = await prisma.site.count()
-     const directions = await prisma.direction.count()
-     const departements = await prisma.departement.count()
-     const fonctions = await prisma.fonction.count()
-     const postes = await prisma.poste.count()
-     const affectations = await prisma.affectation.count()
+    const [agentsActif, absences, presences, conges, demandeconges, congesAttente, congesConfirme, congesRejete] =
+      await Promise.all([
+        prisma.agent.count({ where: { actif: true, ...(scoped as object) } }),
+        prisma.presence.count({
+          where: {
+            statut: "ABSENT",
+            ...(chefDepartements.length ? { agent: scoped } : {}),
+          },
+        }),
+        prisma.presence.count({
+          where: {
+            heureArrivee: { not: null },
+            statut: { notIn: ["ABSENT"] },
+            ...(chefDepartements.length ? { agent: scoped } : {}),
+          },
+        }),
+        prisma.demandeConge.findMany({
+          where: {
+            statut: "VALIDE",
+            ...(chefDepartements.length ? { agent: scoped } : {}),
+          },
+        }),
+        prisma.demandeConge.count({
+          where: chefDepartements.length ? { agent: scoped } : {},
+        }),
+        prisma.demandeConge.count({
+          where: {
+            statut: "EN_ATTENTE",
+            ...(chefDepartements.length ? { agent: scoped } : {}),
+          },
+        }),
+        prisma.demandeConge.count({
+          where: {
+            statut: "CONFIRME",
+            ...(chefDepartements.length ? { agent: scoped } : {}),
+          },
+        }),
+        prisma.demandeConge.count({
+          where: {
+            statut: "REJETE",
+            ...(chefDepartements.length ? { agent: scoped } : {}),
+          },
+        }),
+      ]);
+
+    const [sites, directions, departements, fonctions, postes, affectations] = await Promise.all([
+      prisma.site.count(),
+      prisma.direction.count(),
+      prisma.departement.count(),
+      prisma.fonction.count(),
+      prisma.poste.count(),
+      prisma.affectation.count(),
+    ]);
+
     let totalJoursConge = 0;
-
-    for (const conge of conges) {
-      if (conge.dateDebut && conge.dateFin) {
-        const debut = new Date(conge.dateDebut);
-        const fin = new Date(conge.dateFin);
-
-        const diffTime = fin.getTime() - debut.getTime();
-        const diffDays = diffTime / (1000 * 60 * 60 * 24) + 1; // +1 pour inclure le jour de début
-
-        totalJoursConge += diffDays;
+    for (const item of conges) {
+      if (item.dateDebut && item.dateFin) {
+        const diff = item.dateFin.getTime() - item.dateDebut.getTime();
+        totalJoursConge += diff / (1000 * 60 * 60 * 24) + 1;
       }
     }
-    const AgentsServicesPresences : AgentWithDetails[] = await prisma.agent.findMany({
-      select : {
-        id : true,
-        matricule : true,
-        genre : true,
-        prenom : true,
-        nom : true,
-        statut : true,
-        affectations : {
-          select : {
-            departement : {
-              select : {
-                id : true,
-                nom : true
-              }
+
+    const AgentsServicesPresences: AgentWithDetails[] = await prisma.agent.findMany({
+      where: chefDepartements.length ? (scoped as object) : undefined,
+      select: {
+        id: true,
+        matricule: true,
+        genre: true,
+        prenom: true,
+        nom: true,
+        statut: true,
+        affectations: {
+          select: {
+            departement: { select: { id: true, nom: true } },
+            direction: { select: { id: true, libelle: true } },
+            grade: { select: { id: true, libelle: true } },
+            fonction: {
+              select: {
+                id: true,
+                libelle: true,
+                poste: { select: { id: true, libelle: true } },
+              },
             },
-            direction : {
-              select : {
-                id : true,
-                libelle : true
-              }
-            },
-            grade : {
-              select : {
-                id : true,
-                libelle : true
-              }
-            },
-            fonction : {
-              select : {
-                id : true,
-                libelle : true,
-                poste : {
-                  select : {
-                    id : true,
-                    libelle : true
-                  }
-                }
-              }
-            },
-          }
+          },
         },
-        presences : {
-          select : {
-            heureDepart : true,
-            statut : true,
-            heureArrivee : true,
-            date : true,
-            validePar : {
-              select : {
-                compteAgent : {
-                  select : {
-                    agent : {
-                      select : {
-                        id : true,
-                        nom : true
-                      }
-                    }
-                  }
-                }
-              }
+        presences: {
+          select: {
+            heureDepart: true,
+            statut: true,
+            heureArrivee: true,
+            date: true,
+            validePar: {
+              select: {
+                compteAgent: {
+                  select: { agent: { select: { id: true, nom: true } } },
+                },
+              },
             },
-            confirmePar : {
-              select : {
-                compteAgent : {
-                  select : {
-                    agent : {
-                      select : {
-                        id : true,
-                        nom : true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
+            confirmePar: {
+              select: {
+                compteAgent: {
+                  select: { agent: { select: { id: true, nom: true } } },
+                },
+              },
+            },
+          },
         },
-        actif : true,
-        demandeConge : {
-          select : {
-            id : true,
-            statut : true
-          }
-        }
-      }
-    })
-    const congesStatut : congesStatut = {
-      valide : conges,
-      enattente : congesAttente,
+        actif: true,
+        demandeConge: {
+          select: { id: true, statut: true },
+        },
+      },
+    });
+
+    const congesStatut: CongeStatut = {
+      valide: conges.length,
+      enattente: congesAttente,
       confirm: congesConfirme,
-      rejete : congesRejete
-    }
-    const organisation : organisation = {
-      affectation : affectations,
-      direction : directions,
-      departement : departements,
-      fonctions : fonctions,
-      postes : postes,
-      sites : sites
-    }
-    console.log({ absences, presences, conges : totalJoursConge , demandeconges , congesStatut, AgentsServicesPresences , organisation   } , "dash Agents")
+      rejete: congesRejete,
+    };
+
+    const organisation: OrganisationStat = {
+      affectation: affectations,
+      direction: directions,
+      departement: departements,
+      fonctions,
+      postes,
+      sites,
+    };
+
     return NextResponse.json(
-      {data :
-         { absences, presences, conges : totalJoursConge 
-          , demandeconges , actif :agentsActif , 
-          enconges : conges.length , AgentsPresences : AgentsServicesPresences 
-           , congesStatut : congesStatut ,
-           organisation : organisation
-        }});
+      {
+        data: {
+          absences,
+          presences,
+          conges: totalJoursConge,
+          demandeconges,
+          actif: agentsActif,
+          enconges: conges.length,
+          AgentsPresences: AgentsServicesPresences,
+          congesStatut,
+          organisation,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Impossible de récupérer les stats" }, { status: 500 });
+    return NextResponse.json({ error: "Impossible de recuperer les stats" }, { status: 500 });
   }
 }
 
+export type CongeStatut = {
+  valide: number;
+  enattente: number;
+  confirm: number;
+  rejete: number;
+};
 
-export type  congesStatut = {
-      valide : Object,
-      enattente : number,
-      confirm: number,
-      rejete : number
-    }
-    export type  organisation = {
-      sites : Object,
-      departement : number,
-      direction: number,
-      affectation : number
-       postes: number,
-      fonctions : number
-    }
+export type OrganisationStat = {
+  sites: number;
+  departement: number;
+  direction: number;
+  affectation: number;
+  postes: number;
+  fonctions: number;
+};

@@ -1,46 +1,77 @@
-// app/api/employes/route.ts
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/security/auth";
+import { isChefService } from "@/security/roles";
+import { getChefDepartementIds } from "@/server/access/context";
 
 export async function GET() {
   try {
+    const user = await getAuthenticatedUser();
+    if (!user) {
+      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    }
+
+    const departementIds = isChefService(user) ? await getChefDepartementIds(user) : [];
+
     const employes = await prisma.agent.findMany({
+      where:
+        departementIds.length > 0
+          ? {
+              affectations: {
+                some: {
+                  departementId: { in: departementIds },
+                  OR: [{ dateFin: null }, { dateFin: { gte: new Date() } }],
+                },
+              },
+            }
+          : undefined,
       select: {
         nom: true,
         prenom: true,
         statut: true,
         affectations: {
+          where:
+            departementIds.length > 0
+              ? {
+                  departementId: { in: departementIds },
+                }
+              : undefined,
           select: {
             poste: {
               select: {
-                libelle: true
-              }
-            }
+                libelle: true,
+              },
+            },
           },
-          take: 1 // prend le poste actuel le plus récent
+          take: 1,
+          orderBy: { dateDebut: "desc" },
         },
         _count: {
           select: {
             demandeConge: {
               where: {
-                statut: "VALIDE"
-              }
-            }
-          }
-        }
-      }
+                statut: "VALIDE",
+              },
+            },
+          },
+        },
+      },
     });
 
     const result = employes.map((e) => ({
       nom: `${e.nom} ${e.prenom}`,
-      poste: e.affectations[0]?.poste?.libelle || "Non défini",
+      poste: e.affectations[0]?.poste?.libelle || "Non defini",
       statut: e.statut,
       conges: e._count.demandeConge,
     }));
 
-    return NextResponse.json({data : result});
+    return NextResponse.json({ data: result }, { status: 200 });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Impossible de récupérer les employés" ,  status: 500 });
+    return NextResponse.json(
+      { error: "Impossible de recuperer les employes" },
+      { status: 500 }
+    );
   }
 }
+

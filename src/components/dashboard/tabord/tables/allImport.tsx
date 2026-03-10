@@ -113,4 +113,4 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { AddAgentModale } from "../../agent/createByAdmin/AddAgentModale"
+import AddAgentModale from "../../agent/createByAdmin/AddAgentModale"

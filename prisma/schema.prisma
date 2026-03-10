@@ -32,6 +32,8 @@ model Utilisateur {
 
   presencesConfirmees Presence [] @relation("ConfirmePresence")
   presencesValidees Presence [] @relation("ValidePresence")
+  horaireTravail HoraireTravail [] @relation("creerHoraire")
+  horaireAgent HoraireAgent [] @relation("creerHoraireAgent")
 }
 
 model Role {
@@ -79,7 +81,9 @@ model Agent {
   affectations Affectation[]
   paie Paie[]
   demandeConge DemandeConge[]
-   presences     Presence[]
+  presences     Presence[]
+  horaireAgent HoraireAgent[]
+
 }
 
 model CompteAgent {
@@ -182,6 +186,7 @@ model Grade {
 
   affectations    Affectation[]
 }
+
 enum TypeAffectation {
   PROMOTION        // Changement de grade supérieur
   MUTATION         // Changement de service ou lieu
@@ -271,8 +276,8 @@ model Prime {
   paieId            Int
   type              String
   montant           Decimal
-
-  paie              Paie         @relation(fields: [paieId], references: [id], onDelete: Cascade)
+  tag               String    @default("-")
+  paie              Paie      @relation(fields: [paieId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
@@ -326,6 +331,8 @@ enum StatutConge{
   REJETE
 }
 
+
+
 model DemandeConge {
   id        Int      @id @default(autoincrement())
   agentId   Int
@@ -348,19 +355,23 @@ model DemandeConge {
   valideParUtilisateur Utilisateur? @relation("CongeValidePar", fields: [validePar], references: [id])
 }
 
-
 enum StatutPresence {
-  BROUILLON       
-  PRESENT        
+  BROUILLON     
+  CONFIRME      
+  VALIDE        
+  CONGE         
+  MISSION       
+  MALADIE
   ABSENT
-  RETARD       
+  PRESENCE
+  RETARD 
 }
-
 model Presence {
   id              Int       @id @default(autoincrement())
 
   agentId         Int
   agent           Agent     @relation(fields: [agentId], references: [id])
+  
 
   date            DateTime  @db.Date
 
@@ -381,9 +392,45 @@ model Presence {
   @@unique([agentId, date]) // One presence per agent per day
 }
 
+model HoraireTravail{
+  id Int @id @default(autoincrement())
+  nomHoraire String
+  heureDebut DateTime @db.Time
+  heureFin DateTime   @db.Time
+
+  horaireAgent HoraireAgent[]
+  creerParId Int
+  creerPar Utilisateur @relation("creerHoraire",fields:[creerParId],references:[id])
+
+}
 
 
 
 
+model HoraireAgent {
+  id Int @id @default(autoincrement())
 
+  agentId Int
+  agent Agent @relation(fields: [agentId], references: [id])
 
+  horaireId Int
+  horaire HoraireTravail @relation(fields: [horaireId], references: [id])
+
+  dateDebut DateTime @db.Date
+  dateFin   DateTime? @db.Date
+
+  creerParId Int
+  creerPar Utilisateur @relation("creerHoraireAgent",fields:[creerParId],references:[id])
+
+  lundi     Boolean @default(false)
+  mardi     Boolean @default(false)
+  mercredi  Boolean @default(false)
+  jeudi     Boolean @default(false)
+  vendredi  Boolean @default(false)
+  samedi    Boolean @default(false)
+  dimanche  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+}

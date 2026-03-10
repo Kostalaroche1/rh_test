@@ -1,21 +1,9 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import App from "./contexts/tanstack_Client_Query/context";
 import { AuthProvider } from "./contexts/auth/context";
 import { DashboardProvider } from "./contexts/dashbords/context";
 import { NotificationProvider } from "./contexts/notification/context";
-
-const poppins = Poppins({
-  variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
-
-const jetBrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-});
 
 const themeScript = `
 (() => {
@@ -46,7 +34,6 @@ export default function RootLayout({
     <html
       lang="fr"
       suppressHydrationWarning
-      className={`${poppins.variable} ${jetBrainsMono.variable}`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

@@ -11,7 +11,9 @@ import {
 } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 
-export function SectionCards( {agent , loading} : {agent : any , loading : any} ) {
+export function SectionCards(
+  { agent = {}, loading = false }: { agent?: any; loading?: boolean } = {}
+) {
   return (
      <div className="flex flex-1 flex-col gap-4 p-4">
       { loading && 

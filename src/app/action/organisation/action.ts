@@ -111,7 +111,7 @@ export async function CreateDepartement(
 
 export async function UpdateDepartement(
   payload: any
-){
+) {
   try {
     const res = await fetch(`../api/departements`, {
       method: 'PUT',
@@ -192,7 +192,10 @@ export async function UpdateSite(
 
 export async function DeleteSite(id: string): Promise<void> {
   try {
-    await fetch(`../api/sites/${id}`, { method: 'DELETE' })
+    await fetch(`../api/sites`, {
+      method: 'DELETE',
+      body: JSON.stringify({ id: id })
+    })
   } catch (error) {
     console.error("DeleteSite error:", error)
   }
@@ -303,7 +306,7 @@ export async function CreateFonction(
 
 export async function UpdateFonction(
   payload: any
-){
+) {
   try {
     const res = await fetch(`../api/fonctions`, {
       method: 'PUT',
@@ -382,9 +385,9 @@ export async function UpdateGrade(
   }
 }
 
-export async function DeleteGrade(payload : any): Promise<void> {
+export async function DeleteGrade(payload: any): Promise<void> {
   try {
-    await fetch(`../api/grades`, { method: 'DELETE' , body : JSON.stringify(payload)} )
+    await fetch(`../api/grades`, { method: 'DELETE', body: JSON.stringify(payload) })
   } catch (error) {
     console.error("DeleteGrade error:", error)
   }

@@ -4,9 +4,13 @@ import React, { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
 import { useNotification } from "@/app/contexts/notification/context";
 
-export default function HeaderWithNotifications({ breadcrumbItems: _breadcrumbItems }: any) {
-  const { notifications, markAsRead }: any = useNotification();
-  const unreadCount = notifications.filter((notification: any) => notification.statut === "NON_LU").length;
+type NotificationHeaderProps = {
+  breadcrumbItems?: Array<{ href: string; label: string }>;
+};
+
+export default function HeaderWithNotifications({ breadcrumbItems: _breadcrumbItems }: NotificationHeaderProps) {
+  const { notifications, markAsRead } = useNotification();
+  const unreadCount = notifications.filter((notification) => notification.statut === "NON_LU").length;
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -41,7 +45,7 @@ export default function HeaderWithNotifications({ breadcrumbItems: _breadcrumbIt
           {notifications.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Aucune notification</p>
           ) : (
-            notifications.map((notification: any) => (
+            notifications.map((notification) => (
               <button
                 key={notification.id}
                 type="button"
@@ -50,7 +54,7 @@ export default function HeaderWithNotifications({ breadcrumbItems: _breadcrumbIt
                   notification.statut === "NON_LU" ? "bg-primary/10" : "bg-transparent"
                 }`}
               >
-                <p className="font-semibold">{notification.sujet}</p>
+                <p className="font-semibold">{notification.titre}</p>
                 <p className="text-sm text-muted-foreground">{notification.message}</p>
                 <p className="pt-1 text-xs text-muted-foreground/85">
                   {new Date(notification.dateEnvoi).toLocaleString()}

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { motion } from "framer-motion"
+import { computePresenceStatus } from "@/utilities/presence"
 
 type DonneesPresence = {
   PRESENT: string[]
@@ -43,8 +44,9 @@ export function CalendarPresence({ stats }: any) {
           }
         }
 
-        if (carte[cleDate][p.statut as keyof DonneesPresence]) {
-          carte[cleDate][p.statut as keyof DonneesPresence].push(agent.nom || "Agent")
+        const statutCalcule = computePresenceStatus(p) as keyof DonneesPresence
+        if (carte[cleDate][statutCalcule]) {
+          carte[cleDate][statutCalcule].push(agent.nom || "Agent")
         }
       })
     })

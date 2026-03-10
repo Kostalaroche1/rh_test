@@ -115,19 +115,30 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import AddAgentModale from "../../agent/createByAdmin/AddAgentModale"
 import { User } from "@/utilities/type"
 import AddUserModale from "../../utilisateurs/userAdmin/addUser"
 import { CreateUserAccount } from "../../agent/create/compteAgent/createCompte"
 import { CreateAgentWithAccount } from "../../agent/create/compteAgent/createAgentwithCompte"
-import { AddAgentWithAccount, deleteAgent } from "@/app/action/agent/action"
+import { AddAgentWithAccount } from "@/app/action/agent/action"
 import { ModifierAgentCompte } from "../../agent/modifier/ModifAgentCompte"
 import { QueryObserverResult } from "@tanstack/react-query"
-import { useDelete, useGet, usePost } from "@/hooks/useApi"
+import { useGet, usePost, usePut } from "@/hooks/useApi"
 import { RoleTabs } from "./roleTabs"
 import { GetRole } from "@/app/action/role/action"
-import { useAgents } from "@/app/contexts/agents/context"
 import { SignalerAbsence } from "@/app/action/agent/presence/signalerAbsence/action"
+import { ToggleUserAccountStatus } from "@/app/action/user/action"
+import HoraireTravailTable from "./horaireTravail"
 
 export const agentSchema = z.object({
   id: z.number(),
@@ -188,8 +199,8 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
       <div>
         <div className="font-medium">
           {row.original.compteAgent?.agent?.matricule}
-          
-        {/* <TableCellViewer item={row.original} /> */}
+
+          {/* <TableCellViewer item={row.original} /> */}
         </div>
       </div>
     ),
@@ -243,7 +254,7 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
     accessorKey: "hasAccount",
     header: "Compte",
     cell: ({ row }) =>
-      row.original.actif ===true ? (
+      row.original.actif === true ? (
         <Badge variant="default">Actif</Badge>
       ) : (
         <Badge variant="outline">Aucun</Badge>
@@ -252,99 +263,133 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
   {
     id: "actions",
     header: "Actions",
-     cell: ({ row }) => {
-  const [activeModal, setActiveModal] =
-    React.useState<"CREATE_ACCOUNT" | "EDIT_AGENT" | null>(null)
+    cell: ({ row }) => {
+      const [activeModal, setActiveModal] =
+        React.useState<"CREATE_ACCOUNT" | "EDIT_AGENT" | null>(null)
+      const [openStatusDialog, setOpenStatusDialog] = React.useState(false)
+      const isAccountActive = row.original.actif === true
 
-  const { mutateAsync } = useDelete(deleteAgent)
-  const {mutateAsync : SignalerAbsences , isPending : isPendingSignalerAbsence} = usePost(SignalerAbsence)
-  const {refresh} = useAgents()
+      const { mutateAsync: SignalerAbsences, isPending: isPendingSignalerAbsence } = usePost(SignalerAbsence)
+      const { mutateAsync: toggleUserStatus, isPending: isPendingToggleUserStatus } = usePut(
+        ToggleUserAccountStatus,
+        ["AgentWithAccountOrNot"]
+      )
 
-  return (
-    <>
-      <DropdownMenu >
-        <DropdownMenuTrigger asChild>
-          <Button size="icon" variant="ghost">
-            <IconDotsVertical />
-          </Button>
-        </DropdownMenuTrigger>
+      return (
+        <>
+          <DropdownMenu >
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost">
+                <IconDotsVertical />
+              </Button>
+            </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end">
-          {!row.original.compteAgent && (
-            <DropdownMenuItem
-              onClick={() => setActiveModal("CREATE_ACCOUNT")}
-            >
-              Créer un compte
-            </DropdownMenuItem>
+            <DropdownMenuContent align="end">
+              {!row.original.compteAgent && (
+                <DropdownMenuItem
+                  onClick={() => setActiveModal("CREATE_ACCOUNT")}
+                >
+                  Creer un compte
+                </DropdownMenuItem>
+              )}
+
+              <DropdownMenuItem
+                onClick={() => setActiveModal("EDIT_AGENT")}
+              >
+                Modifier
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuItem
+                className="text-secondary"
+                disabled={isPendingSignalerAbsence}
+                onClick={async () => {
+                  try {
+                    const responses = await SignalerAbsences({ agentId: row.original.compteAgent?.agent?.id })
+                    toast.success(responses.status === 200 ? responses.message : responses.message)
+                  } catch (error: any) {
+                    toast.error(error)
+                  }
+                }}
+              >
+                Signaler Absence
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className={isAccountActive ? "text-destructive" : undefined}
+                disabled={isPendingToggleUserStatus}
+                onClick={() => setOpenStatusDialog(true)}
+              >
+                {isAccountActive ? "Desactiver le compte" : "Activer le compte"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <AlertDialog open={openStatusDialog} onOpenChange={setOpenStatusDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {isAccountActive ? "Desactiver ce compte ?" : "Activer ce compte ?"}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {isAccountActive
+                    ? "Le compte de cet utilisateur ne pourra plus se connecter tant qu'il reste desactive."
+                    : "Le compte de cet utilisateur sera reactive et pourra se connecter."}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  variant={isAccountActive ? "destructive" : "default"}
+                  onClick={async (event) => {
+                    event.preventDefault()
+                    try {
+                      await toggleUserStatus({
+                        id: row.original.id,
+                        actif: !isAccountActive,
+                      })
+                      toast.success(
+                        isAccountActive
+                          ? "Compte desactive avec succes"
+                          : "Compte active avec succes"
+                      )
+                      setOpenStatusDialog(false)
+                    } catch (error: any) {
+                      toast.error(error?.message ?? "Operation impossible")
+                    }
+                  }}
+                >
+                  {isPendingToggleUserStatus ? "Traitement..." : "Confirmer"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* MODALES EN DEHORS DU MENU */}
+          {activeModal === "CREATE_ACCOUNT" && (
+            <CreateUserAccount
+              open
+              setOpen={(open: any) => !open && setActiveModal(null)}
+              agent={row.original.compteAgent}
+              currentUserRole="ADMIN"
+            />
           )}
 
-          <DropdownMenuItem
-            onClick={() => setActiveModal("EDIT_AGENT")}
-          >
-            Modifier
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            className="text-secondary"
-            disabled={isPendingSignalerAbsence}
-            onClick={async () => {
-              try{
-                const responses = await SignalerAbsences({ agentId: row.original.compteAgent?.agent?.id  })
-                toast.success(responses.status ===200 ? responses.message : responses.message)
-              }catch(error : any){
-                    toast.error(error)
-              }
-            }}
-          >
-            Signaler Absence
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            className="text-destructive"
-            onClick={async () => {
-              try{
-                const responses = await mutateAsync({ id: row.original.id, nom: row.original.compteAgent?.agent?.nom ?? "", prenom: row.original.compteAgent?.agent?.prenom ?? "", statut: row.original.statut ?? "", role: row.original.role ?? "", agentId: row.original.compteAgent?.agentId, utilisateurId: row.original.compteAgent?.utilisateurId, email: row.original.login, })
-                // console.log(responses , "agent suppressiion")
-                
-                toast.success("Agent supprimé")
-                
-              }catch(error : any){
-                    toast.error(error)
-              }
-            }}
-          >
-            Supprimer
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {/* ✅ MODALES EN DEHORS DU MENU */}
-{activeModal === "CREATE_ACCOUNT" && (
-  <CreateUserAccount
-    open
-    setOpen={(open:any) => !open && setActiveModal(null)}
-    agent={row.original.compteAgent}
-    currentUserRole="ADMIN"
-  />
-)}
-
-{activeModal === "EDIT_AGENT" && (
-  <ModifierAgentCompte
-    open
-    setOpen={(open:any) => !open && setActiveModal(null)}
-    currentUserRole="ADMIN"
-    data={{ id: row.original.id, nom: row.original.compteAgent?.agent?.nom ?? "", prenom: row.original.compteAgent?.agent?.prenom ?? "", statut: row.original.statut ?? "", role: row.original.role ?? "", agentId: row.original.compteAgent?.agentId, utilisateurId: row.original.compteAgent?.utilisateurId, email: row.original.login, }}
-  />
-)}
+          {activeModal === "EDIT_AGENT" && (
+            <ModifierAgentCompte
+              open
+              setOpen={(open: any) => !open && setActiveModal(null)}
+              currentUserRole="ADMIN"
+              data={{ id: row.original.id, nom: row.original.compteAgent?.agent?.nom ?? "", prenom: row.original.compteAgent?.agent?.prenom ?? "", statut: row.original.statut ?? "", role: row.original.role ?? "", agentId: row.original.compteAgent?.agentId, utilisateurId: row.original.compteAgent?.utilisateurId, email: row.original.login, }}
+            />
+          )}
 
 
-      
-    </>
-  )
-}
-,
+
+        </>
+      )
+    }
+    ,
   },
 ]
 
@@ -390,7 +435,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 export function DataTable({
-  data: initialData, isPending, onRefresh 
+  data: initialData, isPending, onRefresh
 }: {
   data: z.infer<typeof agentSchema1>[],
   isPending: boolean,
@@ -398,6 +443,7 @@ export function DataTable({
 }) {
 
   const [data, setData] = React.useState(initialData)
+  const [activeTab, setActiveTab] = React.useState("agents")
   const [pagination, setPagination] = React.useState({
     pageIndex: 0,
     pageSize: 10,
@@ -440,17 +486,26 @@ export function DataTable({
     }
   }
 
-   const [newRoleName, setNewRoleName] = React.useState("");
-    const {data:roles , refetch , isPending:loading} = useGet(['RolesTabs'] , GetRole)
-     const handleAddRole = async () => {
-        if (!newRoleName.trim()) {
-          toast.error("Le nom du rôle est requis");
-          return;
-        }
-      };
+  const [newRoleName, setNewRoleName] = React.useState("");
+  const { data: roles, refetch, isPending: loading } = useGet(['RolesTabs'], GetRole)
+  const roleItems = Array.isArray(roles)
+    ? roles
+    : Array.isArray((roles as any)?.data)
+      ? (roles as any).data
+      : []
+  const handleAddRole = async () => {
+    if (!newRoleName.trim()) {
+      toast.error("Le nom du rôle est requis");
+      return;
+    }
+  };
 
   return (
-    <Tabs defaultValue="agents" className="w-full">
+    <Tabs
+      value={activeTab}
+      onValueChange={setActiveTab}
+      className="w-full"
+    >
 
       <div className="flex justify-between items-center px-6 py-4">
         <TabsList>
@@ -458,6 +513,7 @@ export function DataTable({
             <TabsTrigger value="agents">Agents</TabsTrigger>
             <TabsTrigger value="roles">Rôles</TabsTrigger>
             <TabsTrigger value="comptes">Comptes</TabsTrigger>
+            <TabsTrigger value="horairetravail">Horaire Travail</TabsTrigger>
           </div>
 
         </TabsList>
@@ -511,40 +567,45 @@ export function DataTable({
           </Button>
         </div>
 
-      <Table className="w-full border border-border rounded-lg overflow-hidden shadow-sm">
-  <TableHeader className="bg-muted text-muted-foreground">
-    <TableRow>
-      <TableHead className="px-4 py-2 text-left">ID</TableHead>
-      <TableHead className="px-4 py-2 text-left">Nom du rôle</TableHead>
-      <TableHead className="px-4 py-2 text-left">Actions</TableHead>
-    </TableRow>
-  </TableHeader>
-  <TableBody>
-    {Array.isArray(roles) &&  roles?.data.length > 0 ? (
-      roles.data.map((role: any) => (
-        <TableRow key={role.id} className="hover:bg-accent/10 transition-colors">
-          <td className="px-4 py-2">{role.id}</td>
-          <td className="px-4 py-2">{role.nom}</td>
-          {/* <td className="px-4 py-2 flex gap-2">
+        <Table className="w-full border border-border rounded-lg overflow-hidden shadow-sm">
+          <TableHeader className="bg-muted text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 text-left">ID</TableHead>
+              <TableHead className="px-4 py-2 text-left">Nom du rôle</TableHead>
+              <TableHead className="px-4 py-2 text-left">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {roleItems.length > 0 ? (
+              roleItems.map((role: any) => (
+                <TableRow key={role.id} className="hover:bg-accent/10 transition-colors">
+                  <td className="px-4 py-2">{role.id}</td>
+                  <td className="px-4 py-2">{role.nom}</td>
+                  {/* <td className="px-4 py-2 flex gap-2">
             <Button size="sm" variant="outline">Modifier</Button>
             <Button size="sm" variant="destructive">Supprimer</Button>
           </td> */}
-        </TableRow>
-      ))
-    ) : (
-      <TableRow>
-        <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
-          Aucun rôle
-        </td>
-      </TableRow>
-    )}
-  </TableBody>
-</Table>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
+                  Aucun rôle
+                </td>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
 
       </TabsContent>}
+      {!isPending && data && (
+        <TabsContent value="horairetravail">
+          <HoraireTravailTable />
+        </TabsContent>
+      )}
       {isPending && "Loading..."}
       {/* Pagination de la table */}
-      {!isPending && data?.length > 0 && (
+      {!isPending && data?.length > 0 && activeTab === "agents" && (
         <div className="flex items-center justify-between px-4 py-3 border-t">
           {/* Page size */}
           <div className="flex items-center gap-2">
@@ -619,7 +680,7 @@ export function DataTable({
     </Tabs>
   )
 }
-function TableCellViewer({ item }: { item: z.infer<typeof agentSchema1> }) {
+function TableCellViewer({ item }: { item: any }) {
   const isMobile = useIsMobile()
 
   return (
@@ -686,112 +747,112 @@ function TableCellViewer({ item }: { item: z.infer<typeof agentSchema1> }) {
                   <IconTrendingUp className="size-4" />
                 </div>
                 <div className="text-muted-foreground">
-                   Commodi itaque vero repudiandae quo quisquam, e nemo ad iusto quae voluptas a possimus accusamus repellendus?
+                  Commodi itaque vero repudiandae quo quisquam, e nemo ad iusto quae voluptas a possimus accusamus repellendus?
                 </div>
               </div>
               <Separator />
             </>
           )}
-         <form className="flex flex-col gap-4">
-  {/* Nom & Login */}
-  <div className="grid grid-cols-2 gap-4">
-    <div className="flex flex-col gap-2">
-      <Label>Nom</Label>
-      <Input
-        disabled
-        value={`${item.compteAgent?.agent?.prenom ?? ""} ${item.compteAgent?.agent?.nom ?? ""}`}
-      />
-    </div>
+          <form className="flex flex-col gap-4">
+            {/* Nom & Login */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label>Nom</Label>
+                <Input
+                  disabled
+                  value={`${item.compteAgent?.agent?.prenom ?? ""} ${item.compteAgent?.agent?.nom ?? ""}`}
+                />
+              </div>
 
-    <div className="flex flex-col gap-2">
-      <Label>Login</Label>
-      <Input disabled value={item.login} />
-    </div>
-  </div>
+              <div className="flex flex-col gap-2">
+                <Label>Login</Label>
+                <Input disabled value={item.login} />
+              </div>
+            </div>
 
-  {/* Affectation & Évolution */}
-  <div className="grid grid-cols-2 gap-4">
-    <div className="flex flex-col gap-2">
-      <Label htmlFor="affectation">Affectation (Poste)</Label>
-      <Select defaultValue={item?.affectation ?? ""}>
-        <SelectTrigger id="affectation" className="w-full">
-          <SelectValue placeholder="Sélectionner un poste" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="agent">Agent</SelectItem>
-          <SelectItem value="caissier">Caissier</SelectItem>
-          <SelectItem value="superviseur">Superviseur</SelectItem>
-          <SelectItem value="chef_service">Chef de service</SelectItem>
-          <SelectItem value="administratif">Administratif</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+            {/* Affectation & Évolution */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="affectation">Affectation (Poste)</Label>
+                <Select defaultValue={item?.affectation ?? ""}>
+                  <SelectTrigger id="affectation" className="w-full">
+                    <SelectValue placeholder="Sélectionner un poste" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agent">Agent</SelectItem>
+                    <SelectItem value="caissier">Caissier</SelectItem>
+                    <SelectItem value="superviseur">Superviseur</SelectItem>
+                    <SelectItem value="chef_service">Chef de service</SelectItem>
+                    <SelectItem value="administratif">Administratif</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-    <div className="flex flex-col gap-2">
-      <Label htmlFor="evolution">Type de contrat</Label>
-      <Select defaultValue={item?.evolution ?? ""}>
-        <SelectTrigger id="evolution" className="w-full">
-          <SelectValue placeholder="Situation professionnelle" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="salarie">Stage</SelectItem>
-          <SelectItem value="contractuel">CDD 3mois</SelectItem>
-          <SelectItem value="contractuel">CDD 6mois</SelectItem>
-          <SelectItem value="stagiaire">CDI</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
-    
-  </div>
-   {/* Service */}
-  <div className="flex flex-col gap-2">
-    <Label htmlFor="service">grade</Label>
-    <Select defaultValue={item.service ?? ""}>
-      <SelectTrigger id="service" className="w-full">
-        <SelectValue placeholder="Sélectionner un service" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="grade1">grade1</SelectItem>
-        <SelectItem value="grade2">grade2</SelectItem>
-        <SelectItem value="grade3">grade3</SelectItem>
-      </SelectContent>
-    </Select>
-  </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="evolution">Type de contrat</Label>
+                <Select defaultValue={item?.evolution ?? ""}>
+                  <SelectTrigger id="evolution" className="w-full">
+                    <SelectValue placeholder="Situation professionnelle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="salarie">Stage</SelectItem>
+                    <SelectItem value="contractuel">CDD 3mois</SelectItem>
+                    <SelectItem value="contractuel">CDD 6mois</SelectItem>
+                    <SelectItem value="stagiaire">CDI</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-  {/* Service */}
-  <div className="flex flex-col gap-2">
-    <Label htmlFor="service">Departement</Label>
-    <Select defaultValue={item.service ?? ""}>
-      <SelectTrigger id="service" className="w-full">
-        <SelectValue placeholder="Sélectionner un service" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="rh">Ressources humaines</SelectItem>
-        <SelectItem value="finance">Finance</SelectItem>
-        <SelectItem value="informatique">Informatique</SelectItem>
-        <SelectItem value="commercial">Commercial</SelectItem>
-        <SelectItem value="logistique">Logistique</SelectItem>
-      </SelectContent>
-    </Select>
-  </div>
-  {/* Service */}
-  <div className="flex flex-col gap-2">
-    <Label htmlFor="service">Site</Label>
-    <Select defaultValue={item.service ?? ""}>
-      <SelectTrigger id="service" className="w-full">
-        <SelectValue placeholder="Sélectionner un service" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="kin">Kinshasa</SelectItem>
-        <SelectItem value="lub">Lubumbashi</SelectItem>
-        <SelectItem value="kasai">Kasai</SelectItem>
-        <SelectItem value="equa">Equateur</SelectItem>
-        <SelectItem value="kol">Kolwezi</SelectItem>
-      </SelectContent>
-    </Select>
-  </div>
-  
-</form>
+            </div>
+            {/* Service */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="service">grade</Label>
+              <Select defaultValue={item.service ?? ""}>
+                <SelectTrigger id="service" className="w-full">
+                  <SelectValue placeholder="Sélectionner un service" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="grade1">grade1</SelectItem>
+                  <SelectItem value="grade2">grade2</SelectItem>
+                  <SelectItem value="grade3">grade3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Service */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="service">Departement</Label>
+              <Select defaultValue={item.service ?? ""}>
+                <SelectTrigger id="service" className="w-full">
+                  <SelectValue placeholder="Sélectionner un service" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rh">Ressources humaines</SelectItem>
+                  <SelectItem value="finance">Finance</SelectItem>
+                  <SelectItem value="informatique">Informatique</SelectItem>
+                  <SelectItem value="commercial">Commercial</SelectItem>
+                  <SelectItem value="logistique">Logistique</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Service */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="service">Site</Label>
+              <Select defaultValue={item.service ?? ""}>
+                <SelectTrigger id="service" className="w-full">
+                  <SelectValue placeholder="Sélectionner un service" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kin">Kinshasa</SelectItem>
+                  <SelectItem value="lub">Lubumbashi</SelectItem>
+                  <SelectItem value="kasai">Kasai</SelectItem>
+                  <SelectItem value="equa">Equateur</SelectItem>
+                  <SelectItem value="kol">Kolwezi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+          </form>
 
         </div>
         <DrawerFooter>

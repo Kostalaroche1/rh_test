@@ -1,6 +1,6 @@
 "use client";
 
-import { Key, MailIcon } from "lucide-react";
+import { Eye, EyeOff, Key, MailIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ export function LoginForm({
     variant: "destructive",
   });
   const [show, setShow] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,7 +58,7 @@ export function LoginForm({
         description: result.message || "Veuillez verifier vos identifiants",
         variant: "destructive",
       });
-    } catch (_) {
+    } catch {
       setShow(true);
       setAlertInfo({
         title: "Echec de connexion",
@@ -81,10 +82,10 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <form onSubmit={handleLogin}>
         <FieldGroup className="gap-5">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <img src="/images/logo_auth/logo_rtnc1.png" className="h-24 w-24 object-contain" alt="RTNC RH" />
-            <h1 className="text-xl font-bold">RTNC-RH</h1>
-            <p className="text-sm text-muted-foreground">Connexion a l espace ERP RH</p>
+          <div className="flex flex-col items-center gap-2 text-center relative top-13">
+            <img src="/images/logo_auth/logo_rtnc1.png" className="h-60 w-60 object-contain" alt="RTNC RH" />
+            {/* <h1 className="text-xl font-bold">RTNC-RH</h1>
+            <p className="text-sm text-muted-foreground">Connexion a l espace ERP RH</p> */}
           </div>
 
           {show && (
@@ -113,16 +114,24 @@ export function LoginForm({
           <div className="relative">
             <Input
               id="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               name="password"
               value={password}
-              className="pl-10"
+              className="pl-10 pr-10"
               placeholder="******"
               disabled={loading}
               onChange={handleChange}
               required
             />
             <Key size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <button
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">

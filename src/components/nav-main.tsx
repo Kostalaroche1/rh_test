@@ -38,8 +38,9 @@ export function NavMain({
   }[];
   auth: any;
 }) {
+  const hiddenForRole1 = ["Organisations", "Paie & Avantages"];
   const hiddenForRole2 = ["Organisations", "Conges & Absences", "Carriere & Decisions", "Paie & Avantages", "Reporting & Analytics"];
-  const hiddenForRole3 = ["Organisations"];
+  // const hiddenForRole3 = ["Organisations"];
   const hiddenForRole4 = ["Organisations", "Conges & Absences", "Carriere & Decisions", "Paie & Avantages"];
 
   const pathname = usePathname();
@@ -57,14 +58,17 @@ export function NavMain({
 
       if (roleId === 4) return !hiddenForRole4.includes(title);
       if (roleId === 2) return !hiddenForRole2.includes(title);
-      if (roleId === 3) return !hiddenForRole3.includes(title);
+      if (roleId === 1) return !hiddenForRole1.includes(title);
 
       return true;
     });
   }, [items, roleId]);
 
-  const isActivePath = (href: string) =>
-    href !== "#" && (pathname === href || pathname.startsWith(`${href}/`));
+  const isActivePath = (href: string) => {
+    if (href === "#") return false;
+    if (href === "/dashboard") return pathname === href;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   return (
     <SidebarGroup>

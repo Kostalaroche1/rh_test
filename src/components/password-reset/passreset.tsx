@@ -9,8 +9,9 @@ import {
   FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { KeySquare } from "lucide-react";
+import { Eye, EyeOff, KeySquare } from "lucide-react";
 import { useState } from "react";
 import { usePost } from "@/hooks/useApi";
 import { resetPassword } from "@/app/action/agent/action";
@@ -26,6 +27,8 @@ export function PasswordReset({
     newPassword: "",
     CfrPassword: "",
   });
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { mutateAsync, isPending } = usePost(resetPassword);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,7 +60,7 @@ export function PasswordReset({
       } else {
         toast.error(response.message || "Erreur lors de la reinitialisation");
       }
-    } catch (_) {
+    } catch {
       toast.error("Erreur serveur");
     }
   };
@@ -74,8 +77,8 @@ export function PasswordReset({
           <div className="relative">
             <Input
               id="new-password"
-              type="password"
-              className="pl-10"
+              type={showNewPassword ? "text" : "password"}
+              className="pl-10 pr-10"
               placeholder="Nouveau mot de passe"
               value={password.newPassword}
               disabled={isPending}
@@ -86,6 +89,14 @@ export function PasswordReset({
               size={18}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
+            <button
+              type="button"
+              onClick={() => setShowNewPassword((prev) => !prev)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={showNewPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            >
+              {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
         </Field>
 
@@ -93,8 +104,8 @@ export function PasswordReset({
           <div className="relative">
             <Input
               id="confirm-password"
-              type="password"
-              className="pl-10"
+              type={showConfirmPassword ? "text" : "password"}
+              className="pl-10 pr-10"
               placeholder="Confirmer le mot de passe"
               value={password.CfrPassword}
               disabled={isPending}
@@ -105,6 +116,14 @@ export function PasswordReset({
               size={18}
               className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword((prev) => !prev)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={showConfirmPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+            >
+              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
         </Field>
 
@@ -117,9 +136,9 @@ export function PasswordReset({
         <Field>
           <FieldDescription className="text-center">
             Vous avez deja un compte ?{" "}
-            <a href="/" className="underline underline-offset-4">
+            <Link href="/" className="underline underline-offset-4">
               Se connecter
-            </a>
+            </Link>
           </FieldDescription>
         </Field>
 
