@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma"
 import { getAuthenticatedUser } from "@/security/auth"
 import {
   getAgentIdFromUtilisateurId,
-  getTodayHoraireForUtilisateur,
+  getPresenceDayContextForUtilisateur,
 } from "@/server/horaireAgent"
 
 export const POST = async (req: Request) => {
@@ -22,13 +22,36 @@ export const POST = async (req: Request) => {
     return NextResponse.json({ status: 400, message: "Date de pointage invalide" }, { status: 400 })
   }
 
-  const schedule = await getTodayHoraireForUtilisateur(utilisateur.userId)
-  if (!schedule) {
+  const dayContext = await getPresenceDayContextForUtilisateur(utilisateur.userId)
+  if (!dayContext) {
     return NextResponse.json(
       { status: 400, message: "Aucun horaire de travail actif n'est configure pour aujourd'hui." },
       { status: 400 }
     )
   }
+
+  if (dayContext.state === "CONGE") {
+    return NextResponse.json(
+      { status: 400, message: "Vous etes en conge aujourd'hui. Aucun pointage de presence n'est autorise." },
+      { status: 400 }
+    )
+  }
+
+  if (dayContext.state === "OFF") {
+    return NextResponse.json(
+      { status: 400, message: "Vous etes en jour off aujourd'hui. Aucun pointage de presence n'est autorise." },
+      { status: 400 }
+    )
+  }
+
+  if (dayContext.state !== "WORKING") {
+    return NextResponse.json(
+      { status: 400, message: "Aucun horaire de travail actif n'est configure pour aujourd'hui." },
+      { status: 400 }
+    )
+  }
+
+  const schedule = dayContext.schedule
 
   if (!schedule.isWithinSchedule) {
     return NextResponse.json(
@@ -43,21 +66,16 @@ export const POST = async (req: Request) => {
   const existingPresence = await prisma.presence.findFirst({
     where: {
       agentId: schedule.agentId,
-      date: schedule.todayDate,
+      date: dayContext.todayDate,
     },
   })
 
   if (existingPresence) {
-    if (existingPresence.statut === "ABSENT" && !existingPresence.heureArrivee) {
-      const updated = await prisma.presence.update({
-        where: { id: existingPresence.id },
-        data: {
-          heureArrivee: arrivee,
-          statut: "BROUILLON",
-          updatedAt: new Date(),
-        },
-      })
-      return NextResponse.json({ status: 200, result: updated }, { status: 200 })
+    if (["CONGE", "OFF", "ABSENT"].includes(existingPresence.statut)) {
+      return NextResponse.json(
+        { status: 400, message: `Pointage refuse. Le statut du jour est ${existingPresence.statut}.` },
+        { status: 400 }
+      )
     }
 
     return NextResponse.json(
@@ -70,8 +88,11 @@ export const POST = async (req: Request) => {
     data: {
       heureArrivee: arrivee,
       agentId: schedule.agentId,
-      statut: "BROUILLON",
-      date: schedule.todayDate,
+      statut:
+        arrivee.getHours() * 60 + arrivee.getMinutes() > schedule.startMinutes
+          ? "RETARD"
+          : "PRESENCE",
+      date: dayContext.todayDate,
     },
   })
 
@@ -103,10 +124,25 @@ export const PUT = async (req: Request) => {
 
     let result
     if (role === "agent") {
-      const schedule = await getTodayHoraireForUtilisateur(utilisateur.userId)
-      if (!schedule) {
+      const dayContext = await getPresenceDayContextForUtilisateur(utilisateur.userId)
+      if (!dayContext || dayContext.state !== "WORKING") {
         return NextResponse.json(
           { status: 400, message: "Aucun horaire de travail actif n'est configure pour aujourd'hui." },
+          { status: 400 }
+        )
+      }
+
+      const presence = await prisma.presence.findUnique({
+        where: { id: id },
+      })
+
+      if (!presence) {
+        return NextResponse.json({ status: 404, message: "Presence introuvable" }, { status: 404 })
+      }
+
+      if (["CONGE", "OFF", "ABSENT"].includes(presence.statut)) {
+        return NextResponse.json(
+          { status: 400, message: `Le statut ${presence.statut} ne peut pas etre transforme en depart.` },
           { status: 400 }
         )
       }
@@ -183,10 +219,15 @@ export const DELETE = async (req: Request) => {
     return NextResponse.json({ status: 400, message: "ID invalide" }, { status: 400 })
   }
   try {
+    const agentId = await getAgentIdFromUtilisateurId(utilisateur.userId)
+    if (!agentId) {
+      return NextResponse.json({ status: 400, message: "Agent introuvable" }, { status: 400 })
+    }
+
     const result = await prisma.presence.delete({
       where: {
         id: id,
-        agentId: utilisateur.userId,
+        agentId,
       },
     })
     console.log(result, "result from database")

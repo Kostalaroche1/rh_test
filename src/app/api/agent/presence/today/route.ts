@@ -2,12 +2,50 @@
 // gabriel code
 
 import prisma from "@/lib/prisma";
+import type { Presence, StatutPresence } from "@/generated/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
 import { NextResponse } from "next/server";
 import {
-  getHoraireContextForUtilisateur,
-  getTodayHoraireForUtilisateur,
+  getPresenceDayContextForUtilisateur,
 } from "@/server/horaireAgent";
+
+async function syncPresenceStatusForDay(input: {
+    presence: Presence | null;
+    agentId: number;
+    todayDay: Date;
+    statut: Extract<StatutPresence, "CONGE" | "OFF" | "ABSENT">;
+}) {
+    const { presence, agentId, todayDay, statut } = input;
+
+    if (!presence) {
+        return prisma.presence.create({
+            data: {
+                agentId,
+                date: todayDay,
+                statut,
+                heureArrivee: null,
+                heureDepart: null,
+            }
+        });
+    }
+
+    if (presence.statut === statut) {
+        return presence;
+    }
+
+    if (["CONGE", "OFF", "ABSENT", "BROUILLON", "PRESENCE", "RETARD"].includes(presence.statut)) {
+        return prisma.presence.update({
+            where: { id: presence.id },
+            data: {
+                statut,
+                heureArrivee: statut === "ABSENT" ? null : presence.heureArrivee,
+                heureDepart: statut === "ABSENT" ? null : presence.heureDepart,
+            }
+        });
+    }
+
+    return presence;
+}
 
 export const GET = async () => {
 
@@ -16,8 +54,8 @@ export const GET = async () => {
         throw new Error("no authorize");
     }
 
-    const horaireContext = await getHoraireContextForUtilisateur(utilisateur.userId);
-    if (!horaireContext) {
+    const dayContext = await getPresenceDayContextForUtilisateur(utilisateur.userId);
+    if (!dayContext) {
         return NextResponse.json({
             working: false,
             canCheckIn: false,
@@ -28,81 +66,105 @@ export const GET = async () => {
         });
     }
 
-    const schedule = horaireContext.activeSchedule;
-    if (!schedule) {
-        const currentRange = horaireContext.currentRangeSchedule;
-        const nextSchedule = horaireContext.nextSchedule;
-
-        if (currentRange) {
-            return NextResponse.json({
-                working: false,
-                canCheckIn: false,
-                canCheckOut: false,
-                getData: null,
-                schedule: {
-                    nomHoraire: currentRange.horaire.nomHoraire,
-                    heureDebut: currentRange.startLabel,
-                    heureFin: currentRange.endLabel,
-                    jours: currentRange.daysLabel,
-                    plage: currentRange.rangeLabel,
-                    configurePar: currentRange.creatorLabel,
-                },
-                message: `Jour off aujourd'hui. Configuration d'horaire faite par ${currentRange.creatorLabel}, ${currentRange.rangeLabel}, jours ${currentRange.daysLabel}, heures ${currentRange.startLabel} a ${currentRange.endLabel}.`,
-            });
-        }
-
-        if (nextSchedule) {
-            return NextResponse.json({
-                working: false,
-                canCheckIn: false,
-                canCheckOut: false,
-                getData: null,
-                schedule: {
-                    nomHoraire: nextSchedule.horaire.nomHoraire,
-                    heureDebut: nextSchedule.startLabel,
-                    heureFin: nextSchedule.endLabel,
-                    jours: nextSchedule.daysLabel,
-                    plage: nextSchedule.rangeLabel,
-                    configurePar: nextSchedule.creatorLabel,
-                },
-                message: `Jour off aujourd'hui. Nouvelle configuration d'horaire faite par ${nextSchedule.creatorLabel}, ${nextSchedule.rangeLabel}, jours ${nextSchedule.daysLabel}, heures ${nextSchedule.startLabel} a ${nextSchedule.endLabel}.`,
-            });
-        }
-
-        return NextResponse.json({
-            working: false,
-            canCheckIn: false,
-            canCheckOut: false,
-            getData: null,
-            schedule: null,
-            message: "Jour off aujourd'hui. Aucun horaire de travail actif n'est configure pour cette date.",
-        });
-    }
-
-    const todayDay = horaireContext.todayDate
+    const todayDay = dayContext.todayDate
 
     let getData = await prisma.presence.findUnique({
         where: {
             agentId_date: {
                 date: todayDay,
-                agentId: schedule.agentId
+                agentId: dayContext.agentId
             }
         }
     })
     console.log(getData, "inside here api/agent/presence/today", todayDay)
 
-    if (!getData && schedule.isAfterSchedule) {
-        getData = await prisma.presence.create({
-            data: {
-                agentId: schedule.agentId,
-                date: todayDay,
-                statut: "ABSENT",
-                heureArrivee: null
-            }
+    if (dayContext.state === "CONGE") {
+        getData = await syncPresenceStatusForDay({
+            presence: getData,
+            agentId: dayContext.agentId,
+            todayDay,
+            statut: "CONGE",
         })
     }
 
-    const canCheckOut = Boolean(getData?.heureArrivee) && !Boolean(getData?.heureDepart);
+    if (dayContext.state === "OFF") {
+        getData = await syncPresenceStatusForDay({
+            presence: getData,
+            agentId: dayContext.agentId,
+            todayDay,
+            statut: "OFF",
+        })
+    }
+
+    if (dayContext.state === "WORKING" && dayContext.schedule.isAfterSchedule && !getData?.heureArrivee) {
+        getData = await syncPresenceStatusForDay({
+            presence: getData,
+            agentId: dayContext.agentId,
+            todayDay,
+            statut: "ABSENT",
+        })
+    }
+
+    const canCheckOut =
+        dayContext.state === "WORKING" &&
+        Boolean(getData?.heureArrivee) &&
+        !Boolean(getData?.heureDepart) &&
+        !["CONGE", "OFF", "ABSENT"].includes(String(getData?.statut ?? "").toUpperCase());
+
+    if (dayContext.state === "CONGE") {
+        return NextResponse.json({
+            getData,
+            working: false,
+            canCheckIn: false,
+            canCheckOut: false,
+            schedule: null,
+            message: `Vous etes en conge aujourd'hui. Type: ${dayContext.conge?.typeConge?.libelle ?? dayContext.conge?.typeConge?.code ?? "--"}. Impossible de marquer absent, retard ou off.`,
+        })
+    }
+
+    if (dayContext.state === "OFF") {
+        const schedule = dayContext.schedule;
+        return NextResponse.json({
+            getData,
+            working: false,
+            canCheckIn: false,
+            canCheckOut: false,
+            schedule: schedule ? {
+                nomHoraire: schedule.horaire.nomHoraire,
+                heureDebut: schedule.startLabel,
+                heureFin: schedule.endLabel,
+                jours: schedule.daysLabel,
+                plage: schedule.rangeLabel,
+                configurePar: schedule.creatorLabel,
+            } : null,
+            message: schedule
+                ? `Jour off aujourd'hui. Configuration d'horaire faite par ${schedule.creatorLabel}, ${schedule.rangeLabel}, jours ${schedule.daysLabel}, heures ${schedule.startLabel} a ${schedule.endLabel}.`
+                : "Jour off aujourd'hui.",
+        })
+    }
+
+    if (dayContext.state === "NO_SCHEDULE") {
+        const nextSchedule = dayContext.schedule;
+        return NextResponse.json({
+            getData,
+            working: false,
+            canCheckIn: false,
+            canCheckOut: false,
+            schedule: nextSchedule ? {
+                nomHoraire: nextSchedule.horaire.nomHoraire,
+                heureDebut: nextSchedule.startLabel,
+                heureFin: nextSchedule.endLabel,
+                jours: nextSchedule.daysLabel,
+                plage: nextSchedule.rangeLabel,
+                configurePar: nextSchedule.creatorLabel,
+            } : null,
+            message: nextSchedule
+                ? `Jour off aujourd'hui. Nouvelle configuration d'horaire faite par ${nextSchedule.creatorLabel}, ${nextSchedule.rangeLabel}, jours ${nextSchedule.daysLabel}, heures ${nextSchedule.startLabel} a ${nextSchedule.endLabel}.`
+                : "Jour off aujourd'hui. Aucun horaire de travail actif n'est configure pour cette date.",
+        })
+    }
+
+    const schedule = dayContext.schedule;
     const message = schedule.isWithinSchedule
         ? `Configuration d'horaire faite par ${schedule.creatorLabel}, ${schedule.rangeLabel}, jours ${schedule.daysLabel}, heures ${schedule.startLabel} a ${schedule.endLabel}.`
         : `Configuration d'horaire faite par ${schedule.creatorLabel}, ${schedule.rangeLabel}, jours ${schedule.daysLabel}, heures ${schedule.startLabel} a ${schedule.endLabel}. Le pointage est ferme pour cette plage maintenant.`;
@@ -110,7 +172,10 @@ export const GET = async () => {
     return NextResponse.json({
         getData,
         working: schedule.isWithinSchedule,
-        canCheckIn: schedule.isWithinSchedule && !getData?.heureArrivee,
+        canCheckIn:
+            schedule.isWithinSchedule &&
+            !getData?.heureArrivee &&
+            !["CONGE", "OFF", "ABSENT"].includes(String(getData?.statut ?? "").toUpperCase()),
         canCheckOut,
         schedule: {
             nomHoraire: schedule.horaire.nomHoraire,

@@ -1,70 +1,98 @@
-// habacuk code
-
-
 import prisma from "@/lib/prisma"
 import { getAuthenticatedUser } from "@/security/auth"
 import { NextResponse } from "next/server"
+import { getActiveCongeForAgent } from "@/server/horaireAgent"
 
 export const POST = async (req: Request) => {
   const body = await req.json()
   const utilisateur = await getAuthenticatedUser()
 
   if (!utilisateur) {
-    throw new Error("Non autorisé")
+    throw new Error("Non autorise")
   }
 
   if (!body.agentId) {
     return NextResponse.json({
       status: 404,
-      message: "Agent non trouvé."
+      message: "Agent non trouve.",
     })
   }
 
-  const IsAffect = await prisma.affectation.findFirst({
+  const isAffect = await prisma.affectation.findFirst({
     where: {
       agentId: body.agentId,
-    }
+    },
   })
 
-  if (!IsAffect) {
+  if (!isAffect) {
     return NextResponse.json({
       status: 404,
-      message: "cet Agent n'est pas encore affecté à un service , veuillez signaler à la direction ou à l'administration."
+      message:
+        "Cet agent n'est pas encore affecte a un service, veuillez signaler a la direction ou a l'administration.",
     })
   }
-  // Date du jour sans heure
+
   const today = new Date()
   const todayDay = new Date(today.toISOString().split("T")[0])
+  const activeConge = await getActiveCongeForAgent(body.agentId, todayDay)
 
-  // Vérifier si une présence existe déjà aujourd'hui
+  if (activeConge) {
+    return NextResponse.json(
+      {
+        status: 400,
+        message: "Cet agent est en conge aujourd'hui. Impossible de le marquer absent.",
+      },
+      { status: 400 }
+    )
+  }
+
   const existingPresence = await prisma.presence.findFirst({
     where: {
       agentId: body.agentId,
-      date: todayDay
-    }
+      date: todayDay,
+    },
   })
 
   if (existingPresence) {
+    if (existingPresence.statut === "CONGE") {
+      return NextResponse.json(
+        {
+          status: 400,
+          message: "Cet agent est en conge aujourd'hui. Impossible de le marquer absent.",
+        },
+        { status: 400 }
+      )
+    }
+
+    if (existingPresence.statut === "OFF") {
+      return NextResponse.json(
+        {
+          status: 400,
+          message: "Cet agent est en jour off aujourd'hui. Impossible de le marquer absent.",
+        },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json({
-      status: 404,
-      message: "Vous avez déjà signalé votre présence aujourd'hui."
+      status: 400,
+      message: `Une presence existe deja aujourd'hui avec le statut ${existingPresence.statut}.`,
     })
   }
 
-  // Créer une absence
   const absence = await prisma.presence.create({
     data: {
       agentId: body.agentId,
       date: todayDay,
       statut: "ABSENT",
-      heureArrivee: null
-    }
+      heureArrivee: null,
+    },
   })
 
   return NextResponse.json({
     status: 200,
-    message: "Absence signalée avec succès.",
-    data: absence
+    message: "Absence signalee avec succes.",
+    data: absence,
   })
 }
 
@@ -73,33 +101,30 @@ export const DELETE = async (req: Request) => {
   const utilisateur = await getAuthenticatedUser()
 
   if (!utilisateur) {
-    throw new Error("Non autorisé")
+    throw new Error("Non autorise")
   }
-
-  console.log(body, "AGENT ABSENT")
 
   if (!body.agentId) {
     return NextResponse.json({
       status: 404,
-      message: "Agent non trouvé."
+      message: "Agent non trouve.",
     })
   }
 
-  // Date du jour sans heure
   const today = new Date()
   const todayDay = new Date(today.toISOString().split("T")[0])
 
-  // Vérifier si une présence existe déjà aujourd'hui
-  const IsAffect = await prisma.affectation.findFirst({
+  const isAffect = await prisma.affectation.findFirst({
     where: {
       agentId: body.agentId,
-    }
+    },
   })
 
-  if (!IsAffect) {
+  if (!isAffect) {
     return NextResponse.json({
       status: 404,
-      message: "cet Agent n'est pas encore affecté à un service , veuillez signaler à la direction ou à l'administration."
+      message:
+        "Cet agent n'est pas encore affecte a un service, veuillez signaler a la direction ou a l'administration.",
     })
   }
 
@@ -107,31 +132,30 @@ export const DELETE = async (req: Request) => {
     where: {
       agentId: body.agentId,
       date: todayDay,
-      statut: 'ABSENT'
-    }
+      statut: "ABSENT",
+    },
   })
 
   if (!existingPresence) {
     return NextResponse.json({
       status: 404,
-      message: "Il n'est pas absent aujourd'hui."
+      message: "Il n'est pas absent aujourd'hui.",
     })
   }
 
-  // Créer une absence
   const absence = await prisma.presence.delete({
     where: {
       id: existingPresence.id,
       agentId: body.agentId,
       date: todayDay,
       statut: "ABSENT",
-      heureArrivee: null
-    }
+      heureArrivee: null,
+    },
   })
 
   return NextResponse.json({
     status: 200,
-    message: "Annulation Absence réussit avec succès.",
-    data: absence
+    message: "Annulation absence reussie avec succes.",
+    data: absence,
   })
 }

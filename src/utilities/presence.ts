@@ -4,7 +4,8 @@ export type PresenceDisplayStatus =
   | "ABSENT"
   | "CONGE"
   | "MISSION"
-  | "MALADIE";
+  | "MALADIE"
+  | "OFF";
 
 const LATE_HOUR = 8;
 const LATE_MINUTE = 30;
@@ -26,8 +27,19 @@ export function computePresenceStatus(input: {
 }): PresenceDisplayStatus {
   const statut = (input.statut ?? "").toUpperCase();
 
-  if (statut === "ABSENT" || statut === "CONGE" || statut === "MISSION" || statut === "MALADIE") {
+  if (
+    statut === "ABSENT" ||
+    statut === "CONGE" ||
+    statut === "MISSION" ||
+    statut === "MALADIE" ||
+    statut === "OFF" ||
+    statut === "RETARD"
+  ) {
     return statut as PresenceDisplayStatus;
+  }
+
+  if (statut === "PRESENCE" || statut === "CONFIRME" || statut === "VALIDE" || statut === "BROUILLON") {
+    return input.heureArrivee && isLateArrival(input.heureArrivee) ? "RETARD" : "PRESENT";
   }
 
   if (!input.heureArrivee) {

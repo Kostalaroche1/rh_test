@@ -128,12 +128,7 @@ export async function getAgentIdFromUtilisateurId(utilisateurId: number) {
   return compteAgent?.agentId ?? null;
 }
 
-export async function getTodayHoraireForUtilisateur(utilisateurId: number) {
-  const agentId = await getAgentIdFromUtilisateurId(utilisateurId);
-  if (!agentId) {
-    return null;
-  }
-
+async function getTodayHoraireForAgent(agentId: number) {
   const now = getKinshasaNow();
   const todayStart = getKinshasaStartOfDay(now);
   const dayField = getDayField(now);
@@ -169,12 +164,7 @@ export async function getTodayHoraireForUtilisateur(utilisateurId: number) {
   };
 }
 
-export async function getHoraireContextForUtilisateur(utilisateurId: number) {
-  const agentId = await getAgentIdFromUtilisateurId(utilisateurId);
-  if (!agentId) {
-    return null;
-  }
-
+async function getHoraireContextForAgent(agentId: number) {
   const now = getKinshasaNow();
   const todayStart = getKinshasaStartOfDay(now);
   const dayField = getDayField(now);
@@ -227,5 +217,92 @@ export async function getHoraireContextForUtilisateur(utilisateurId: number) {
       ? enrichHoraireAssignment(now, currentRangeSchedule)
       : null,
     nextSchedule: nextSchedule ? enrichHoraireAssignment(now, nextSchedule) : null,
+  };
+}
+
+export async function getTodayHoraireForUtilisateur(utilisateurId: number) {
+  const agentId = await getAgentIdFromUtilisateurId(utilisateurId);
+  if (!agentId) {
+    return null;
+  }
+
+  return getTodayHoraireForAgent(agentId);
+}
+
+export async function getHoraireContextForUtilisateur(utilisateurId: number) {
+  const agentId = await getAgentIdFromUtilisateurId(utilisateurId);
+  if (!agentId) {
+    return null;
+  }
+
+  return getHoraireContextForAgent(agentId);
+}
+
+export async function getActiveCongeForAgent(agentId: number, date: Date) {
+  return prisma.demandeConge.findFirst({
+    where: {
+      agentId,
+      statut: { in: ["CONFIRME", "VALIDE"] },
+      dateDebut: { lte: date },
+      dateFin: { gte: date },
+    },
+    include: {
+      typeConge: {
+        select: { libelle: true, code: true },
+      },
+    },
+    orderBy: [{ dateDebut: "desc" }, { id: "desc" }],
+  });
+}
+
+export async function getPresenceDayContextForUtilisateur(utilisateurId: number) {
+  const agentId = await getAgentIdFromUtilisateurId(utilisateurId);
+  if (!agentId) {
+    return null;
+  }
+
+  const horaireContext = await getHoraireContextForAgent(agentId);
+  if (!horaireContext) {
+    return null;
+  }
+
+  const conge = await getActiveCongeForAgent(agentId, horaireContext.todayDate);
+
+  if (conge) {
+    return {
+      ...horaireContext,
+      agentId,
+      state: "CONGE" as const,
+      conge,
+      schedule: null,
+    };
+  }
+
+  if (horaireContext.activeSchedule) {
+    return {
+      ...horaireContext,
+      agentId,
+      state: "WORKING" as const,
+      schedule: horaireContext.activeSchedule,
+      conge: null,
+    };
+  }
+
+  if (horaireContext.currentRangeSchedule) {
+    return {
+      ...horaireContext,
+      agentId,
+      state: "OFF" as const,
+      schedule: horaireContext.currentRangeSchedule,
+      conge: null,
+    };
+  }
+
+  return {
+    ...horaireContext,
+    agentId,
+    state: "NO_SCHEDULE" as const,
+    schedule: horaireContext.nextSchedule,
+    conge: null,
   };
 }

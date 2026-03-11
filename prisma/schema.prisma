@@ -44,6 +44,7 @@ model Role {
   actif       Boolean @default(true)
   notification Notification[]
   utilisateurs UtilisateurRole[]
+  rolePermission RolePermission[]
 }
 
 model UtilisateurRole {
@@ -364,7 +365,8 @@ enum StatutPresence {
   MALADIE
   ABSENT
   PRESENCE
-  RETARD 
+  RETARD
+  OFF 
 }
 model Presence {
   id              Int       @id @default(autoincrement())
@@ -433,4 +435,21 @@ model HoraireAgent {
   createdAt DateTime @default(now())
 
   @@index([agentId])
+}
+
+model Permisions{
+  id Int @id @default(autoincrement())
+
+  code String 
+  rolePermission RolePermission[] 
+}
+
+model RolePermission{
+  
+  permissionId Int 
+  permission Permisions @relation(fields:[permissionId], references:[id])
+  
+  roleId Int
+  role Role @relation(fields:[roleId], references:[id])
+  @@id([roleId, permissionId])
 }
