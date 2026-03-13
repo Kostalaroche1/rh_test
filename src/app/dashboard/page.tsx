@@ -10,11 +10,43 @@ import RHDashboard from "@/components/dashboard/RH/ressourcesHumaines/component"
 import AgentDashboard from "@/components/dashboard/agent/create/component";
 import { DashLoad } from "@/components/chargement/dashLoad";
 import { Separator } from "@radix-ui/react-separator";
+import { canManageAccessControl, hasAnyPermission } from "@/security/permissions";
 
-function extractRoleKey(auth: any) {
-  const roles = Array.isArray(auth?.role) ? auth.role : [];
-  const activeRole = [...roles].reverse().find((item: any) => item?.role?.actif ?? true);
-  return (activeRole?.role?.key ?? "").toLowerCase();
+function resolveDashboard(auth: any) {
+  if (canManageAccessControl(auth)) {
+    return "admin";
+  }
+
+  if (
+    hasAnyPermission(auth, [
+      "user.read",
+    ])
+  ) {
+    return "admin";
+  }
+
+  if (
+    hasAnyPermission(auth, [
+      "paie.read",
+      "conge.validate",
+      "type_conge.read",
+      "horaire_travail.read",
+    ])
+  ) {
+    return "rh";
+  }
+
+  if (
+    hasAnyPermission(auth, [
+      "horaire_agent.read",
+      "presence.confirm",
+      "affectation.read",
+    ])
+  ) {
+    return "chefservice";
+  }
+
+  return "agent";
 }
 
 export default function Page() {
@@ -28,7 +60,7 @@ export default function Page() {
     }
   }, [auth, isPending, router]);
 
-  const roleKey = useMemo(() => extractRoleKey(auth), [auth]);
+  const dashboardKey = useMemo(() => resolveDashboard(auth), [auth]);
 
   if (isPending) return <DashLoad />;
   if (!auth) return null;
@@ -37,12 +69,11 @@ export default function Page() {
     <div className="erp-page">
       <div className="flex flex-col gap-1">
         <Separator />
-        {roleKey === "admin" && <AdminDashboard />}
-        {roleKey === "rh" && <RHDashboard />}
-        {roleKey === "chefservice" && <ChefServiceDashboardUltra />}
-        {!["admin", "rh", "chefservice"].includes(roleKey) && <AgentDashboard />}
+        {dashboardKey === "admin" && <AdminDashboard />}
+        {dashboardKey === "rh" && <RHDashboard />}
+        {dashboardKey === "chefservice" && <ChefServiceDashboardUltra />}
+        {dashboardKey === "agent" && <AgentDashboard />}
       </div>
     </div>
   );
 }
-

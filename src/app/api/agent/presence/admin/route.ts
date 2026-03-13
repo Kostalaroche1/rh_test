@@ -1,24 +1,32 @@
-
-// gabriel code 
+import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
-import { NextResponse } from "next/server";
+import { requireAccess } from "@/security/authorization";
 
+export async function GET() {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ message: "Non autorise" }, { status: 401 });
+  }
 
-export const GET = async () => {
+  try {
+    await requireAccess({
+      permissions: ["presence.read", "presence.confirm", "presence.validate"],
+    });
+  } catch {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
+  }
 
-    const utilisateur = await getAuthenticatedUser()
-    if (!utilisateur) {
-        throw new Error("no authorize");
-    }
+  const getData = await prisma.presence.findMany({
+    include: {
+      agent: true,
+      confirmePar: true,
+      validePar: true,
+    },
+    orderBy: [{ date: "desc" }, { id: "desc" }],
+  });
 
-    const getData = await prisma.presence.findMany({
-        include: {
-            agent: true,
-            confirmePar: true
-        }
-    })
-
-    return NextResponse.json({ status: 200, rest: "GET", getData }, { status: 200 })
+  return NextResponse.json({ status: 200, rest: "GET", getData }, { status: 200 });
 }
+

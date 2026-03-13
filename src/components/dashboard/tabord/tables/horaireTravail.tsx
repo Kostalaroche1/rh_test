@@ -62,6 +62,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useAuth } from "@/app/contexts/auth/context";
+import { hasAnyPermission } from "@/security/permissions";
 
 type HoraireItem = {
   id: number;
@@ -138,6 +140,7 @@ function formatTime(value: string) {
 }
 
 export default function HoraireTravailTable() {
+  const { auth }: any = useAuth();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<HoraireItem | null>(null);
@@ -187,6 +190,18 @@ export default function HoraireTravailTable() {
   useEffect(() => {
     setPage(1);
   }, [search]);
+
+  const canReadHoraireTravail = hasAnyPermission(auth, [
+    "horaire_travail.read",
+    "horaire_travail.create",
+    "horaire_travail.update",
+    "horaire_travail.delete",
+  ]);
+  const canManageHoraireTravail = hasAnyPermission(auth, [
+    "horaire_travail.create",
+    "horaire_travail.update",
+    "horaire_travail.delete",
+  ]);
 
   const isEditing = Boolean(form.id);
   const submitting = creating || updating;
@@ -274,6 +289,13 @@ export default function HoraireTravailTable() {
 
   return (
     <div className="flex flex-col gap-4 px-4 py-3">
+      {!canReadHoraireTravail && (
+        <div className="rounded-lg border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+          Aucun acces en lecture sur les horaires de travail.
+        </div>
+      )}
+      {canReadHoraireTravail && (
+      <>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <Input
           className="w-full md:max-w-sm"
@@ -282,10 +304,12 @@ export default function HoraireTravailTable() {
           onChange={(e) => setSearch(e.target.value)}
         />
 
-        <Button type="button" onClick={handleOpenCreate}>
-          <IconPlus className="mr-2 h-4 w-4" />
-          Ajouter un horaire
-        </Button>
+        {canManageHoraireTravail && (
+          <Button type="button" onClick={handleOpenCreate}>
+            <IconPlus className="mr-2 h-4 w-4" />
+            Ajouter un horaire
+          </Button>
+        )}
       </div>
 
       <Table>
@@ -296,7 +320,7 @@ export default function HoraireTravailTable() {
             <TableHead>Heure fin</TableHead>
             <TableHead>Affectations</TableHead>
             <TableHead>Cree par</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            {canManageHoraireTravail && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
 
@@ -309,7 +333,7 @@ export default function HoraireTravailTable() {
                 <TableCell>{formatTime(item.heureFin)}</TableCell>
                 <TableCell>{item._count?.horaireAgent ?? 0}</TableCell>
                 <TableCell>{item.creerPar?.login ?? "--"}</TableCell>
-                <TableCell className="text-right">
+                {canManageHoraireTravail && <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button size="icon" variant="ghost">
@@ -330,14 +354,14 @@ export default function HoraireTravailTable() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </TableCell>
+                </TableCell>}
               </TableRow>
             ))}
 
           {!isPending && filteredData.length === 0 && (
             <TableRow>
               <TableCell
-                colSpan={6}
+                colSpan={canManageHoraireTravail ? 6 : 5}
                 className="text-center text-muted-foreground"
               >
                 Aucun horaire trouve
@@ -348,7 +372,7 @@ export default function HoraireTravailTable() {
           {isPending && (
             <TableRow>
               <TableCell
-                colSpan={6}
+                colSpan={canManageHoraireTravail ? 6 : 5}
                 className="text-center text-muted-foreground"
               >
                 Chargement...
@@ -605,6 +629,8 @@ export default function HoraireTravailTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </>
+      )}
     </div>
   );
 }

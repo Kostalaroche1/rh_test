@@ -1,6 +1,5 @@
 import prisma from "@/lib/prisma";
 import type { SessionUser } from "@/security/auth";
-import { ROLE_KEYS } from "@/security/roles";
 
 type BaseNotificationPayload = {
   titre: string;
@@ -20,10 +19,15 @@ type UniqueNotificationPayload = BaseNotificationPayload & {
 async function resolveRoleIds(keys: string[]) {
   if (!keys.length) return [];
   const roles = await prisma.role.findMany({
-    where: { key: { in: keys } },
+    where: {
+      OR: [
+        { key: { in: keys } },
+        { rolePermission: { some: { permission: { code: { in: keys } } } } },
+      ],
+    },
     select: { id: true, key: true },
   });
-  return roles.map((role) => role.id);
+  return [...new Set(roles.map((role) => role.id))];
 }
 
 export async function createNotification(
@@ -118,7 +122,7 @@ export async function notifyCompteAndRoles(
 }
 
 export async function notifyLogin(user: SessionUser) {
-  await notifyRoles([ROLE_KEYS.ADMIN, ROLE_KEYS.RH], {
+  await notifyRoles(["user.read", "notification.read"], {
     titre: "Nouvelle connexion",
     message: `${user.nom ?? "Utilisateur"} ${user.prenom ?? ""} vient de se connecter.`,
     type: "SECURITY",
@@ -142,7 +146,7 @@ export async function notifyAffectationExpiry(options: {
       dedupeHours: 24,
     }),
     ...(
-      await resolveRoleIds([ROLE_KEYS.ADMIN, ROLE_KEYS.RH])
+      await resolveRoleIds(["affectation.read", "notification.read"])
     ).map((roleId) =>
       createUniqueNotification({
         titre: "Echeance d'affectation",
@@ -153,4 +157,3 @@ export async function notifyAffectationExpiry(options: {
     ),
   ]);
 }
-

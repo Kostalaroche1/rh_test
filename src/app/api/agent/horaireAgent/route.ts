@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
-import { requireRole } from "@/security/authorization";
+import { requireAccess } from "@/security/authorization";
 
 function toDateOnly(value: string) {
   const raw = String(value ?? "").trim();
@@ -31,7 +31,9 @@ export async function GET() {
   }
 
   try {
-    await requireRole(["admin", "rh", "chefservice"]);
+    await requireAccess({
+      permissions: ["horaire_agent.read"],
+    });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -74,7 +76,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    await requireRole(["admin", "rh", "chefservice"]);
+    await requireAccess({
+      permissions: ["horaire_agent.create", "horaire_agent.assign"],
+    });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -141,7 +145,9 @@ export async function PUT(req: Request) {
   }
 
   try {
-    await requireRole(["admin", "rh", "chefservice"]);
+    await requireAccess({
+      permissions: ["horaire_agent.update", "horaire_agent.assign"],
+    });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -210,7 +216,9 @@ export async function DELETE(req: Request) {
   }
 
   try {
-    await requireRole(["admin", "rh", "chefservice"]);
+    await requireAccess({
+      permissions: ["horaire_agent.delete"],
+    });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -224,3 +232,4 @@ export async function DELETE(req: Request) {
   await prisma.horaireAgent.delete({ where: { id } });
   return NextResponse.json({ success: true }, { status: 200 });
 }
+

@@ -26,6 +26,7 @@ export type SessionUser = JwtPayload & {
   email?: string;
   roleId?: number;
   role?: SessionRole[];
+  permissions?: string[];
 };
 
 function isSessionUser(value: unknown): value is SessionUser {

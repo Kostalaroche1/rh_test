@@ -25,7 +25,7 @@ export default function Charts() {
                 <div className=" p-8 flex justify-between align-center">
                     <div className="text-2xl font-bold"></div>
                     {/* <div> <AddAgentModale/> </div> */}
-                     <div> <CreateAgentWithAccount currentUserRole="ADMIN" refetchAgWA={()=> console.log('refresh')}/> </div>
+                     <div> <CreateAgentWithAccount refetchAgWA={()=> console.log('refresh')}/> </div>
                     </div>
                  <ChartAdmin/>
                 {/* <div className="grid auto-rows-min gap-4 md:grid-cols-3">

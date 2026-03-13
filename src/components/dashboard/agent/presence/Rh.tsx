@@ -56,7 +56,7 @@ export default function RHPresences() {
     try {
       setLoadingId(id)
       const todayDate = new Date()
-      const data = await UpdatePresence({ id, role: "RH", todayDate })
+      const data = await UpdatePresence({ id, action: "validate", todayDate })
       if (!data.success) {
         toast.error(data.message, { id: toastId })
         return

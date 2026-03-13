@@ -106,7 +106,7 @@ export default function AgentDashPresence() {
     try {
       setLoading(true)
       const todayDate = new Date()
-      const data = await UpdatePresence({ todayDate, id, role: "agent" })
+      const data = await UpdatePresence({ todayDate, id, action: "check_out" })
 
       if (!data.success) {
         toast.error(data.message, { id: toastId })

@@ -1,6 +1,6 @@
 import prisma from "@/lib/prisma";
 import type { SessionUser } from "@/security/auth";
-import { isAdmin, isChefService, isRh } from "@/security/roles";
+import { hasAnyPermission } from "@/security/permissions";
 
 export async function getCurrentCompteAgent(user: SessionUser) {
   return prisma.compteAgent.findUnique({
@@ -15,7 +15,15 @@ export async function getCurrentAgentId(user: SessionUser) {
 }
 
 export async function getChefDepartementIds(user: SessionUser) {
-  if (!isChefService(user)) return [];
+  const canManageScopedTeam =
+    hasAnyPermission(user, [
+      "affectation.read",
+      "presence.confirm",
+      "conge.confirm",
+      "horaire_agent.assign",
+    ]);
+
+  if (!canManageScopedTeam) return [];
 
   const agentId = await getCurrentAgentId(user);
   if (!agentId) return [];
@@ -33,12 +41,23 @@ export async function getChefDepartementIds(user: SessionUser) {
 }
 
 export async function canAccessAgent(user: SessionUser, agentId: number) {
-  if (isAdmin(user) || isRh(user)) return true;
+  if (
+    hasAnyPermission(user, ["agent.read", "user.read", "affectation.read"])
+  ) {
+    return true;
+  }
 
   const currentAgentId = await getCurrentAgentId(user);
   if (currentAgentId === agentId) return true;
 
-  if (isChefService(user)) {
+  if (
+    hasAnyPermission(user, [
+      "presence.confirm",
+      "conge.confirm",
+      "horaire_agent.assign",
+      "affectation.read",
+    ])
+  ) {
     const departementIds = await getChefDepartementIds(user);
     if (!departementIds.length) return false;
 
@@ -56,4 +75,3 @@ export async function canAccessAgent(user: SessionUser, agentId: number) {
 
   return false;
 }
-

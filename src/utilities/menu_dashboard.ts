@@ -5,6 +5,7 @@ import {
   CalendarOff,
   TrendingUp,
   Wallet,
+  ShieldCheck,
   BarChart3,
   LifeBuoy,
   MessageSquare,
@@ -98,6 +99,11 @@ export const data = {
       //   { title: "Calcul de paie", url: "#" },
       //   { title: "Historique de paie", url: "#" },
       // ],
+    },
+    {
+      title: "Access Control",
+      url: "/dashboard/access",
+      icon: ShieldCheck,
     },
     // {
     //   title: "Reporting & Analytics",

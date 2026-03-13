@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
-import { isAdmin, isChefService, isRh } from "@/security/roles";
+import { requireAccess } from "@/security/authorization";
+import { hasAnyPermission } from "@/security/permissions";
 import { AgentWithDetails } from "@/utilities/type";
 import { NextResponse } from "next/server";
 import { getChefDepartementIds } from "@/server/access/context";
@@ -13,7 +14,15 @@ export async function GET() {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    const chefDepartements = isChefService(user) ? await getChefDepartementIds(user) : [];
+    try {
+      await requireAccess({
+        permissions: ["agent.read", "presence.read", "conge.read", "affectation.read"],
+      });
+    } catch {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
+    const chefDepartements = await getChefDepartementIds(user);
     const scoped =
       chefDepartements.length > 0
         ? {
@@ -26,7 +35,7 @@ export async function GET() {
           }
         : {};
 
-    if (isAdmin(user) || isRh(user)) {
+    if (hasAnyPermission(user, ["affectation.read", "user.read", "agent.read"])) {
       await emitAffectationExpiryAlerts(7);
     }
 
@@ -197,3 +206,4 @@ export type OrganisationStat = {
   postes: number;
   fonctions: number;
 };
+

@@ -27,3 +27,31 @@
       return error;
     } 
   }
+
+ export async function UpdateRole(data :any) { 
+    try {
+     const responses = await fetch('../api/agent/role', {
+        method: 'PUT',
+        headers : {'content-type' : 'application/json'},
+        body : JSON.stringify(data)
+      });
+      const response = await responses.json();
+      return response;
+    } catch (error) {
+      return error;
+    } 
+  }
+
+ export async function DeleteRole(data :any) { 
+    try {
+     const responses = await fetch('../api/agent/role', {
+        method: 'DELETE',
+        headers : {'content-type' : 'application/json'},
+        body : JSON.stringify(data)
+      });
+      const response = await responses.json();
+      return response;
+    } catch (error) {
+      return error;
+    } 
+  }

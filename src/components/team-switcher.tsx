@@ -19,6 +19,12 @@ export function TeamSwitcher({
 }) {
   const activeTeam = teams[0];
   const { auth }: any = useAuth();
+  const activeRoleNames = Array.isArray(auth?.role)
+    ? auth.role
+        .filter((item: any) => item?.role?.actif ?? true)
+        .map((item: any) => item?.role?.nom)
+        .filter(Boolean)
+    : [];
 
   if (!activeTeam) return null;
 
@@ -41,7 +47,7 @@ export function TeamSwitcher({
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{auth?.nom || "Utilisateur"}</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {auth?.role?.find((r: any) => r.id == r.id)?.role?.nom || activeTeam.name || "ERP RH"}
+                  {activeRoleNames.join(", ") || activeTeam.name || "ERP RH"}
                 </span>
               </div>
 

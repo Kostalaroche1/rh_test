@@ -13,10 +13,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getStatutBadgeColor, getStatutLabel, getStatutValue } from "@/components/dashboard/chefServiceDashBoard/publicMethod"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { useAuth } from "@/app/contexts/auth/context"
+import { hasAnyPermission } from "@/security/permissions"
 
 const PAGE_SIZE = 14
 
 export default function RhDemandeConge() {
+  const { auth }: any = useAuth()
   const [openNewValidateHoliday, setOpenNewValidateHoliday] = useState(false)
   const [statutConge, setstatutConge] = useState("")
   const [loadingId, setLoadingId] = useState<number | null>(null)
@@ -30,6 +33,8 @@ export default function RhDemandeConge() {
   })
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
+  const canReadDemandes = hasAnyPermission(auth, ["conge.read", "conge.confirm", "conge.validate"])
+  const canValidateDemandes = hasAnyPermission(auth, ["conge.validate"])
 
   const getDemande = async () => {
     const data = await GetAllDemandeConge()
@@ -106,6 +111,15 @@ export default function RhDemandeConge() {
 
   return (
     <>
+      {!canReadDemandes && (
+        <Card className="w-full">
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Aucun acces en lecture sur les demandes de conge.
+          </CardContent>
+        </Card>
+      )}
+      {canReadDemandes && (
+      <>
       <Card className="w-full">
         <CardHeader>
           <CardTitle>Demandes de conge</CardTitle>
@@ -132,7 +146,7 @@ export default function RhDemandeConge() {
                   <TableHead>Date fin</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Statut</TableHead>
-                  <TableHead>Action</TableHead>
+                  {canValidateDemandes && <TableHead>Action</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -145,31 +159,33 @@ export default function RhDemandeConge() {
                     <TableCell>
                       <Badge className={getStatutBadgeColor(d.statut)}>{d.statut}</Badge>
                     </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={getStatutValue(d.statut, "RH")}
-                        onClick={() => {
-                          setOpenNewValidateHoliday(true)
-                          setDemande({
-                            ...demande,
-                            id: d.id,
-                            typeConge: d.typeConge,
-                            agent: d.agent,
-                            role: "RH",
-                            statut: d.statut === "CONFIRME" ? "VALIDE" : "CONFIRME",
-                          })
-                        }}
-                      >
-                        {getStatutLabel(d.statut)}
-                      </Button>
-                    </TableCell>
+                    {canValidateDemandes && (
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={getStatutValue(d.statut, "RH")}
+                          onClick={() => {
+                            setOpenNewValidateHoliday(true)
+                            setDemande({
+                              ...demande,
+                              id: d.id,
+                              typeConge: d.typeConge,
+                              agent: d.agent,
+                              action: "validate",
+                              statut: d.statut === "CONFIRME" ? "VALIDE" : "CONFIRME",
+                            })
+                          }}
+                        >
+                          {getStatutLabel(d.statut)}
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
                 {paginatedDemandes.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-4 text-center text-muted-foreground">
+                    <TableCell colSpan={canValidateDemandes ? 6 : 5} className="py-4 text-center text-muted-foreground">
                       Aucun resultat
                     </TableCell>
                   </TableRow>
@@ -249,6 +265,8 @@ export default function RhDemandeConge() {
           </div>
         </DialogContent>
       </Dialog>
+      </>
+      )}
     </>
   )
 }

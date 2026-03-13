@@ -63,6 +63,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useAuth } from "@/app/contexts/auth/context";
+import { hasAnyPermission } from "@/security/permissions";
 
 type LookupAgent = {
   id: number;
@@ -180,6 +182,7 @@ const jours = [
 ] as const;
 
 export default function TableHoraireAgent() {
+  const { auth }: any = useAuth();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<HoraireAgentItem | null>(null);
@@ -229,6 +232,18 @@ export default function TableHoraireAgent() {
   useEffect(() => {
     setPage(1);
   }, [search]);
+
+  const canReadHoraireAgent = hasAnyPermission(auth, [
+    "horaire_agent.read",
+    "horaire_agent.create",
+    "horaire_agent.update",
+    "horaire_agent.delete",
+  ]);
+  const canManageHoraireAgent = hasAnyPermission(auth, [
+    "horaire_agent.create",
+    "horaire_agent.update",
+    "horaire_agent.delete",
+  ]);
 
   const isEditing = Boolean(form.id);
   const submitting = creating || updating;
@@ -349,6 +364,13 @@ export default function TableHoraireAgent() {
 
   return (
     <CardWrap>
+      {!canReadHoraireAgent && (
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          Aucun acces en lecture sur les horaires agents.
+        </div>
+      )}
+      {canReadHoraireAgent && (
+      <>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <Input
           value={search}
@@ -356,10 +378,12 @@ export default function TableHoraireAgent() {
           placeholder="Rechercher agent ou horaire..."
           className="w-full md:max-w-sm"
         />
-        <Button type="button" onClick={openCreate}>
-          <IconPlus className="mr-2 h-4 w-4" />
-          Ajouter Horaire Agent
-        </Button>
+        {canManageHoraireAgent && (
+          <Button type="button" onClick={openCreate}>
+            <IconPlus className="mr-2 h-4 w-4" />
+            Ajouter Horaire Agent
+          </Button>
+        )}
       </div>
 
       <Table>
@@ -370,7 +394,7 @@ export default function TableHoraireAgent() {
             <TableHead>Periode</TableHead>
             <TableHead>Jours</TableHead>
             <TableHead>Cree par</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            {canManageHoraireAgent && <TableHead className="text-right">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -393,7 +417,7 @@ export default function TableHoraireAgent() {
                     .join(", ") || "--"}
                 </TableCell>
                 <TableCell>{row.creerPar?.login ?? "--"}</TableCell>
-                <TableCell className="text-right">
+                {canManageHoraireAgent && <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button size="icon" variant="ghost">
@@ -414,13 +438,13 @@ export default function TableHoraireAgent() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                </TableCell>
+                </TableCell>}
               </TableRow>
             ))}
 
           {!isPending && filteredRows.length === 0 && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground">
+              <TableCell colSpan={canManageHoraireAgent ? 6 : 5} className="text-center text-muted-foreground">
                 Aucun horaire agent trouve
               </TableCell>
             </TableRow>
@@ -428,7 +452,7 @@ export default function TableHoraireAgent() {
 
           {isPending && (
             <TableRow>
-              <TableCell colSpan={6} className="text-center text-muted-foreground">
+              <TableCell colSpan={canManageHoraireAgent ? 6 : 5} className="text-center text-muted-foreground">
                 Chargement...
               </TableCell>
             </TableRow>
@@ -629,6 +653,8 @@ export default function TableHoraireAgent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </>
+      )}
     </CardWrap>
   );
 }

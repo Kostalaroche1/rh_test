@@ -1,6 +1,8 @@
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
-import { getRoleIds, isAdmin } from "@/security/roles";
+import { requireAccess } from "@/security/authorization";
+import { hasAnyPermission } from "@/security/permissions";
+import { getRoleIds } from "@/security/roles";
 import { NextResponse } from "next/server";
 
 function buildReadableScope(user: {
@@ -24,8 +26,16 @@ export async function GET() {
     const user = await getAuthenticatedUser();
     if (!user) return NextResponse.json({ data: [] }, { status: 200 });
 
+    try {
+      await requireAccess({
+        permissions: ["notification.read"],
+      });
+    } catch {
+      return NextResponse.json({ data: [] }, { status: 200 });
+    }
+
     const roleIds = getRoleIds(user);
-    const admin = isAdmin(user);
+    const admin = hasAnyPermission(user, ["notification.create", "notification.update", "notification.delete"]);
 
     const notifications = await prisma.notification.findMany({
       where: buildReadableScope({
@@ -52,6 +62,14 @@ export async function POST(req: Request) {
     const user = await getAuthenticatedUser();
     if (!user) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    }
+
+    try {
+      await requireAccess({
+        permissions: ["notification.create"],
+      });
+    } catch {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -94,6 +112,14 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
+    try {
+      await requireAccess({
+        permissions: ["notification.update"],
+      });
+    } catch {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
     const { id, statut } = await req.json();
     const notifId = Number(id);
     if (!Number.isFinite(notifId)) {
@@ -113,7 +139,7 @@ export async function PUT(req: Request) {
     }
 
     const roleIds = getRoleIds(user);
-    const admin = isAdmin(user);
+    const admin = hasAnyPermission(user, ["notification.create", "notification.update", "notification.delete"]);
     const canRead =
       admin ||
       (notification.compteId == null && notification.roleId == null) ||

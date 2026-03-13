@@ -2,6 +2,7 @@ import prisma from "@/lib/prisma"
 import { getAuthenticatedUser } from "@/security/auth"
 import { NextResponse } from "next/server"
 import { getActiveCongeForAgent } from "@/server/horaireAgent"
+import { requireAccess } from "@/security/authorization"
 
 export const POST = async (req: Request) => {
   const body = await req.json()
@@ -9,6 +10,14 @@ export const POST = async (req: Request) => {
 
   if (!utilisateur) {
     throw new Error("Non autorise")
+  }
+
+  try {
+    await requireAccess({
+      permissions: ["presence.signal_absence"],
+    })
+  } catch {
+    return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
   }
 
   if (!body.agentId) {
@@ -104,6 +113,14 @@ export const DELETE = async (req: Request) => {
     throw new Error("Non autorise")
   }
 
+  try {
+    await requireAccess({
+      permissions: ["presence.signal_absence"],
+    })
+  } catch {
+    return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+  }
+
   if (!body.agentId) {
     return NextResponse.json({
       status: 404,
@@ -159,3 +176,4 @@ export const DELETE = async (req: Request) => {
     data: absence,
   })
 }
+

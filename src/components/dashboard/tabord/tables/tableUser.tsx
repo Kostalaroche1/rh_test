@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import {
@@ -135,10 +135,13 @@ import { ModifierAgentCompte } from "../../agent/modifier/ModifAgentCompte"
 import { QueryObserverResult } from "@tanstack/react-query"
 import { useGet, usePost, usePut } from "@/hooks/useApi"
 import { RoleTabs } from "./roleTabs"
-import { GetRole } from "@/app/action/role/action"
+import { AddRole, GetRole } from "@/app/action/role/action"
 import { SignalerAbsence } from "@/app/action/agent/presence/signalerAbsence/action"
 import { ToggleUserAccountStatus } from "@/app/action/user/action"
 import HoraireTravailTable from "./horaireTravail"
+import PermissionManager from "./permissionManager"
+import { useAuth } from "@/app/contexts/auth/context"
+import { canManageAccessControl, hasAnyPermission } from "@/security/permissions"
 
 export const agentSchema = z.object({
   id: z.number(),
@@ -207,7 +210,7 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
   },
   {
     id: "identite",
-    header: "Identité",
+    header: "IdentitÃ©",
     cell: ({ row }) => (
       <div>
         <div className="font-small">
@@ -222,7 +225,7 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
   },
   // {
   //   accessorKey: "role",
-  //   header: "Rôle",
+  //   header: "RÃ´le",
   //   cell: ({ row }) => (
   //     <Select
   //       defaultValue={row.original.role}
@@ -264,6 +267,7 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
     id: "actions",
     header: "Actions",
     cell: ({ row }) => {
+      const { auth }: any = useAuth()
       const [activeModal, setActiveModal] =
         React.useState<"CREATE_ACCOUNT" | "EDIT_AGENT" | null>(null)
       const [openStatusDialog, setOpenStatusDialog] = React.useState(false)
@@ -274,6 +278,15 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
         ToggleUserAccountStatus,
         ["AgentWithAccountOrNot"]
       )
+      const canCreateAccount = hasAnyPermission(auth, ["user.create", "user.update"])
+      const canEditAgent = hasAnyPermission(auth, ["agent.update", "user.update"])
+      const canSignalAbsence = hasAnyPermission(auth, ["presence.signal_absence"])
+      const canToggleAccount = hasAnyPermission(auth, ["user.update"])
+      const canManageRow = canCreateAccount || canEditAgent || canSignalAbsence || canToggleAccount
+
+      if (!canManageRow) {
+        return null
+      }
 
       return (
         <>
@@ -285,7 +298,7 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
             </DropdownMenuTrigger>
 
             <DropdownMenuContent align="end">
-              {!row.original.compteAgent && (
+              {!row.original.compteAgent && canCreateAccount && (
                 <DropdownMenuItem
                   onClick={() => setActiveModal("CREATE_ACCOUNT")}
                 >
@@ -293,15 +306,15 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
                 </DropdownMenuItem>
               )}
 
-              <DropdownMenuItem
+              {canEditAgent && <DropdownMenuItem
                 onClick={() => setActiveModal("EDIT_AGENT")}
               >
                 Modifier
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
 
-              <DropdownMenuSeparator />
+              {(canSignalAbsence || canToggleAccount) && <DropdownMenuSeparator />}
 
-              <DropdownMenuItem
+              {canSignalAbsence && <DropdownMenuItem
                 className="text-secondary"
                 disabled={isPendingSignalerAbsence}
                 onClick={async () => {
@@ -314,14 +327,14 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
                 }}
               >
                 Signaler Absence
-              </DropdownMenuItem>
-              <DropdownMenuItem
+              </DropdownMenuItem>}
+              {canToggleAccount && <DropdownMenuItem
                 className={isAccountActive ? "text-destructive" : undefined}
                 disabled={isPendingToggleUserStatus}
                 onClick={() => setOpenStatusDialog(true)}
               >
                 {isAccountActive ? "Desactiver le compte" : "Activer le compte"}
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -371,7 +384,7 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
               open
               setOpen={(open: any) => !open && setActiveModal(null)}
               agent={row.original.compteAgent}
-              currentUserRole="ADMIN"
+
             />
           )}
 
@@ -379,7 +392,7 @@ const columns: ColumnDef<z.infer<typeof agentSchema1>>[] = [
             <ModifierAgentCompte
               open
               setOpen={(open: any) => !open && setActiveModal(null)}
-              currentUserRole="ADMIN"
+
               data={{ id: row.original.id, nom: row.original.compteAgent?.agent?.nom ?? "", prenom: row.original.compteAgent?.agent?.prenom ?? "", statut: row.original.statut ?? "", role: row.original.role ?? "", agentId: row.original.compteAgent?.agentId, utilisateurId: row.original.compteAgent?.utilisateurId, email: row.original.login, }}
             />
           )}
@@ -441,7 +454,7 @@ export function DataTable({
   isPending: boolean,
   onRefresh: () => Promise<any>
 }) {
-
+  const { auth }: any = useAuth()
   const [data, setData] = React.useState(initialData)
   const [activeTab, setActiveTab] = React.useState("agents")
   const [pagination, setPagination] = React.useState({
@@ -455,15 +468,42 @@ export function DataTable({
   React.useEffect(() => {
     setData(initialData)
   }, [initialData])
+  const canReadAgents = hasAnyPermission(auth, ["agent.read", "agent.create", "agent.update", "user.read", "user.update"])
+  const canManageAgents = hasAnyPermission(auth, ["agent.create", "agent.update", "user.create", "user.update", "presence.signal_absence"])
+  const canReadRoles = hasAnyPermission(auth, ["role.read", "role.create", "role.update", "role.delete"])
+  const canManageRoles = hasAnyPermission(auth, ["role.create", "role.update", "role.delete"])
+  const canReadPermissions = canManageAccessControl(auth) || hasAnyPermission(auth, ["permission.read", "role.read"])
+  const canReadHoraireTravail = hasAnyPermission(auth, ["horaire_travail.read", "horaire_travail.create", "horaire_travail.update", "horaire_travail.delete"])
+  const canCreateAgentWithAccount = hasAnyPermission(auth, ["agent.create", "user.create"])
+  const showAgentActions = canManageAgents
+  const visibleTabs = [
+    canReadAgents ? { value: "agents", label: "Agents" } : null,
+    canReadRoles ? { value: "roles", label: "Roles" } : null,
+    canReadPermissions ? { value: "permissions", label: "Permissions" } : null,
+    canReadHoraireTravail ? { value: "horairetravail", label: "Horaire Travail" } : null,
+  ].filter(Boolean) as { value: string; label: string }[]
+  const tableColumns = React.useMemo(
+    () => (showAgentActions ? columns : columns.filter((column: any) => column.id !== "actions")),
+    [showAgentActions]
+  )
   const sensors = useSensors(
     useSensor(MouseSensor),
     useSensor(TouchSensor),
     useSensor(KeyboardSensor)
   )
 
+  React.useEffect(() => {
+    if (!visibleTabs.length) {
+      return
+    }
+    if (!visibleTabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(visibleTabs[0].value)
+    }
+  }, [activeTab, visibleTabs])
+
   const table = useReactTable({
     data,
-    columns,
+    columns: tableColumns,
     getRowId: (row) => row.id.toString(),
     state: {
       pagination,
@@ -495,10 +535,28 @@ export function DataTable({
       : []
   const handleAddRole = async () => {
     if (!newRoleName.trim()) {
-      toast.error("Le nom du rôle est requis");
+      toast.error("Le nom du rÃ´le est requis");
       return;
     }
+
+    const response: any = await AddRole({ nom: newRoleName.trim() })
+    if (response?.status !== 200) {
+      toast.error(response?.message ?? "Creation du role impossible")
+      return
+    }
+
+    toast.success("Role cree avec succes")
+    setNewRoleName("")
+    refetch()
   };
+
+  if (!visibleTabs.length) {
+    return (
+      <div className="rounded-lg border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+        Aucun acces sur cet espace.
+      </div>
+    )
+  }
 
   return (
     <Tabs
@@ -510,17 +568,16 @@ export function DataTable({
       <div className="flex justify-between items-center px-6 py-4">
         <TabsList>
           <div>
-            <TabsTrigger value="agents">Agents</TabsTrigger>
-            <TabsTrigger value="roles">Rôles</TabsTrigger>
-            <TabsTrigger value="comptes">Comptes</TabsTrigger>
-            <TabsTrigger value="horairetravail">Horaire Travail</TabsTrigger>
+            {visibleTabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+              ))}
           </div>
 
         </TabsList>
-        <div><CreateAgentWithAccount refetchAgWA={onRefresh} currentUserRole="ADMIN" /></div>
+        <div>{canCreateAgentWithAccount && <CreateAgentWithAccount refetchAgWA={onRefresh} />}</div>
       </div>
 
-      {!isPending && data && <TabsContent value="agents">
+      {!isPending && data && canReadAgents && <TabsContent value="agents">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -554,24 +611,28 @@ export function DataTable({
           </Table>
         </DndContext>
       </TabsContent>}
-      {!isPending && data && <TabsContent value="roles">
+      {!isPending && data && canReadRoles && <TabsContent value="roles">
         <div className="flex justify-between items-center mb-4 pl-5 pr-5">
-          <Input
-            placeholder="Nouveau rôle"
-            value={newRoleName}
-            onChange={(e) => setNewRoleName(e.target.value)}
-            className="w-1/2"
-          />
-          <Button onClick={handleAddRole} disabled={loading}>
-            {loading ? "Ajout..." : "Ajouter"}
-          </Button>
+          {canManageRoles && (
+              <>
+                <Input
+                  placeholder="Nouveau role"
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  className="w-1/2"
+                />
+                <Button onClick={handleAddRole} disabled={loading}>
+                  {loading ? "Ajout..." : "Ajouter"}
+                </Button>
+              </>
+            )}
         </div>
 
         <Table className="w-full border border-border rounded-lg overflow-hidden shadow-sm">
           <TableHeader className="bg-muted text-muted-foreground">
             <TableRow>
               <TableHead className="px-4 py-2 text-left">ID</TableHead>
-              <TableHead className="px-4 py-2 text-left">Nom du rôle</TableHead>
+              <TableHead className="px-4 py-2 text-left">Nom du rÃ´le</TableHead>
               <TableHead className="px-4 py-2 text-left">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -590,7 +651,7 @@ export function DataTable({
             ) : (
               <TableRow>
                 <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
-                  Aucun rôle
+                  Aucun rÃ´le
                 </td>
               </TableRow>
             )}
@@ -598,7 +659,12 @@ export function DataTable({
         </Table>
 
       </TabsContent>}
-      {!isPending && data && (
+      {!isPending && data && canReadPermissions && (
+        <TabsContent value="permissions">
+          <PermissionManager />
+        </TabsContent>
+      )}
+      {!isPending && data && canReadHoraireTravail && (
         <TabsContent value="horairetravail">
           <HoraireTravailTable />
         </TabsContent>
@@ -770,13 +836,13 @@ function TableCellViewer({ item }: { item: any }) {
               </div>
             </div>
 
-            {/* Affectation & Évolution */}
+            {/* Affectation & Ã‰volution */}
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-2">
                 <Label htmlFor="affectation">Affectation (Poste)</Label>
                 <Select defaultValue={item?.affectation ?? ""}>
                   <SelectTrigger id="affectation" className="w-full">
-                    <SelectValue placeholder="Sélectionner un poste" />
+                    <SelectValue placeholder="SÃ©lectionner un poste" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="agent">Agent</SelectItem>
@@ -809,7 +875,7 @@ function TableCellViewer({ item }: { item: any }) {
               <Label htmlFor="service">grade</Label>
               <Select defaultValue={item.service ?? ""}>
                 <SelectTrigger id="service" className="w-full">
-                  <SelectValue placeholder="Sélectionner un service" />
+                  <SelectValue placeholder="SÃ©lectionner un service" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="grade1">grade1</SelectItem>
@@ -824,7 +890,7 @@ function TableCellViewer({ item }: { item: any }) {
               <Label htmlFor="service">Departement</Label>
               <Select defaultValue={item.service ?? ""}>
                 <SelectTrigger id="service" className="w-full">
-                  <SelectValue placeholder="Sélectionner un service" />
+                  <SelectValue placeholder="SÃ©lectionner un service" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="rh">Ressources humaines</SelectItem>
@@ -840,7 +906,7 @@ function TableCellViewer({ item }: { item: any }) {
               <Label htmlFor="service">Site</Label>
               <Select defaultValue={item.service ?? ""}>
                 <SelectTrigger id="service" className="w-full">
-                  <SelectValue placeholder="Sélectionner un service" />
+                  <SelectValue placeholder="SÃ©lectionner un service" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="kin">Kinshasa</SelectItem>
@@ -865,4 +931,11 @@ function TableCellViewer({ item }: { item: any }) {
     </Drawer>
   )
 }
+
+
+
+
+
+
+
 

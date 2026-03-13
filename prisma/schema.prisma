@@ -111,9 +111,9 @@ model HistoriqueAgent {
   agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 }
 
-// GESTION DES AFFECTATIONS //
+ // GESTION DES AFFECTATIONS //
 model Direction {
-id          Int      @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   code        String       @unique
   libelle     String
   description String?
@@ -298,7 +298,6 @@ model Notification {
   compte    CompteAgent? @relation(fields: [compteId], references: [id], onDelete: Cascade)
 }
 
-
 model Rapport {
   id                  Int      @id @default(autoincrement())
   compteId            Int
@@ -331,8 +330,6 @@ enum StatutConge{
   VALIDE
   REJETE
 }
-
-
 
 model DemandeConge {
   id        Int      @id @default(autoincrement())
@@ -405,9 +402,6 @@ model HoraireTravail{
   creerPar Utilisateur @relation("creerHoraire",fields:[creerParId],references:[id])
 
 }
-
-
-
 
 model HoraireAgent {
   id Int @id @default(autoincrement())

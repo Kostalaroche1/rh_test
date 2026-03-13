@@ -1,31 +1,31 @@
-// gabriel code
-
+import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
-import { NextResponse } from "next/server";
+import { requireAccess } from "@/security/authorization";
 
-export const GET = async () => {
-    const utilisateur = await getAuthenticatedUser()
-    console.log(utilisateur, "utilisateur from  cookie side in GET rest to api/agent/conge/demande");
+export async function GET() {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ message: "Non autorise" }, { status: 401 });
+  }
 
-    if (!utilisateur) {
-        throw new Error("pas vous n'etes pas autorisé")
-    }
-    try {
-        const getData = await prisma.demandeConge.findMany(
-            {
+  try {
+    await requireAccess({
+      permissions: ["conge.read", "conge.confirm", "conge.validate"],
+    });
+  } catch {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
+  }
 
-                include: {
-                    typeConge: true,
-                    agent: true,
-                }
-            }
-        )
-        // console.log(getData, 'from database in api/agent/conge/demande get rest')
-        return NextResponse.json({ status: 200, getData })
-    } catch (error) {
-        console.log(error)
-        return NextResponse.json({ status: 404 })
-    }
+  const getData = await prisma.demandeConge.findMany({
+    include: {
+      typeConge: true,
+      agent: true,
+    },
+    orderBy: [{ dateDemande: "desc" }, { id: "desc" }],
+  });
+
+  return NextResponse.json({ status: 200, getData }, { status: 200 });
 }
+

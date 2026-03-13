@@ -36,7 +36,19 @@ export async function POST(req: Request) {
   const user = await prisma.utilisateur.findUnique({
     where: { login },
     include: {
-      roles: { include: { role: true } },
+      roles: {
+        include: {
+          role: {
+            include: {
+              rolePermission: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      },
       compteAgent: {
         include: {
           agent: true,
@@ -76,6 +88,29 @@ export async function POST(req: Request) {
   }
 
   const lastRole = user.roles[user.roles.length - 1];
+  const sessionRoles = user.roles.map((relation) => ({
+    id: relation.id,
+    roleId: relation.roleId,
+    role: relation.role
+      ? {
+          id: relation.role.id,
+          key: relation.role.key,
+          nom: relation.role.nom,
+          actif: relation.role.actif,
+        }
+      : undefined,
+  }));
+  const permissions = [
+    ...new Set(
+      user.roles.flatMap((relation) =>
+        relation.role?.actif
+          ? relation.role.rolePermission
+              .map((grant) => grant.permission?.code?.trim().toLowerCase())
+              .filter((code): code is string => Boolean(code))
+          : []
+      )
+    ),
+  ];
   const tokenPayload = {
     userId: user.id,
     compteId: user.compteAgent?.id ?? null,
@@ -83,8 +118,9 @@ export async function POST(req: Request) {
     prenom: user.compteAgent?.agent?.prenom ?? "",
     matricule: user.compteAgent?.agent?.matricule ?? "",
     email: user.login,
-    role: user.roles,
+    role: sessionRoles,
     roleId: lastRole?.role?.id ?? null,
+    permissions,
   };
 
   const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: "1d" });

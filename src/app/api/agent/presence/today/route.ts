@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import {
   getPresenceDayContextForUtilisateur,
 } from "@/server/horaireAgent";
+import { requireAccess } from "@/security/authorization";
 
 async function syncPresenceStatusForDay(input: {
     presence: Presence | null;
@@ -52,6 +53,14 @@ export const GET = async () => {
     const utilisateur = await getAuthenticatedUser()
     if (!utilisateur) {
         throw new Error("no authorize");
+    }
+
+    try {
+        await requireAccess({
+            permissions: ["presence.read", "presence.sign"],
+        })
+    } catch {
+        return NextResponse.json({ message: "Acces interdit" }, { status: 403 })
     }
 
     const dayContext = await getPresenceDayContextForUtilisateur(utilisateur.userId);
@@ -188,3 +197,4 @@ export const GET = async () => {
         message,
     })
 }
+

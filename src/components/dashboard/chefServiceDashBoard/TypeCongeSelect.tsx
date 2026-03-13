@@ -1,4 +1,4 @@
-import { Label } from "@/components/ui/label"
+﻿import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TypeConge } from "@/utilities/type"
 
@@ -14,7 +14,7 @@ export function TypeCongeSelect({
 }: TypeCongeSelectProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label>Type de congé</Label>
+      <Label>Type de Conge©</Label>
 
       <Select
         value={value ? String(value) : ""}
@@ -27,7 +27,7 @@ export function TypeCongeSelect({
         }}
       >
         <SelectTrigger className="w-full">
-          <SelectValue placeholder="Choisir un type de congé" />
+          <SelectValue placeholder="Choisir un type de Conge©" />
         </SelectTrigger>
 
         <SelectContent>
@@ -48,14 +48,14 @@ export function TypeCongeSelectT({
 }: {
   typeConges: TypeConge[],
 }) {
-  console.log(typeConges, 'types congé inside')
+  console.log(typeConges, 'types Conge© inside')
   return (
     <div className="flex flex-col gap-2">
-      <Label>Type de congé</Label>
+      <Label>Type de Conge©</Label>
 
       <Select name="typeCongeId">
         <SelectTrigger>
-          <SelectValue placeholder="Choisir un type de congé" />
+          <SelectValue placeholder="Choisir un type de Conge©" />
         </SelectTrigger>
 
         <SelectContent>

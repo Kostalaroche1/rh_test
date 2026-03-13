@@ -18,9 +18,27 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { canManageAccessControl, hasAnyPermission } from "@/security/permissions";
 import Link from "next/link";
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
+
+const MENU_PERMISSIONS: Record<string, string[]> = {
+  "/dashboard/agents": ["agent.read", "user.read"],
+  "/dashboard/organisation": [
+    "direction.read",
+    "departement.read",
+    "site.read",
+    "poste.read",
+    "fonction.read",
+    "grade.read",
+    "affectation.read",
+  ],
+  "/dashboard/conges": ["conge.read", "presence.read"],
+  "/dashboard/carrieres": ["affectation.read", "agent.read"],
+  "/dashboard/paie": ["paie.read"],
+  "/dashboard/access": ["role.read", "permission.read"],
+};
 
 export function NavMain({
   items,
@@ -38,31 +56,22 @@ export function NavMain({
   }[];
   auth: any;
 }) {
-  const hiddenForRole1 = ["Organisations", "Paie & Avantages"];
-  const hiddenForRole2 = ["Organisations", "Conges & Absences", "Carriere & Decisions", "Paie & Avantages", "Reporting & Analytics"];
-  // const hiddenForRole3 = ["Organisations"];
-  const hiddenForRole4 = ["Organisations", "Conges & Absences", "Carriere & Decisions", "Paie & Avantages"];
-
   const pathname = usePathname();
-  const roleId = auth?.role?.[0]?.role?.id ?? auth?.role?.[0]?.roleId ?? null;
-
-  const normalized = (label: string) =>
-    label
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim();
 
   const filteredMenuLinks = useMemo(() => {
     return items.filter((item) => {
-      const title = normalized(item.title);
+      const requiredPermissions = MENU_PERMISSIONS[item.url];
+      if (!requiredPermissions?.length) {
+        return true;
+      }
 
-      if (roleId === 4) return !hiddenForRole4.includes(title);
-      if (roleId === 2) return !hiddenForRole2.includes(title);
-      if (roleId === 1) return !hiddenForRole1.includes(title);
+      if (item.url === "/dashboard/access") {
+        return canManageAccessControl(auth);
+      }
 
-      return true;
+      return hasAnyPermission(auth, requiredPermissions);
     });
-  }, [items, roleId]);
+  }, [auth, items]);
 
   const isActivePath = (href: string) => {
     if (href === "#") return false;

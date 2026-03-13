@@ -4,7 +4,7 @@ export const ROLE_KEYS = {
   ADMIN: "admin",
   RH: "rh",
   CHEF_SERVICE: "chefservice",
-  AGENT: "ag",
+  AGENT: "agent",
 } as const;
 
 type RoleKey = (typeof ROLE_KEYS)[keyof typeof ROLE_KEYS];
@@ -65,4 +65,3 @@ export function hasAnyRole(
   const keySet = new Set(getRoleKeys(user));
   return keys.some((key) => keySet.has(normalizeKey(key)));
 }
-

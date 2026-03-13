@@ -7,6 +7,7 @@ import {
   getAgentIdFromUtilisateurId,
   getPresenceDayContextForUtilisateur,
 } from "@/server/horaireAgent"
+import { requireAccess } from "@/security/authorization"
 
 export const POST = async (req: Request) => {
   const data = await req.json()
@@ -16,6 +17,14 @@ export const POST = async (req: Request) => {
   const utilisateur = await getAuthenticatedUser()
   if (!utilisateur) {
     throw new Error("no authorize")
+  }
+
+  try {
+    await requireAccess({
+      permissions: ["presence.sign", "presence.create"],
+    })
+  } catch {
+    return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
   }
 
   if (Number.isNaN(arrivee.getTime())) {
@@ -101,7 +110,8 @@ export const POST = async (req: Request) => {
 
 export const PUT = async (req: Request) => {
   const data = await req.json()
-  const { todayDate, id, role } = data
+  const { todayDate, id, action } = data
+  const operation = String(action ?? "").trim()
 
   const upDate = new Date()
   const depart = new Date(todayDate)
@@ -123,7 +133,15 @@ export const PUT = async (req: Request) => {
     }
 
     let result
-    if (role === "agent") {
+    if (operation === "check_out") {
+      try {
+        await requireAccess({
+          permissions: ["presence.update", "presence.sign"],
+        })
+      } catch {
+        return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+      }
+
       const dayContext = await getPresenceDayContextForUtilisateur(utilisateur.userId)
       if (!dayContext || dayContext.state !== "WORKING") {
         return NextResponse.json(
@@ -154,9 +172,15 @@ export const PUT = async (req: Request) => {
           updatedAt: upDate,
         },
       })
-    }
+    } else if (operation === "confirm") {
+      try {
+        await requireAccess({
+          permissions: ["presence.confirm"],
+        })
+      } catch {
+        return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+      }
 
-    if (role === "chiefservice") {
       result = await prisma.presence.update({
         where: { id: id },
         data: {
@@ -165,7 +189,15 @@ export const PUT = async (req: Request) => {
           statut: "CONFIRME",
         },
       })
-    } else if (role === "RH") {
+    } else if (operation === "validate") {
+      try {
+        await requireAccess({
+          permissions: ["presence.validate"],
+        })
+      } catch {
+        return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+      }
+
       result = await prisma.presence.update({
         where: { id: id },
         data: {
@@ -174,6 +206,8 @@ export const PUT = async (req: Request) => {
           statut: "VALIDE",
         },
       })
+    } else {
+      return NextResponse.json({ status: 400, message: "Action de presence invalide" }, { status: 400 })
     }
     return NextResponse.json({ status: 200, result }, { status: 200 })
   } catch (error) {
@@ -185,6 +219,14 @@ export const GET = async () => {
   const utilisateur = await getAuthenticatedUser()
   if (!utilisateur) {
     throw new Error("no authorize")
+  }
+
+  try {
+    await requireAccess({
+      permissions: ["presence.read"],
+    })
+  } catch {
+    return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
   }
 
   const agentId = await getAgentIdFromUtilisateurId(utilisateur.userId)
@@ -215,6 +257,14 @@ export const DELETE = async (req: Request) => {
   if (!utilisateur) {
     throw new Error(" pas vous n'etes pas autorise")
   }
+
+  try {
+    await requireAccess({
+      permissions: ["presence.delete"],
+    })
+  } catch {
+    return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+  }
   if (!id) {
     return NextResponse.json({ status: 400, message: "ID invalide" }, { status: 400 })
   }
@@ -238,3 +288,4 @@ export const DELETE = async (req: Request) => {
     return NextResponse.json({ status: 500 })
   }
 }
+

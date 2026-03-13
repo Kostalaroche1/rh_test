@@ -1,9 +1,11 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { requireAccess } from "@/security/authorization";
 
 // Créer une nouvelle affectation / décision
 export async function POST(req : Request) {
   try {
+    await requireAccess({ permissions: ["affectation.create"] });
     const body = await req.json();
 
     const affectation = await prisma.affectation.create({
@@ -34,6 +36,7 @@ export async function POST(req : Request) {
 // Récupérer toutes les affectations / décisions
 export async function GET() {
   try {
+    await requireAccess({ permissions: ["affectation.read", "agent.read"] });
     const carrieres = await prisma.agent.findMany({
       select: {
         

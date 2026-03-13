@@ -236,7 +236,8 @@ export type DemandeConge = {
     prenom: string
     postnom?: string
   }
-  role: string
+  role?: string
+  action?: string
 }
 
 export const emptyDemande: DemandeConge = {
@@ -258,5 +259,6 @@ export const emptyDemande: DemandeConge = {
     postnom: "",
   },
   role: "",
+  action: "",
 }
 export type EmptyDemande = DemandeConge

@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/security/auth";
-import { isAdmin, isRh } from "@/security/roles";
+import { requireAccess } from "@/security/authorization";
 import { notifyCompteAndRoles } from "@/server/services/notification.service";
 
 export async function PUT(req: Request) {
@@ -10,7 +10,11 @@ export async function PUT(req: Request) {
     if (!auth) {
       return NextResponse.json({ message: "Non autorise" }, { status: 401 });
     }
-    if (!isRh(auth) && !isAdmin(auth)) {
+    try {
+      await requireAccess({
+        permissions: ["affectation.update", "affectation.assign"],
+      });
+    } catch {
       return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
     }
 

@@ -1,13 +1,17 @@
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
-import { isAdmin, isRh } from "@/security/roles";
+import { requireAccess } from "@/security/authorization";
 import { NextResponse } from "next/server";
 import { notifyCompteAndRoles } from "@/server/services/notification.service";
 
-async function assertRhOrAdmin() {
+async function assertPaieAccess(permission: string) {
   const auth = await getAuthenticatedUser();
   if (!auth) return { auth: null, response: NextResponse.json({ message: "Non autorise" }, { status: 401 }) };
-  if (!isRh(auth) && !isAdmin(auth)) {
+  try {
+    await requireAccess({
+      permissions: [permission],
+    });
+  } catch {
     return { auth: null, response: NextResponse.json({ message: "Acces refuse" }, { status: 403 }) };
   }
   return { auth, response: null };
@@ -15,7 +19,7 @@ async function assertRhOrAdmin() {
 
 export async function POST(req: Request) {
   try {
-    const { response } = await assertRhOrAdmin();
+    const { response } = await assertPaieAccess("paie.create");
     if (response) return response;
 
 
@@ -115,10 +119,8 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  const auth = await getAuthenticatedUser();
-  if (!auth) {
-    return NextResponse.json({ message: "Non autorise" }, { status: 401 });
-  }
+  const { response } = await assertPaieAccess("paie.read");
+  if (response) return response;
 
   const paies = await prisma.paie.findMany({
     include: {
@@ -133,7 +135,7 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    const { response } = await assertRhOrAdmin();
+    const { response } = await assertPaieAccess("paie.update");
     if (response) return response;
 
     const body = await req.json();
@@ -160,7 +162,7 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const { response } = await assertRhOrAdmin();
+    const { response } = await assertPaieAccess("paie.delete");
     if (response) return response;
 
     const body = await req.json();

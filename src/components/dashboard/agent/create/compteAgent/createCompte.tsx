@@ -20,8 +20,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { GetRole } from "@/app/action/role/action"
-
-type Role = "ADMIN" | "SUPERVISEUR" | "AGENT"
+import { useAuth } from "@/app/contexts/auth/context"
+import { hasAllPermissions } from "@/security/permissions"
 
 type Agent = {
   id: number
@@ -29,7 +29,7 @@ type Agent = {
   nom: string
   prenom: string
   email: string
-  role: Role
+  role: string
   hasAccount: boolean
 }
 type Roles = {
@@ -41,10 +41,10 @@ type Roles = {
 
 type Props = {
   agent: Agent
-  currentUserRole: Role // rôle de l'utilisateur connecté
 }
 
-export function CreateUserAccount({ agent, currentUserRole , open , setOpen }: any) {
+export function CreateUserAccount({ agent, open, setOpen }: any) {
+  const { auth }: any = useAuth()
   const [loading, setLoading] = useState(false)
 const [role, setRole] = useState<Roles[]>([])
   // const [role, setRole] = useState<Role>(agent.role)
@@ -66,7 +66,8 @@ const GetRoles = async () => {
 }
 
   const canCreate =
-    currentUserRole === "ADMIN" && agent?.compteAgent === false 
+    hasAllPermissions(auth, ["user.create", "agent.update"]) &&
+    agent?.compteAgent === false 
 
   const handleCreateAccount = async () => {
     try {
@@ -149,3 +150,6 @@ setTimeout(() => setOpen(false), 500)
     </>
   )
 }
+
+
+

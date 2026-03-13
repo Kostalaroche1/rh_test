@@ -27,12 +27,22 @@ import { useGet } from "@/hooks/useApi"
 import { BulletinPDF } from "../../paie/bulletinPdf"
 import AgentDashPresence from "../presence/PresenceAgent"
 import AgentDemandeConge from "../conges/demande/AgentDemandeConge"
+import { hasAnyPermission } from "@/security/permissions"
 
 export default function AgentDashboard() {
   const [selectedBulletin, setSelectedBulletin] = useState<any>(null)
   const [bulletins, setBulletins] = useState<any[]>([])
 
   const { auth }: any = useAuth()
+  const canReadConge = hasAnyPermission(auth, ["conge.read", "conge.request", "conge.update", "conge.delete"])
+  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.sign"])
+  const canReadPaie = hasAnyPermission(auth, ["paie.read"])
+  const visibleTabs = [
+    { value: "dashboard", label: "Dashboard" },
+    canReadConge ? { value: "conges", label: "Conges" } : null,
+    canReadPaie ? { value: "bulletins", label: "Bulletins" } : null,
+    canReadPresence ? { value: "presence", label: "Presence" } : null,
+  ].filter(Boolean) as { value: string; label: string }[]
   const { data: stats = [], isPending: isPendingDash } = useGet(["agentDash"], GetDashAgent)
 
   useEffect(() => {
@@ -74,21 +84,20 @@ export default function AgentDashboard() {
 
       <Separator />
 
-      <Tabs defaultValue="dashboard" className="w-full">
+      <Tabs defaultValue={visibleTabs[0].value} className="w-full">
         <TabsList className="mb-4 md:flex align-center">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="conges">Conges</TabsTrigger>
-          <TabsTrigger value="bulletins">Bulletins</TabsTrigger>
-          <TabsTrigger value="presence">Presence</TabsTrigger>
+          {visibleTabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="conges" className="flex flex-col gap-6">
+        {canReadConge && <TabsContent value="conges" className="flex flex-col gap-6">
           <AgentDemandeConge />
-        </TabsContent>
+        </TabsContent>}
 
-        <TabsContent value="presence" className="flex">
+        {canReadPresence && <TabsContent value="presence" className="flex">
           <AgentDashPresence />
-        </TabsContent>
+        </TabsContent>}
 
         <TabsContent value="dashboard" className="flex flex-col gap-6">
           {isPendingDash && <Skeleton className="w-full p-20" />}
@@ -130,7 +139,7 @@ export default function AgentDashboard() {
           )}
         </TabsContent>
 
-        <TabsContent value="bulletins" className="flex flex-col gap-6">
+        {canReadPaie && <TabsContent value="bulletins" className="flex flex-col gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Bulletins de paie</CardTitle>
@@ -173,7 +182,7 @@ export default function AgentDashboard() {
               )} */}
             </CardContent>
           </Card>
-        </TabsContent>
+        </TabsContent>}
       </Tabs>
 
       {selectedBulletin && (

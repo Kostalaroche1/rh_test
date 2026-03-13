@@ -49,7 +49,7 @@ export default function ChefTeamPresence() {
     try {
       setLoadingId(id)
       const todayDate = new Date()
-      const data = await UpdatePresence({ id, role: "chiefservice", todayDate })
+      const data = await UpdatePresence({ id, action: "confirm", todayDate })
       if (!data.success) {
         toast.error(data.message, { id: toastId })
         return

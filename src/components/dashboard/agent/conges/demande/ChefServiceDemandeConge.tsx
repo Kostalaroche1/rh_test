@@ -15,16 +15,21 @@ import { GetAllDemandeConge, UpdateDemandeConge } from "@/app/action/conge/deman
 import { getStatutBadgeColor, getStatutLabel, getStatutValue } from "@/components/dashboard/chefServiceDashBoard/publicMethod"
 import { formaDate } from "@/components/dashboard/chefServiceDashBoard/TypeCongeSelect"
 import { toast } from "sonner"
+import { useAuth } from "@/app/contexts/auth/context"
+import { hasAnyPermission } from "@/security/permissions"
 
 const PAGE_SIZE = 14
 
 export default function ChefServiceDemandeConge() {
+  const { auth }: any = useAuth()
   const [openNewModifyDemandeConge, setOpenNewModifyDemandeConge] = useState(false)
   const [demandes, setDemandes] = useState<DemandeConge[]>([])
   const [demande, setDemande] = useState<DemandeConge>(emptyDemande)
   const [loadingId, setLoadingId] = useState<number | null>(null)
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
+  const canReadDemandes = hasAnyPermission(auth, ["conge.read", "conge.confirm", "conge.validate"])
+  const canConfirmDemandes = hasAnyPermission(auth, ["conge.confirm"])
 
   const getDemande = async () => {
     const data = await GetAllDemandeConge()
@@ -94,6 +99,13 @@ export default function ChefServiceDemandeConge() {
 
   return (
     <>
+      {!canReadDemandes && (
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          Aucun acces en lecture sur les demandes de conge.
+        </CardContent>
+      )}
+      {canReadDemandes && (
+      <>
       <CardContent>
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <Input
@@ -116,7 +128,7 @@ export default function ChefServiceDemandeConge() {
                 <TableHead>Date debut</TableHead>
                 <TableHead>Date fin</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {canConfirmDemandes && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -131,35 +143,37 @@ export default function ChefServiceDemandeConge() {
                       {demandeconge.statut || null}
                     </Badge>
                   </TableCell>
-                  <TableCell className="flex justify-end">
-                    <Button
-                      variant="outline"
-                      className="w-1/1.5 "
-                      disabled={getStatutValue(demandeconge.statut, "chiefservice")}
-                      onClick={() => {
-                        setOpenNewModifyDemandeConge(true)
-                        setDemande({
-                          dateDebut: demandeconge.dateDebut,
-                          dateFin: demandeconge.dateFin,
-                          dateDemande: demandeconge.dateDemande,
-                          motif: demandeconge.motif,
-                          id: demandeconge.id,
-                          typeConge: demandeconge.typeConge,
-                          statut: demandeconge.statut === "CONFIRME" ? "EN_ATTENTE" : "CONFIRME",
-                          agent: demandeconge.agent,
-                          role: "chefservice",
-                        })
-                      }}
-                    >
-                      <CheckCheck className="w-5/ h-5 mr-2" />
-                      {getStatutLabel(demandeconge.statut)}
-                    </Button>
-                  </TableCell>
+                  {canConfirmDemandes && (
+                    <TableCell className="flex justify-end">
+                      <Button
+                        variant="outline"
+                        className="w-1/1.5 "
+                        disabled={getStatutValue(demandeconge.statut, "chiefservice")}
+                        onClick={() => {
+                          setOpenNewModifyDemandeConge(true)
+                          setDemande({
+                            dateDebut: demandeconge.dateDebut,
+                            dateFin: demandeconge.dateFin,
+                            dateDemande: demandeconge.dateDemande,
+                            motif: demandeconge.motif,
+                            id: demandeconge.id,
+                            typeConge: demandeconge.typeConge,
+                            statut: demandeconge.statut === "CONFIRME" ? "EN_ATTENTE" : "CONFIRME",
+                            agent: demandeconge.agent,
+                            action: "confirm",
+                          })
+                        }}
+                      >
+                        <CheckCheck className="w-5/ h-5 mr-2" />
+                        {getStatutLabel(demandeconge.statut)}
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
               {paginatedDemandes.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-4 text-center text-muted-foreground">
+                  <TableCell colSpan={canConfirmDemandes ? 6 : 5} className="py-4 text-center text-muted-foreground">
                     Aucun resultat
                   </TableCell>
                 </TableRow>
@@ -224,6 +238,8 @@ export default function ChefServiceDemandeConge() {
           </div>
         </DialogContent>
       </Dialog>
+      </>
+      )}
     </>
   )
 }

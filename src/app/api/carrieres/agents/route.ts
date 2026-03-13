@@ -1,7 +1,7 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/security/auth";
-import { isChefService } from "@/security/roles";
+import { requireAccess } from "@/security/authorization";
 import { getChefDepartementIds } from "@/server/access/context";
 
 export async function GET() {
@@ -11,7 +11,15 @@ export async function GET() {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
     }
 
-    const departementIds = isChefService(user) ? await getChefDepartementIds(user) : [];
+    try {
+      await requireAccess({
+        permissions: ["agent.read", "affectation.read"],
+      });
+    } catch {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
+    const departementIds = await getChefDepartementIds(user);
 
     const employes = await prisma.agent.findMany({
       where:

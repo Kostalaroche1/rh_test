@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { modifierUtilisateur } from "@/app/application/utilisateur/modifierUtilisateur";
 import { listerUtilisateurs } from "@/app/application/utilisateur/listerUtilisateurs";
-import { requireRole } from "@/security/authorization";
+import { requireAccess } from "@/security/authorization";
 import { getAuthenticatedUser } from "@/security/auth";
 
 type CreateUserPayload = {
@@ -19,7 +19,9 @@ export async function GET() {
   }
 
   try {
-    await requireRole(["ADMIN", "RH"]);
+    await requireAccess({
+      permissions: ["user.read"],
+    });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -35,7 +37,9 @@ export async function POST(req: Request) {
   }
 
   try {
-    await requireRole(["ADMIN"]);
+    await requireAccess({
+      permissions: ["user.create"],
+    });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -105,7 +109,9 @@ export async function PUT(req: Request) {
   }
 
   try {
-    await requireRole(["admin" , "rh"]);
+    await requireAccess({
+      permissions: ["user.update"],
+    });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -121,3 +127,4 @@ export async function PUT(req: Request) {
   const user = await modifierUtilisateur(id, data);
   return NextResponse.json(user);
 }
+

@@ -1,21 +1,28 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/security/auth";
-import { isAdmin, isRh } from "@/security/roles";
+import { requireAccess } from "@/security/authorization";
 import { notifyCompteAndRoles } from "@/server/services/notification.service";
 
-async function ensureAdminOrRh() {
+async function ensureAffectationAccess(permission: string) {
   const auth = await getAuthenticatedUser();
   if (!auth) {
     return { ok: false as const, response: NextResponse.json({ message: "Non autorise" }, { status: 401 }) };
   }
-  if (!isAdmin(auth) && !isRh(auth)) {
+  try {
+    await requireAccess({
+      permissions: [permission],
+    });
+  } catch {
     return { ok: false as const, response: NextResponse.json({ message: "Acces refuse" }, { status: 403 }) };
   }
   return { ok: true as const, auth };
 }
 
 export async function GET() {
+  const guard = await ensureAffectationAccess("affectation.read");
+  if (!guard.ok) return guard.response;
+
   const data = await prisma.affectation.findMany({
     include: {
       agent: true,
@@ -34,7 +41,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const guard = await ensureAdminOrRh();
+  const guard = await ensureAffectationAccess("affectation.create");
   if (!guard.ok) return guard.response;
 
   const body = await req.json();
@@ -101,7 +108,7 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const guard = await ensureAdminOrRh();
+  const guard = await ensureAffectationAccess("affectation.update");
   if (!guard.ok) return guard.response;
 
   const body = await req.json();
@@ -150,7 +157,7 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const guard = await ensureAdminOrRh();
+  const guard = await ensureAffectationAccess("affectation.delete");
   if (!guard.ok) return guard.response;
 
   const body = await req.json();

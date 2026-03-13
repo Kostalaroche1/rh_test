@@ -2,6 +2,8 @@
 import prisma from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { NextResponse } from "next/server"
+import { getAuthenticatedUser } from "@/security/auth"
+import { requireAccess } from "@/security/authorization"
 
 function getAge(d: Date) {
   const today = new Date()
@@ -16,6 +18,19 @@ function isValidEmail(email: string) {
 }
 
 export async function POST(req: Request) {
+  const auth = await getAuthenticatedUser()
+  if (!auth) {
+    return NextResponse.json({ status: 401, message: "Non authentifie" }, { status: 401 })
+  }
+
+  try {
+    await requireAccess({
+      permissions: ["agent.create", "user.create"],
+    })
+  } catch {
+    return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+  }
+
   const data = await req.json()
   console.log(data, "from backend")
 
@@ -185,3 +200,4 @@ export async function POST(req: Request) {
     )
   }
 }
+

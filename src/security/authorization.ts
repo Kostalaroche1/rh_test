@@ -1,18 +1,110 @@
-// authorization is role based access control (rbac) that mean each user could access in app if is have a role
-//authorize in other access control
+import prisma from "@/lib/prisma";
+import { getAuthenticatedUser } from "./auth";
+import { canManageAccessControl } from "./permissions";
 
-import { utilisateurRepository } from "@/repositories/utilisateurRepository"
-import { getAuthenticatedUser } from "./auth"
+function normalizePermissionCode(value: string) {
+  return value.trim().toLowerCase();
+}
 
-export async function requireRole(rolesAutorises: string[]) {
-    const auth = await getAuthenticatedUser()
-    if (!auth) throw new Error("Non authentifié")
+export async function getUserPermissionCodes(utilisateurId: number) {
+  const user = await prisma.utilisateur.findUnique({
+    where: { id: utilisateurId },
+    select: {
+      roles: {
+        select: {
+          role: {
+            select: {
+              actif: true,
+              rolePermission: {
+                select: {
+                  permission: {
+                    select: { code: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
 
-    const user = await utilisateurRepository.findById(auth.userId)
-    const roles = user?.roles.map((r: { role: { key: any } }) => r.role.key) ?? []
+  const codes = new Set<string>();
 
-    const ok = rolesAutorises.some(r => roles.includes(r))
-    if (!ok) throw new Error("Accès interdit")
+  for (const roleRelation of user?.roles ?? []) {
+    if (!roleRelation.role?.actif) {
+      continue;
+    }
 
-    return user
+    for (const grant of roleRelation.role.rolePermission ?? []) {
+      const code = grant.permission?.code;
+      if (code?.trim()) {
+        codes.add(normalizePermissionCode(code));
+      }
+    }
+  }
+
+  return [...codes];
+}
+
+export async function requirePermission(permissionCodes: string | string[]) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) throw new Error("Non authentifie");
+
+  const expected = Array.isArray(permissionCodes)
+    ? permissionCodes.map(normalizePermissionCode)
+    : [normalizePermissionCode(permissionCodes)];
+
+  const userCodes = await getUserPermissionCodes(auth.userId);
+  const ok = expected.some((code) => userCodes.includes(code));
+
+  if (!ok) {
+    throw new Error("Acces interdit");
+  }
+
+  return auth;
+}
+
+export async function requireAccess(options: {
+  roles?: string[];
+  permissions?: string[];
+}) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) throw new Error("Non authentifie");
+
+  const permissionCodes = (options.permissions ?? []).map(normalizePermissionCode);
+  if (!permissionCodes.length) {
+    throw new Error("Acces interdit");
+  }
+
+  const userCodes = await getUserPermissionCodes(auth.userId);
+  const permissionMatch = permissionCodes.some((code) => userCodes.includes(code));
+
+  if (!permissionMatch) {
+    throw new Error("Acces interdit");
+  }
+
+  return auth;
+}
+
+export async function requireAccessControlAccess(permissionCodes: string | string[]) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) throw new Error("Non authentifie");
+
+  if (canManageAccessControl(auth)) {
+    return auth;
+  }
+
+  const expected = Array.isArray(permissionCodes)
+    ? permissionCodes.map(normalizePermissionCode)
+    : [normalizePermissionCode(permissionCodes)];
+
+  const userCodes = await getUserPermissionCodes(auth.userId);
+  const ok = expected.some((code) => userCodes.includes(code));
+
+  if (!ok) {
+    throw new Error("Acces interdit");
+  }
+
+  return auth;
 }

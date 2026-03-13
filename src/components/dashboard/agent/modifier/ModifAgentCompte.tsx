@@ -26,17 +26,17 @@ import { PencilIcon } from "lucide-react"
 import { GetRole } from "@/app/action/role/action"
 import { Roles } from "@/utilities/type"
 import { AddAgentWithAccount, updateAgent } from "@/app/action/agent/action"
-
-type Role = "ADMIN" | "SUPERVISEUR" | "AGENT"
+import { useAuth } from "@/app/contexts/auth/context"
+import { hasAllPermissions } from "@/security/permissions"
 
 type Props = {
-  currentUserRole: Role,
   data: any
   open: any,
   setOpen: any
 }
 
-export function ModifierAgentCompte({ currentUserRole, data, open, setOpen }: Props) {
+export function ModifierAgentCompte({ data, open, setOpen }: Props) {
+  const { auth }: any = useAuth()
   // const [open, setOpen] = useState(false)
   const [createAccount, setCreateAccount] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -54,7 +54,7 @@ export function ModifierAgentCompte({ currentUserRole, data, open, setOpen }: Pr
     email: data.login
   })
 
-  if (currentUserRole !== "ADMIN") return null
+  if (!hasAllPermissions(auth, ["agent.update", "user.update"])) return null
   const close = () => setOpen(false)
 
   const handleSubmit = async () => {

@@ -27,6 +27,8 @@ import { ChartPaie } from "./chartPaie"
 import { DateFormatFr } from "@/services/dateFormat"
 import { DataEmptyPadding } from "../AdminDashboard/composant"
 import { appReactSelectStyles, getSelectPortalTarget } from "@/components/ui/react-select-theme"
+import { useAuth } from "@/app/contexts/auth/context"
+import { hasAnyPermission } from "@/security/permissions"
 
 
 // ... dans ton composant PaieAvantagesDashboard
@@ -41,11 +43,9 @@ const statutColor = (statut: string) => {
 }
 
 /* ---------------- PERMISSIONS ---------------- */
-const canManagePaie = (role?: string) =>
-  role === "ADMIN" || role === "RH"
-
 /* ---------------- COMPONENT ---------------- */
 export default function PaieAvantagesDashboard({ session }: any) {
+  const { auth }: any = useAuth()
   const selectThemeProps = {
     styles: appReactSelectStyles,
     menuPortalTarget: getSelectPortalTarget(),
@@ -54,6 +54,8 @@ export default function PaieAvantagesDashboard({ session }: any) {
   const dialogSelectProps = {
     styles: appReactSelectStyles,
   }
+  const canReadPaie = hasAnyPermission(auth, ["paie.read", "paie.create", "paie.update", "paie.delete"])
+  const canManagePaie = hasAnyPermission(auth, ["paie.create", "paie.update", "paie.delete"])
 
   const [openDialog, setOpenDialog] = useState(false)
   const [selectedPaie, setSelectedPaie] = useState<any>(null)
@@ -168,6 +170,15 @@ export default function PaieAvantagesDashboard({ session }: any) {
   return (
     <div className="erp-page">
       <h1 className="text-3xl font-bold">Gestion Paie & Avantages</h1>
+      {!canReadPaie && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Aucun acces en lecture sur le module paie.
+          </CardContent>
+        </Card>
+      )}
+      {canReadPaie && (
+      <>
 
       {/* INDICATEURS */}
       <div className="grid md:grid-cols-3 gap-4">
@@ -213,9 +224,11 @@ export default function PaieAvantagesDashboard({ session }: any) {
 
         <TabsContent value="bulletins">
           <div className="flex gap-2">
-            <Button className="mb-4" onClick={() => setOpenDialog(true)} >
-              <FileText className="w-4 h-4 mr-2" /> Payer un agent
-            </Button>
+            {canManagePaie && (
+              <Button className="mb-4" onClick={() => setOpenDialog(true)} >
+                <FileText className="w-4 h-4 mr-2" /> Payer un agent
+              </Button>
+            )}
             <PDFDownloadLink
               document={
                 <BulletinPDF
@@ -271,7 +284,7 @@ export default function PaieAvantagesDashboard({ session }: any) {
                         </TableCell>
                         <TableCell className="flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => setSelectedPaie(p)}>Voir</Button>
-                          {canManagePaie(session?.user?.role) && (
+                          {canManagePaie && (
                             <Button size="sm" variant="destructive" onClick={() => supprimerPaie(p.id, { onSuccess: refetch })}>Supprimer</Button>
                           )}
                         </TableCell>
@@ -397,6 +410,8 @@ export default function PaieAvantagesDashboard({ session }: any) {
             </PDFDownloadLink>
           </DialogContent>
         </Dialog>
+      )}
+      </>
       )}
 
     </div>

@@ -21,6 +21,8 @@ import { PDFDownloadLink } from "@react-pdf/renderer";
 import { AnnulerAbsence } from "@/app/action/agent/presence/signalerAbsence/action";
 import { toast } from "sonner";
 import { computePresenceStatus } from "@/utilities/presence";
+import { useAuth } from "@/app/contexts/auth/context";
+import { hasAnyPermission } from "@/security/permissions";
 import {
   ChartContainer,
   ChartTooltip,
@@ -29,8 +31,11 @@ import {
 } from "@/components/ui/chart";
 
 export default function GestionPresenceAbsenceRich() {
+  const { auth }: any = useAuth();
   const [dialogOuvert, setDialogOuvert] = useState(false);
   const { data: donneesStats, isPending: enChargementStats, refetch: refetchGetAdmin } = useGet(["DashAgentAdmin"], GetDashAgentAdmin);
+  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.signal_absence", "presence.validate", "presence.confirm"]);
+  const canManagePresence = hasAnyPermission(auth, ["presence.signal_absence", "presence.validate", "presence.confirm", "presence.update"]);
 
   const donneesCamembert = [
     { name: "Actif", value: donneesStats?.actif ?? 0, color: "#16a34a" },
@@ -153,6 +158,15 @@ export default function GestionPresenceAbsenceRich() {
 
   return (
     <div className="erp-page">
+      {!canReadPresence && (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            Aucun acces en lecture sur les presences et absences.
+          </CardContent>
+        </Card>
+      )}
+      {canReadPresence && (
+      <>
       <div className="erp-panel rounded-2xl p-6">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-1">
@@ -316,7 +330,7 @@ export default function GestionPresenceAbsenceRich() {
                       <TableHead>Statut</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Heure depart</TableHead>
-                      <TableHead>Action</TableHead>
+                      {canManagePresence && <TableHead>Action</TableHead>}
                     </TableRow>
                   </TableHeader>
 
@@ -348,13 +362,15 @@ export default function GestionPresenceAbsenceRich() {
                                   : "-"}
                               </TableCell>
 
-                              <TableCell>
-                                {statutCalcule === "ABSENT" && (
-                                  <Button size="sm" disabled={isPendingAnnulerAbsences} variant="destructive" onClick={() => annulerAbsence(agent.id)}>
-                                    Annuler
-                                  </Button>
-                                )}
-                              </TableCell>
+                              {canManagePresence && (
+                                <TableCell>
+                                  {statutCalcule === "ABSENT" && (
+                                    <Button size="sm" disabled={isPendingAnnulerAbsences} variant="destructive" onClick={() => annulerAbsence(agent.id)}>
+                                      Annuler
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              )}
 
                             </TableRow>
                           </React.Fragment>
@@ -420,6 +436,8 @@ export default function GestionPresenceAbsenceRich() {
           </form>
         </DialogContent>
       </Dialog>
+      </>
+      )}
     </div>
   );
 }

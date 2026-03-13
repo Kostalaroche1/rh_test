@@ -34,6 +34,9 @@ import AdminDemandeConge from "../agent/conges/demande/AdminDemandeConge";
 import AdminTypeCOnge from "../agent/conges/AdminConge";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { BulletinPDF } from "../paie/bulletinPdf";
+import PermissionManager from "../tabord/tables/permissionManager";
+import { useAuth } from "@/app/contexts/auth/context";
+import { canManageAccessControl, hasAnyPermission } from "@/security/permissions";
 
 const statusClass: Record<string, string> = {
   active: "bg-[#E6F0FD] text-[#0F4A97] border-[#9FC0EA]",
@@ -70,6 +73,7 @@ const trendChartConfig = {
 } satisfies ChartConfig;
 
 export default function AdminDashboard() {
+  const { auth }: any = useAuth();
   const {
     stats,
     isPendingStats,
@@ -82,6 +86,16 @@ export default function AdminDashboard() {
     latestTransactions,
     paiesList,
   } = useAdminDashboardData();
+  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.signal_absence", "presence.validate", "presence.confirm"]);
+  const canReadConge = hasAnyPermission(auth, ["conge.read", "conge.request", "conge.confirm", "conge.validate"]);
+  const canReadTypeConge = hasAnyPermission(auth, ["type_conge.read", "type_conge.create", "type_conge.update", "type_conge.delete"]);
+  const canReadAccessControl = canManageAccessControl(auth) || hasAnyPermission(auth, ["permission.read", "role.read"]);
+  const visibleTabs = [
+    canReadPresence ? { value: "presence", label: "Presences & Absences" } : null,
+    canReadConge ? { value: "demandeconge", label: "Demande de Conge" } : null,
+    canReadTypeConge ? { value: "typeconge", label: "Type de Conge" } : null,
+    canReadAccessControl ? { value: "permissions", label: "Permissions & Roles" } : null,
+  ].filter(Boolean) as { value: string; label: string }[];
 
   const kpis = [
     {
@@ -353,22 +367,27 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="presence" className="w-full">
+      {visibleTabs.length > 0 && (
+      <Tabs defaultValue={visibleTabs[0].value} className="w-full">
         <TabsList className="mb-4">
-          <TabsTrigger value="presence">Presences & Absences</TabsTrigger>
-          <TabsTrigger value="demandeconge">Demande de Conge</TabsTrigger>
-          <TabsTrigger value="typeconge">Type de Conge</TabsTrigger>
+          {visibleTabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+          ))}
         </TabsList>
-        <TabsContent value="presence">
+        {canReadPresence && <TabsContent value="presence">
           <AdminPresences />
-        </TabsContent>
-        <TabsContent value="demandeconge">
+        </TabsContent>}
+        {canReadConge && <TabsContent value="demandeconge">
           <AdminDemandeConge />
-        </TabsContent>
-        <TabsContent value="typeconge">
+        </TabsContent>}
+        {canReadTypeConge && <TabsContent value="typeconge">
           <AdminTypeCOnge />
-        </TabsContent>
+        </TabsContent>}
+        {canReadAccessControl && <TabsContent value="permissions">
+          <PermissionManager />
+        </TabsContent>}
       </Tabs>
+      )}
     </div>
   );
 }
