@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import { getAgentIdFromUtilisateurId } from "@/server/horaireAgent";
+import { canAccessAgentForPermissions } from "@/server/access/scope";
 
 async function ensureCongeAccess(options: {
   permission: string;
@@ -26,7 +27,7 @@ async function ensureCongeAccess(options: {
 
 export async function POST(req: NextRequest) {
   const guard = await ensureCongeAccess({
-    permission: "conge.request",
+    permission: "demande_conge.request",
   });
   if (guard.response) return guard.response;
 
@@ -84,7 +85,7 @@ export async function PUT(req: NextRequest) {
 
   if (action === "validate") {
     const guard = await ensureCongeAccess({
-      permission: "conge.validate",
+      permission: "demande_conge.validate",
     });
     if (guard.response) return guard.response;
 
@@ -93,6 +94,10 @@ export async function PUT(req: NextRequest) {
         { message: "La demande doit etre confirmee avant validation" },
         { status: 400 }
       );
+    }
+
+    if (!(await canAccessAgentForPermissions(auth.userId, demande.agentId, ["demande_conge.validate"]))) {
+      return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
     }
 
     const result = await prisma.demandeConge.update({
@@ -113,9 +118,13 @@ export async function PUT(req: NextRequest) {
 
   if (action === "confirm") {
     const guard = await ensureCongeAccess({
-      permission: "conge.confirm",
+      permission: "demande_conge.confirm",
     });
     if (guard.response) return guard.response;
+
+    if (!(await canAccessAgentForPermissions(auth.userId, demande.agentId, ["demande_conge.confirm"]))) {
+      return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
+    }
 
     const result = await prisma.demandeConge.update({
       where: { id },
@@ -137,7 +146,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const guard = await ensureCongeAccess({
-    permission: "conge.update",
+    permission: "demande_conge.update",
   });
   if (guard.response) return guard.response;
 
@@ -164,7 +173,7 @@ export async function PUT(req: NextRequest) {
 
 export async function GET() {
   const guard = await ensureCongeAccess({
-    permission: "conge.read",
+    permission: "demande_conge.read",
   });
   if (guard.response) return guard.response;
 
@@ -187,7 +196,7 @@ export async function GET() {
 
 export async function DELETE(req: Request) {
   const guard = await ensureCongeAccess({
-    permission: "conge.delete",
+    permission: "demande_conge.delete",
   });
   if (guard.response) return guard.response;
 

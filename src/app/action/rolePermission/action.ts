@@ -10,6 +10,7 @@ export async function GetRolePermissions() {
 export async function UpdateRolePermissions(data: {
   roleId: number;
   permissionIds: number[];
+  portees?: Record<string, string>;
 }) {
   const response = await fetch("../api/agent/role-permission", {
     method: "PUT",

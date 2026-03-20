@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import App from "./contexts/tanstack_Client_Query/context";
 import { AuthProvider } from "./contexts/auth/context";
-import { DashboardProvider } from "./contexts/dashbords/context";
 import { NotificationProvider } from "./contexts/notification/context";
 
 const themeScript = `
@@ -42,9 +41,7 @@ export default function RootLayout({
         className="font-sans antialiased"
       >
          <App> <AuthProvider>
-          <DashboardProvider>
              <NotificationProvider >{children}</NotificationProvider>
-        </DashboardProvider>
         </AuthProvider> </App>
       </body>
     </html>

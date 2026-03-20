@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import { NextResponse } from "next/server";
 import { notifyCompteAndRoles } from "@/server/services/notification.service";
+import { canAccessAgentForPermissions, getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
 async function assertPaieAccess(permission: string) {
   const auth = await getAuthenticatedUser();
@@ -19,7 +20,7 @@ async function assertPaieAccess(permission: string) {
 
 export async function POST(req: Request) {
   try {
-    const { response } = await assertPaieAccess("paie.create");
+    const { auth, response } = await assertPaieAccess("paie.create");
     if (response) return response;
 
 
@@ -28,6 +29,10 @@ export async function POST(req: Request) {
 
     if (!body?.agentId) {
       return NextResponse.json({ message: "agentId obligatoire" }, { status: 400 });
+    }
+
+    if (!(await canAccessAgentForPermissions(auth!.userId, Number(body.agentId), ["paie.create"]))) {
+      return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
     }
 
     const affectation = await prisma.affectation.findFirst({
@@ -119,10 +124,22 @@ export async function POST(req: Request) {
 }
 
 export async function GET() {
-  const { response } = await assertPaieAccess("paie.read");
+  const { auth, response } = await assertPaieAccess("paie.read");
   if (response) return response;
 
+  const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(auth!.userId, [
+    "paie.read",
+  ]);
+
   const paies = await prisma.paie.findMany({
+    where:
+      accessibleAgentIds === null
+        ? undefined
+        : {
+            agentId: {
+              in: accessibleAgentIds.length ? accessibleAgentIds : [-1],
+            },
+          },
     include: {
       agent: true,
       primes: true,
@@ -135,10 +152,16 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    const { response } = await assertPaieAccess("paie.update");
+    const { auth, response } = await assertPaieAccess("paie.update");
     if (response) return response;
 
     const body = await req.json();
+    const targetAgentId = Number(body.agentId);
+
+    if (!(await canAccessAgentForPermissions(auth!.userId, targetAgentId, ["paie.update"]))) {
+      return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+    }
+
     const paie = await prisma.paie.update({
       where: { id: Number(body.id) },
       data: {
@@ -162,10 +185,23 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const { response } = await assertPaieAccess("paie.delete");
+    const { auth, response } = await assertPaieAccess("paie.delete");
     if (response) return response;
 
     const body = await req.json();
+    const existingPaie = await prisma.paie.findUnique({
+      where: { id: Number(body.id) },
+      select: { agentId: true },
+    });
+
+    if (!existingPaie) {
+      return NextResponse.json({ message: "Paie introuvable" }, { status: 404 });
+    }
+
+    if (!(await canAccessAgentForPermissions(auth!.userId, existingPaie.agentId, ["paie.delete"]))) {
+      return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+    }
+
     await prisma.paie.delete({
       where: { id: Number(body.id) },
     });

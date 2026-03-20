@@ -18,11 +18,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { FichePresencePDF } from "@/utilities/exportPdf";
 import { PDFDownloadLink } from "@react-pdf/renderer";
-import { AnnulerAbsence } from "@/app/action/agent/presence/signalerAbsence/action";
 import { toast } from "sonner";
 import { computePresenceStatus } from "@/utilities/presence";
 import { useAuth } from "@/app/contexts/auth/context";
 import { hasAnyPermission } from "@/security/permissions";
+import VuePresencePersonnelle from "@/components/dashboard/presences/VuePresencePersonnelle";
+import RevuePresencesUnite from "@/components/dashboard/presences/RevuePresencesUnite";
+import RevueValidationPresences from "@/components/dashboard/presences/RevueValidationPresences";
+import VueEnsemblePresences from "@/components/dashboard/presences/VueEnsemblePresences";
 import {
   ChartContainer,
   ChartTooltip,
@@ -34,8 +37,12 @@ export default function GestionPresenceAbsenceRich() {
   const { auth }: any = useAuth();
   const [dialogOuvert, setDialogOuvert] = useState(false);
   const { data: donneesStats, isPending: enChargementStats, refetch: refetchGetAdmin } = useGet(["DashAgentAdmin"], GetDashAgentAdmin);
-  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.signal_absence", "presence.validate", "presence.confirm"]);
-  const canManagePresence = hasAnyPermission(auth, ["presence.signal_absence", "presence.validate", "presence.confirm", "presence.update"]);
+  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.validate", "presence.confirm"]);
+  const canManagePresence = hasAnyPermission(auth, ["presence.validate", "presence.confirm", "presence.update"]);
+  const canSignPresence = hasAnyPermission(auth, ["presence.sign"]);
+  const canConfirmPresence = hasAnyPermission(auth, ["presence.confirm"]);
+  const canValidatePresence = hasAnyPermission(auth, ["presence.validate"]);
+  const canReviewPresence = hasAnyPermission(auth, ["presence.read"]);
 
   const donneesCamembert = [
     { name: "Actif", value: donneesStats?.actif ?? 0, color: "#16a34a" },
@@ -147,14 +154,15 @@ export default function GestionPresenceAbsenceRich() {
     return agentsFiltres.slice(indexDepart, indexDepart + ELEMENTS_PAR_PAGE);
   }, [agentsFiltres, page]);
 
-  const { mutateAsync: annulerAbsences, isPending: isPendingAnnulerAbsences } = usePut(AnnulerAbsence)
-
-  const annulerAbsence = async (id: any) => {
-    const responses = await annulerAbsences({ agentId: parseInt(id) })
-
-    toast.info(responses.status === 200 ? responses.message : responses.message)
-    refetchGetAdmin()
-  };
+  const availableTabs = [
+    { value: "dashboard", label: "Dashboard", visible: canReadPresence },
+    { value: "tableau", label: "Tableau", visible: canReadPresence },
+    { value: "calendrier", label: "Calendrier", visible: canReadPresence },
+    { value: "pointage", label: "Pointer", visible: canSignPresence },
+    { value: "confirmation", label: "Confirmer", visible: canConfirmPresence },
+    { value: "validation", label: "Valider", visible: canValidatePresence },
+    { value: "suivi", label: "Suivi", visible: canReviewPresence },
+  ].filter((tab) => tab.visible);
 
   return (
     <div className="erp-page">
@@ -189,11 +197,13 @@ export default function GestionPresenceAbsenceRich() {
 
       <Separator />
 
-      <Tabs defaultValue="dashboard" className="w-full">
+      <Tabs defaultValue={availableTabs[0]?.value ?? "dashboard"} className="w-full">
         <TabsList className="mb-4 md :flex align-center">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="tableau">Tableau</TabsTrigger>
-          <TabsTrigger value="calendrier">Calendrier</TabsTrigger>
+          {availableTabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         {enChargementStats && <Skeleton className="p-20" />}
@@ -362,15 +372,7 @@ export default function GestionPresenceAbsenceRich() {
                                   : "-"}
                               </TableCell>
 
-                              {canManagePresence && (
-                                <TableCell>
-                                  {statutCalcule === "ABSENT" && (
-                                    <Button size="sm" disabled={isPendingAnnulerAbsences} variant="destructive" onClick={() => annulerAbsence(agent.id)}>
-                                      Annuler
-                                    </Button>
-                                  )}
-                                </TableCell>
-                              )}
+                              {canManagePresence && <TableCell>-</TableCell>}
 
                             </TableRow>
                           </React.Fragment>
@@ -399,6 +401,30 @@ export default function GestionPresenceAbsenceRich() {
         <TabsContent value="calendrier" className="flex flex-col gap-6">
           <CalendarPresence stats={donneesStats} />
         </TabsContent>
+
+        {canSignPresence && (
+          <TabsContent value="pointage" className="flex flex-col gap-6">
+            <VuePresencePersonnelle />
+          </TabsContent>
+        )}
+
+        {canConfirmPresence && (
+          <TabsContent value="confirmation" className="flex flex-col gap-6">
+            <RevuePresencesUnite />
+          </TabsContent>
+        )}
+
+        {canValidatePresence && (
+          <TabsContent value="validation" className="flex flex-col gap-6">
+            <RevueValidationPresences />
+          </TabsContent>
+        )}
+
+        {canReviewPresence && (
+          <TabsContent value="suivi" className="flex flex-col gap-6">
+            <VueEnsemblePresences />
+          </TabsContent>
+        )}
 
         <TabsContent value="rapports" className="flex flex-col gap-6">
           <Card className="w-full">
@@ -441,3 +467,4 @@ export default function GestionPresenceAbsenceRich() {
     </div>
   );
 }
+

@@ -159,7 +159,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         toast(notification.titre || "Nouvelle notification", {
           description: notification.message,
           position: "bottom-left",
-          duration : 4000,
+          duration: 4000,
           className:
             "animate-in slide-in-from-right-full duration-300 border border-primary/25 bg-card text-card-foreground shadow-lg",
           action: {
@@ -167,7 +167,6 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
             onClick: () => {
               void markAsRead(notification.id);
             },
-
           },
         });
       });

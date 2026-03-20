@@ -39,12 +39,18 @@ model Utilisateur {
 model Role {
   id          Int     @id @default(autoincrement())
   key         String?
+  code        String? @unique
   nom         String  @unique
   description String?
   actif       Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
   notification Notification[]
   utilisateurs UtilisateurRole[]
   rolePermission RolePermission[]
+  reglesPortee ReglePorteeRole[]
+
+  @@index([actif])
 }
 
 model UtilisateurRole {
@@ -111,61 +117,23 @@ model HistoriqueAgent {
   agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 }
 
- // GESTION DES AFFECTATIONS //
-model Direction {
-  id          Int      @id @default(autoincrement())
-  code        String       @unique
-  libelle     String
-  description String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  departements Departement[]
-  affectations Affectation[] 
-}
-
-model Departement {
-  id          Int      @id @default(autoincrement())
-  code        String       @unique
-  nom         String
-  directionId Int
-  direction   Direction    @relation(fields: [directionId], references: [id], onDelete: Cascade)
-
-  postes      Poste[]
-  sites       SiteDepartement[]
-  affectations Affectation[]
-}
-
-model Site {
-  id          Int      @id @default(autoincrement())
-  nom         String
-  adresse     String
-  ville       String
-
-  departements SiteDepartement[]
-  affectations Affectation[]
-}
-
-model SiteDepartement {
-  siteId        Int
-  departementId Int
-
-  site          Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  departement   Departement @relation(fields: [departementId], references: [id], onDelete: Cascade)
-
-  @@id([siteId, departementId])
-}
-
 model Poste {
   id          Int      @id @default(autoincrement())
   code        String       @unique
   libelle     String
+  description String?
+  uniteOrganisationnelleId Int
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 
-  departementId Int
-  departement   Departement  @relation(fields: [departementId], references: [id])
+  uniteOrganisationnelle UniteOrganisationnelle @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: Restrict)
 
   fonctions     Fonction[]
   affectations  Affectation[]
+
+  @@index([uniteOrganisationnelleId])
+  @@index([actif])
 }
 
 model Fonction {
@@ -216,36 +184,97 @@ enum StatutContrat {
   RESILIE
 }
 
+enum PorteeDonnees {
+  SOI_MEME
+  UNITE
+  UNITE_ET_DESCENDANTS
+  TOUTE_ORGANISATION
+}
+
+enum StatutAffectationOrganisationnelle {
+  ACTIVE
+  SUSPENDUE
+  TERMINEE
+}
+
+model TypeUniteOrganisationnelle {
+  id          Int      @id @default(autoincrement())
+  nom         String
+  code        String   @unique
+  description String?
+  ordre       Int      @default(0)
+  actif       Boolean  @default(true)
+  systeme     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  unites      UniteOrganisationnelle[]
+
+  @@index([actif])
+  @@index([ordre])
+}
+
+model UniteOrganisationnelle {
+  id            Int      @id @default(autoincrement())
+  nom           String
+  code          String   @unique
+  description   String?
+  typeUniteId   Int
+  parentId      Int?
+  chemin        String?
+  niveau        Int      @default(0)
+  actif         Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  typeUnite     TypeUniteOrganisationnelle @relation(fields: [typeUniteId], references: [id])
+  parent        UniteOrganisationnelle?    @relation("ArbreOrganisationnel", fields: [parentId], references: [id], onDelete: SetNull)
+  enfants       UniteOrganisationnelle[]   @relation("ArbreOrganisationnel")
+
+  postes        Poste[]
+  affectations  Affectation[]
+
+  @@index([typeUniteId])
+  @@index([parentId])
+  @@index([actif])
+  @@index([chemin])
+}
+
 model Affectation {
   id                Int            @id @default(autoincrement())
   agentId           Int
   posteId           Int
   fonctionId        Int?
   gradeId           Int
-  departementId     Int
-  directionId       Int
-  siteId            Int
+  uniteOrganisationnelleId Int
   dateDebut         DateTime
   dateFin           DateTime?
   statut            StatutConge?     @default(EN_ATTENTE)
+  statutOrganisationnel StatutAffectationOrganisationnelle @default(ACTIVE)
   motif             String?
   typeContrat       TypeContrat?
   statutContrat     StatutContrat?
   type              TypeAffectation? @default(AFFECTATION)
+  principale        Boolean @default(true)
+  actif             Boolean @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
 
   agent             Agent                @relation(fields: [agentId], references: [id], onDelete: Cascade)
   poste             Poste                @relation(fields: [posteId], references: [id], onDelete: Cascade)
   fonction          Fonction?            @relation(fields: [fonctionId], references: [id], onDelete: Cascade)
   grade             Grade                @relation(fields: [gradeId], references: [id], onDelete: Cascade)
-  departement       Departement          @relation(fields: [departementId], references: [id], onDelete: Cascade)
-  direction         Direction            @relation(fields: [directionId], references: [id], onDelete: Cascade)
-  site              Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  uniteOrganisationnelle UniteOrganisationnelle @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: Restrict)
 
   historique        HistoriqueAffectation[]
+
+  @@index([uniteOrganisationnelleId])
+  @@index([actif, principale])
+  @@index([dateDebut, dateFin])
 }
 
 model HistoriqueAffectation {
- id          Int      @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   affectationId     Int
   dateChangement    DateTime   @default(now())
   ancienPoste       String?
@@ -354,9 +383,9 @@ model DemandeConge {
 }
 
 enum StatutPresence {
-  BROUILLON     
-  CONFIRME      
-  VALIDE        
+  BROUILLON
+  CONFIRME
+  VALIDE
   CONGE         
   MISSION       
   MALADIE
@@ -364,6 +393,12 @@ enum StatutPresence {
   PRESENCE
   RETARD
   OFF 
+}
+
+enum StatutWorkflowPresence {
+  BROUILLON
+  CONFIRME
+  VALIDE
 }
 model Presence {
   id              Int       @id @default(autoincrement())
@@ -377,7 +412,8 @@ model Presence {
   heureArrivee    DateTime?
   heureDepart     DateTime?
 
-  statut          StatutPresence @default(BROUILLON)
+  statut          StatutPresence @default(PRESENCE)
+  statutWorkflow  StatutWorkflowPresence @default(BROUILLON)
 
   confirmeParId   Int?
   confirmePar     Utilisateur? @relation("ConfirmePresence", fields: [confirmeParId], references: [id])
@@ -434,16 +470,45 @@ model HoraireAgent {
 model Permisions{
   id Int @id @default(autoincrement())
 
-  code String 
-  rolePermission RolePermission[] 
+  code String @unique
+  libelle String?
+  description String?
+  module String?
+  actif Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  rolePermission RolePermission[]
+  reglesPortee ReglePorteeRole[]
+
+  @@index([module])
+  @@index([actif])
 }
 
 model RolePermission{
-  
   permissionId Int 
   permission Permisions @relation(fields:[permissionId], references:[id])
   
   roleId Int
   role Role @relation(fields:[roleId], references:[id])
+  createdAt DateTime @default(now())
+
   @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model ReglePorteeRole {
+  id           Int            @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  portee       PorteeDonnees
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  role         Role           @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permisions     @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@index([portee])
 }

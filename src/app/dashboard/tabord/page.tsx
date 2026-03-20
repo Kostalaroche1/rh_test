@@ -1,10 +1,5 @@
-
-import Tabord from "@/components/dashboard/tabord/tabord";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return (
-    <>
-     <Tabord/>
-    </>
-  )
+  redirect("/dashboard");
 }

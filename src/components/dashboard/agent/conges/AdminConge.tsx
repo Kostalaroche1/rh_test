@@ -9,7 +9,7 @@ import { CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
 import { TypeConge } from "@/utilities/type"
-import { TypeCongeListAdmin } from "../../chefServiceDashBoard/publicMethod"
+import { TableauAdministrationTypeConge } from "@/components/dashboard/conges/TableauTypeConge"
 
 const PAGE_SIZE = 14
 
@@ -81,7 +81,7 @@ export default function AdminTypeCOnge() {
           </p>
         </div>
 
-        <TypeCongeListAdmin typeConges={paginatedTypes} />
+        <TableauAdministrationTypeConge typeConges={paginatedTypes} />
 
         {paginatedTypes.length === 0 && (
           <p className="py-4 text-center text-sm text-muted-foreground">Aucun resultat</p>
@@ -112,3 +112,6 @@ export default function AdminTypeCOnge() {
     </>
   )
 }
+
+
+

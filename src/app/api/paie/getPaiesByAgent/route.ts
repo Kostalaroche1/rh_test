@@ -1,5 +1,8 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/security/auth";
+import { requireAccess } from "@/security/authorization";
+import { canAccessAgentForPermissions } from "@/server/access/scope";
 
 // ✅ Type corrigé pour TypeScript
 type PaieWithPrimes = {
@@ -28,6 +31,18 @@ type PaieWithPrimes = {
 export async function GET(
   req: Request
 ) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+  }
+
+  try {
+    await requireAccess({
+      permissions: ["paie.read"],
+    });
+  } catch {
+    return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+  }
 
   const {searchParams} =  new URL(req.url)
   const agentId = searchParams.get('agentId')
@@ -41,6 +56,10 @@ export async function GET(
   }
 
   try {
+    if (!(await canAccessAgentForPermissions(auth.userId, Number(agentId), ["paie.read"]))) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
     const paies = await prisma.paie.findMany({
       where: { agentId: Number(agentId) },
       include: {

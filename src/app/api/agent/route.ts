@@ -5,6 +5,7 @@ import { modifierAgent } from "@/app/application/agent/modifierAgent";
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import { generateMatricule } from "@/services/generateMat";
+import { canAccessAgentForPermissions, getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
 async function ensureAgentAccess(permission: string) {
   const auth = await getAuthenticatedUser();
@@ -24,10 +25,33 @@ async function ensureAgentAccess(permission: string) {
 }
 
 export async function GET() {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ message: "Non authentifie" }, { status: 401 });
+  }
+
   const guard = await ensureAgentAccess("agent.read");
   if (guard.response) return guard.response;
 
+  const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(auth.userId, [
+    "agent.read",
+  ]);
+
+  const where =
+    accessibleAgentIds === null
+      ? undefined
+      : {
+          compteAgent: {
+            is: {
+              agentId: {
+                in: accessibleAgentIds.length ? accessibleAgentIds : [-1],
+              },
+            },
+          },
+        };
+
   const datas = await prisma.utilisateur.findMany({
+    where,
     select: {
       id: true,
       login: true,
@@ -78,13 +102,23 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ message: "Non authentifie" }, { status: 401 });
+  }
+
   const guard = await ensureAgentAccess("agent.update");
   if (guard.response) return guard.response;
 
   const data = await req.json();
+  const targetAgentId = Number(data.agentId);
+
+  if (!(await canAccessAgentForPermissions(auth.userId, targetAgentId, ["agent.update"]))) {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
+  }
 
   await prisma.agent.update({
-    where: { id: Number(data.agentId) },
+    where: { id: targetAgentId },
     data: {
       nom: data.nom,
       prenom: data.prenom,
@@ -107,6 +141,11 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
+    return NextResponse.json({ message: "Non authentifie" }, { status: 401 });
+  }
+
   const guard = await ensureAgentAccess("agent.delete");
   if (guard.response) return guard.response;
 
@@ -116,6 +155,10 @@ export async function DELETE(req: Request) {
 
   if (!Number.isFinite(agentId) || !Number.isFinite(utilisateurId)) {
     return NextResponse.json({ error: "agentId ou utilisateurId manquant" }, { status: 400 });
+  }
+
+  if (!(await canAccessAgentForPermissions(auth.userId, agentId, ["agent.delete"]))) {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
   await prisma.compteAgent.deleteMany({

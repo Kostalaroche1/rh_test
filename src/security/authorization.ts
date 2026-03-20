@@ -1,9 +1,10 @@
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "./auth";
+import { canonicalizePermissionCode } from "./permission-aliases";
 import { canManageAccessControl } from "./permissions";
 
 function normalizePermissionCode(value: string) {
-  return value.trim().toLowerCase();
+  return canonicalizePermissionCode(value);
 }
 
 export async function getUserPermissionCodes(utilisateurId: number) {

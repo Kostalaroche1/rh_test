@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { CrossIcon } from "lucide-react";
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { hasAnyPermission } from "@/security/permissions";
 import { TypeConge } from "@/utilities/type";
-import { TypeCongeList } from "../../chefServiceDashBoard/TabList";
+import { TableauTypeConge } from "@/components/dashboard/conges/TableauTypeConge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function RhTypeConge() {
@@ -149,14 +149,14 @@ export default function RhTypeConge() {
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher code, libelle, duree..." className="w-full md:max-w-sm" />
               <p className="text-sm text-muted-foreground">Total: {typeHolidays.length} | Resultats: {filteredTypeHolidays.length}</p>
             </div>
-            <TypeCongeList
+            <TableauTypeConge
               readOnly={!canManageTypeConge}
               typeConges={paginatedTypeHolidays}
-              onEdit={(type) => {
+              onEdit={(type: TypeConge) => {
                 setSelectedType(type);
                 setOpenEditModal(true);
               }}
-              onDelete={(id) => {
+              onDelete={(id: number) => {
                 setSelectedId(id);
                 setOpenDeleteConfirm(true);
               }}
@@ -217,3 +217,6 @@ export default function RhTypeConge() {
     </>
   );
 }
+
+
+

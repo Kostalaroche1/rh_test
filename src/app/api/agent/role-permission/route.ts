@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
+import { PorteeDonnees } from "@/generated/prisma";
 import { requireAccessControlAccess } from "@/security/authorization";
 
 export async function GET() {
@@ -26,6 +27,12 @@ export async function GET() {
               permissionId: true,
             },
           },
+          reglesPortee: {
+            select: {
+              permissionId: true,
+              portee: true,
+            },
+          },
         },
         orderBy: [{ nom: "asc" }],
       }),
@@ -33,6 +40,8 @@ export async function GET() {
         select: {
           id: true,
           code: true,
+          libelle: true,
+          module: true,
         },
         orderBy: [{ code: "asc" }],
       }),
@@ -58,6 +67,10 @@ export async function PUT(req: Request) {
           .map((value: unknown) => Number(value))
           .filter((value: number): value is number => Number.isFinite(value))
       : [];
+    const porteesInput =
+      body?.portees && typeof body.portees === "object" && !Array.isArray(body.portees)
+        ? body.portees
+        : {};
 
     if (!Number.isFinite(roleId)) {
       return NextResponse.json(
@@ -93,8 +106,40 @@ export async function PUT(req: Request) {
       }
     }
 
+    const validPortees = new Set<PorteeDonnees>([
+      PorteeDonnees.SOI_MEME,
+      PorteeDonnees.UNITE,
+      PorteeDonnees.UNITE_ET_DESCENDANTS,
+      PorteeDonnees.TOUTE_ORGANISATION,
+    ]);
+
+    const reglesPorteeData = uniquePermissionIds.map((permissionId) => {
+      const rawPortee = porteesInput[String(permissionId)];
+      if (!rawPortee) {
+        throw new Error(`Portee manquante pour la permission ${permissionId}.`);
+      }
+
+      const requestedPortee = String(rawPortee) as PorteeDonnees;
+      const portee = validPortees.has(requestedPortee)
+        ? requestedPortee
+        : null;
+
+      if (!portee) {
+        throw new Error(`Portee invalide pour la permission ${permissionId}.`);
+      }
+
+      return {
+        roleId,
+        permissionId,
+        portee,
+      };
+    });
+
     await prisma.$transaction([
       prisma.rolePermission.deleteMany({
+        where: { roleId },
+      }),
+      prisma.reglePorteeRole.deleteMany({
         where: { roleId },
       }),
       ...(uniquePermissionIds.length
@@ -104,6 +149,9 @@ export async function PUT(req: Request) {
                 roleId,
                 permissionId,
               })),
+            }),
+            prisma.reglePorteeRole.createMany({
+              data: reglesPorteeData,
             }),
           ]
         : []),
@@ -119,6 +167,12 @@ export async function PUT(req: Request) {
         rolePermission: {
           select: {
             permissionId: true,
+          },
+        },
+        reglesPortee: {
+          select: {
+            permissionId: true,
+            portee: true,
           },
         },
       },

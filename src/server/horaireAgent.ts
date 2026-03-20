@@ -12,35 +12,70 @@ const DAY_LABELS = {
 } as const;
 const DAY_FIELDS = Object.keys(DAY_LABELS) as Array<keyof typeof DAY_LABELS>;
 
+function getKinshasaDateParts(date = new Date()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: KINSHASA_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const getPart = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return {
+    year: getPart("year"),
+    month: getPart("month"),
+    day: getPart("day"),
+    hour: getPart("hour"),
+    minute: getPart("minute"),
+  };
+}
+
 function getKinshasaNow() {
+  const parts = getKinshasaDateParts();
   return new Date(
-    new Date().toLocaleString("en-US", { timeZone: KINSHASA_TIMEZONE })
+    Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      0
+    )
   );
 }
 
-function getKinshasaDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function getKinshasaDateKey(date = new Date()) {
+  const parts = getKinshasaDateParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-function getKinshasaStartOfDay(date: Date) {
-  return new Date(`${getKinshasaDateKey(date)}T00:00:00`);
+function getKinshasaStartOfDay(date = new Date()) {
+  return new Date(`${getKinshasaDateKey(date)}T00:00:00.000Z`);
 }
 
-function getDayField(date: Date) {
-  const fields = [
-    "dimanche",
-    "lundi",
-    "mardi",
-    "mercredi",
-    "jeudi",
-    "vendredi",
-    "samedi",
-  ] as const;
+function getKinshasaCurrentMinutes(date = new Date()) {
+  const parts = getKinshasaDateParts(date);
+  return Number(parts.hour) * 60 + Number(parts.minute);
+}
 
-  return fields[date.getDay()];
+function getDayField(date = new Date()) {
+  const weekday = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: KINSHASA_TIMEZONE,
+    weekday: "long",
+  })
+    .format(date)
+    .toLowerCase();
+
+  const normalized = weekday.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const dayField = DAY_FIELDS.find((field) => field === normalized);
+
+  return dayField ?? "lundi";
 }
 
 function getTimeMinutes(value: Date) {
@@ -101,7 +136,7 @@ function enrichHoraireAssignment(
 ) {
   const startMinutes = getTimeMinutes(horaireAgent.horaire.heureDebut);
   const endMinutes = getTimeMinutes(horaireAgent.horaire.heureFin);
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const currentMinutes = getKinshasaCurrentMinutes();
 
   return {
     ...horaireAgent,
@@ -130,8 +165,8 @@ export async function getAgentIdFromUtilisateurId(utilisateurId: number) {
 
 async function getTodayHoraireForAgent(agentId: number) {
   const now = getKinshasaNow();
-  const todayStart = getKinshasaStartOfDay(now);
-  const dayField = getDayField(now);
+  const todayStart = getKinshasaStartOfDay();
+  const dayField = getDayField();
 
   const horaireAgent = await prisma.horaireAgent.findFirst({
     where: {
@@ -166,8 +201,8 @@ async function getTodayHoraireForAgent(agentId: number) {
 
 async function getHoraireContextForAgent(agentId: number) {
   const now = getKinshasaNow();
-  const todayStart = getKinshasaStartOfDay(now);
-  const dayField = getDayField(now);
+  const todayStart = getKinshasaStartOfDay();
+  const dayField = getDayField();
 
   const [activeSchedule, currentRangeSchedule, nextSchedule] = await Promise.all([
     prisma.horaireAgent.findFirst({

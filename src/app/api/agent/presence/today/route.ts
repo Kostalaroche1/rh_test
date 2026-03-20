@@ -18,12 +18,14 @@ async function syncPresenceStatusForDay(input: {
 }) {
     const { presence, agentId, todayDay, statut } = input;
 
+    // Auto-generated day statuses are always final. They do not need the normal draft/confirm/validate workflow.
     if (!presence) {
         return prisma.presence.create({
             data: {
                 agentId,
                 date: todayDay,
                 statut,
+                statutWorkflow: "VALIDE",
                 heureArrivee: null,
                 heureDepart: null,
             }
@@ -34,11 +36,13 @@ async function syncPresenceStatusForDay(input: {
         return presence;
     }
 
-    if (["CONGE", "OFF", "ABSENT", "BROUILLON", "PRESENCE", "RETARD"].includes(presence.statut)) {
+    // Reuse the same row when the system recomputes the day status to avoid duplicate presence entries.
+    if (["CONGE", "OFF", "ABSENT", "PRESENCE", "RETARD"].includes(presence.statut)) {
         return prisma.presence.update({
             where: { id: presence.id },
             data: {
                 statut,
+                statutWorkflow: "VALIDE",
                 heureArrivee: statut === "ABSENT" ? null : presence.heureArrivee,
                 heureDepart: statut === "ABSENT" ? null : presence.heureDepart,
             }
@@ -105,6 +109,7 @@ export const GET = async () => {
         })
     }
 
+    // Once the work window is closed without any arrival time, the system turns the day into ABSENT automatically.
     if (dayContext.state === "WORKING" && dayContext.schedule.isAfterSchedule && !getData?.heureArrivee) {
         getData = await syncPresenceStatusForDay({
             presence: getData,

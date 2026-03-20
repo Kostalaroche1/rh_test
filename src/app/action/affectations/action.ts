@@ -5,9 +5,7 @@ export interface Affectation {
   posteId: string
   fonctionId?: string | null
   gradeId: string
-  departementId: string
-  directionId: string
-  siteId: string
+  uniteOrganisationnelleId: string
   dateDebut: string
   dateFin?: string | null
   motif?: string

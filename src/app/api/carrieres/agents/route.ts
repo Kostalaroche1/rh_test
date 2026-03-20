@@ -2,7 +2,7 @@ import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
-import { getChefDepartementIds } from "@/server/access/context";
+import { getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
 export async function GET() {
   try {
@@ -19,31 +19,25 @@ export async function GET() {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
-    const departementIds = await getChefDepartementIds(user);
+    const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(user.userId, [
+      "agent.read",
+      "affectation.read",
+    ]);
 
     const employes = await prisma.agent.findMany({
       where:
-        departementIds.length > 0
+        accessibleAgentIds === null
+          ? undefined
+          : accessibleAgentIds.length > 0
           ? {
-              affectations: {
-                some: {
-                  departementId: { in: departementIds },
-                  OR: [{ dateFin: null }, { dateFin: { gte: new Date() } }],
-                },
-              },
+              id: { in: accessibleAgentIds },
             }
-          : undefined,
+          : { id: -1 },
       select: {
         nom: true,
         prenom: true,
         statut: true,
         affectations: {
-          where:
-            departementIds.length > 0
-              ? {
-                  departementId: { in: departementIds },
-                }
-              : undefined,
           select: {
             poste: {
               select: {

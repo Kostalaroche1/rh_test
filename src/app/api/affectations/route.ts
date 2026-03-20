@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import { notifyCompteAndRoles } from "@/server/services/notification.service";
+import { canAccessAgentForPermissions, canAccessUnitForPermissions, getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
 async function ensureAffectationAccess(permission: string) {
   const auth = await getAuthenticatedUser();
@@ -23,15 +24,23 @@ export async function GET() {
   const guard = await ensureAffectationAccess("affectation.read");
   if (!guard.ok) return guard.response;
 
+  const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(guard.auth!.userId, [
+    "affectation.read",
+  ]);
+
   const data = await prisma.affectation.findMany({
+    where:
+      accessibleAgentIds === null
+        ? undefined
+        : {
+            agentId: { in: accessibleAgentIds.length ? accessibleAgentIds : [-1] },
+          },
     include: {
       agent: true,
       poste: true,
       fonction: true,
       grade: true,
-      departement: true,
-      direction: true,
-      site: true,
+      uniteOrganisationnelle: true,
       historique: true,
     },
     orderBy: { dateDebut: "desc" },
@@ -41,14 +50,32 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const guard = await ensureAffectationAccess("affectation.create");
+  const guard = await ensureAffectationAccess("affectation.assign");
   if (!guard.ok) return guard.response;
 
   const body = await req.json();
+  const agentId = Number(body.agentId);
+  const uniteOrganisationnelleId = Number(body.uniteOrganisationnelleId);
+
+  if (!(await canAccessAgentForPermissions(guard.auth!.userId, agentId, ["affectation.assign"]))) {
+    return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+  }
+
+  if (typeof uniteOrganisationnelleId === "number" && Number.isFinite(uniteOrganisationnelleId)) {
+    const canAccessUnit = await canAccessUnitForPermissions(
+      guard.auth!.userId,
+      uniteOrganisationnelleId,
+      ["unite_organisationnelle.read", "affectation.assign"]
+    );
+
+    if (!canAccessUnit) {
+      return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+    }
+  }
 
   const active = await prisma.affectation.findFirst({
     where: {
-      agentId: Number(body.agentId),
+      agentId,
       dateFin: null,
     },
   });
@@ -62,13 +89,11 @@ export async function POST(req: Request) {
 
   const data = await prisma.affectation.create({
     data: {
-      agentId: Number(body.agentId),
+      agentId,
       posteId: Number(body.posteId),
       fonctionId: body.fonctionId ? Number(body.fonctionId) : null,
       gradeId: Number(body.gradeId),
-      departementId: Number(body.departementId),
-      directionId: Number(body.directionId),
-      siteId: Number(body.siteId),
+      uniteOrganisationnelleId,
       dateDebut: new Date(body.dateDebut),
       dateFin: body.dateFin ? new Date(body.dateFin) : null,
       motif: body.motif ?? null,
@@ -84,11 +109,9 @@ export async function POST(req: Request) {
         },
       },
       poste: true,
-      departement: true,
-      direction: true,
       grade: true,
       fonction: true,
-      site: true,
+      uniteOrganisationnelle: true,
     },
   });
 
@@ -97,7 +120,7 @@ export async function POST(req: Request) {
     ["admin", "rh"],
     {
       titre: "Nouvelle affectation",
-      message: `${data.agent.nom} ${data.agent.prenom} est affecte(e) a ${data.poste?.libelle ?? "un poste"} (${data.departement?.nom ?? "-"})`,
+      message: `${data.agent.nom} ${data.agent.prenom} est affecte(e) a ${data.poste?.libelle ?? "un poste"} (${data.uniteOrganisationnelle?.nom ?? "-"})`,
       type: "AFFECTATION",
       icon: "briefcase",
       url: "/dashboard/organisation",
@@ -112,6 +135,35 @@ export async function PUT(req: Request) {
   if (!guard.ok) return guard.response;
 
   const body = await req.json();
+  const existing = await prisma.affectation.findUnique({
+    where: { id: Number(body.id) },
+    select: { agentId: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ message: "Affectation introuvable" }, { status: 404 });
+  }
+
+  if (!(await canAccessAgentForPermissions(guard.auth!.userId, existing.agentId, ["affectation.update"]))) {
+    return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+  }
+
+  const uniteOrganisationnelleId = body.uniteOrganisationnelleId
+    ? Number(body.uniteOrganisationnelleId)
+    : undefined;
+
+  if (Number.isFinite(uniteOrganisationnelleId)) {
+    const scopedUniteId = uniteOrganisationnelleId as number;
+    const canAccessUnit = await canAccessUnitForPermissions(
+      guard.auth!.userId,
+      scopedUniteId,
+      ["unite_organisationnelle.read", "affectation.update"]
+    );
+
+    if (!canAccessUnit) {
+      return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+    }
+  }
 
   const data = await prisma.affectation.update({
     where: { id: Number(body.id) },
@@ -119,9 +171,7 @@ export async function PUT(req: Request) {
       posteId: Number(body.posteId),
       fonctionId: body.fonctionId ? Number(body.fonctionId) : null,
       gradeId: Number(body.gradeId),
-      departementId: Number(body.departementId),
-      directionId: Number(body.directionId),
-      siteId: Number(body.siteId),
+      uniteOrganisationnelleId: Number.isFinite(uniteOrganisationnelleId) ? uniteOrganisationnelleId : undefined,
       dateDebut: new Date(body.dateDebut),
       dateFin: body.dateFin ? new Date(body.dateFin) : null,
       motif: body.motif ?? null,
@@ -137,7 +187,7 @@ export async function PUT(req: Request) {
         },
       },
       poste: true,
-      departement: true,
+      uniteOrganisationnelle: true,
     },
   });
 
@@ -161,6 +211,19 @@ export async function DELETE(req: Request) {
   if (!guard.ok) return guard.response;
 
   const body = await req.json();
+  const existing = await prisma.affectation.findUnique({
+    where: { id: Number(body.id) },
+    select: { agentId: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ message: "Affectation introuvable" }, { status: 404 });
+  }
+
+  if (!(await canAccessAgentForPermissions(guard.auth!.userId, existing.agentId, ["affectation.delete"]))) {
+    return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+  }
+
   await prisma.affectation.delete({
     where: { id: Number(body.id) },
   });

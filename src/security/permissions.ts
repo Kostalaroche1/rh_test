@@ -1,8 +1,8 @@
 import type { SessionUser } from "./auth";
-import { isAdmin } from "./roles";
+import { canonicalizePermissionCode } from "./permission-aliases";
 
 function normalizePermission(value: string | null | undefined) {
-  return (value ?? "").trim().toLowerCase();
+  return canonicalizePermissionCode(value ?? "");
 }
 
 export function getPermissionCodes(user: SessionUser | null | undefined) {
@@ -37,15 +37,12 @@ export function hasAllPermissions(
 }
 
 export function canManageAccessControl(user: SessionUser | null | undefined) {
-  return (
-    isAdmin(user) ||
-    hasAnyPermission(user, [
-      "role.read",
-      "role.create",
-      "role.update",
-      "permission.read",
-      "permission.create",
-      "permission.update",
-    ])
-  );
+  return hasAnyPermission(user, [
+    "role.read",
+    "role.create",
+    "role.update",
+    "permission.read",
+    "permission.create",
+    "permission.update",
+  ]);
 }

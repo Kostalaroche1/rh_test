@@ -21,6 +21,38 @@ function buildReadableScope(user: {
   };
 }
 
+async function resolveCompteIdsForRoleId(roleId: number) {
+  const assignments = await prisma.utilisateurRole.findMany({
+    where: {
+      roleId,
+      role: { actif: true },
+      utilisateur: {
+        actif: true,
+        compteAgent: {
+          isNot: null,
+        },
+      },
+    },
+    select: {
+      utilisateur: {
+        select: {
+          compteAgent: {
+            select: { id: true },
+          },
+        },
+      },
+    },
+  });
+
+  return [
+    ...new Set(
+      assignments
+        .map((item) => item.utilisateur.compteAgent?.id ?? null)
+        .filter((value): value is number => Number.isFinite(value))
+    ),
+  ];
+}
+
 export async function GET() {
   try {
     const user = await getAuthenticatedUser();
@@ -73,29 +105,79 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const notif = await prisma.notification.create({
-      data: {
-        compteId:
-          body.compteId === null || body.compteId === undefined
-            ? null
-            : Number(body.compteId),
-        roleId:
-          body.roleId === null || body.roleId === undefined
-            ? null
-            : Number(body.roleId),
-        titre: body.titre,
-        message: body.message,
-        type: body.type ?? "INFO",
-        url: body.url ?? null,
-        icon: body.icon ?? "bell",
-        statut: body.statut ?? "NON_LU",
-        expedider: body.expedider ?? "SYSTEM",
-        dateEnvoi: new Date(),
-      },
-      include: { role: true, compte: true },
-    });
+    const compteId =
+      body.compteId === null || body.compteId === undefined
+        ? null
+        : Number(body.compteId);
+    const roleId =
+      body.roleId === null || body.roleId === undefined
+        ? null
+        : Number(body.roleId);
+    const agentId =
+      body.agentId === null || body.agentId === undefined
+        ? null
+        : Number(body.agentId);
 
-    return NextResponse.json({ data: notif }, { status: 201 });
+    let targetCompteIds: number[] = [];
+
+    if (Number.isFinite(compteId)) {
+      targetCompteIds = [Number(compteId)];
+    } else if (Number.isFinite(agentId)) {
+      const compte = await prisma.compteAgent.findUnique({
+        where: { agentId: Number(agentId) },
+        select: { id: true },
+      });
+      targetCompteIds = compte ? [compte.id] : [];
+    } else if (Number.isFinite(roleId)) {
+      targetCompteIds = await resolveCompteIdsForRoleId(Number(roleId));
+    }
+
+    if (!targetCompteIds.length && (roleId !== null || agentId !== null)) {
+      return NextResponse.json({ data: [] }, { status: 201 });
+    }
+
+    const rows = targetCompteIds.length
+      ? await prisma.$transaction(
+          targetCompteIds.map((targetCompteId) =>
+            prisma.notification.create({
+              data: {
+                compteId: targetCompteId,
+                roleId: null,
+                titre: body.titre,
+                message: body.message,
+                type: body.type ?? "INFO",
+                url: body.url ?? null,
+                icon: body.icon ?? "bell",
+                statut: body.statut ?? "NON_LU",
+                expedider: body.expedider ?? "SYSTEM",
+                dateEnvoi: new Date(),
+              },
+              include: { role: true, compte: true },
+            })
+          )
+        )
+      : [
+          await prisma.notification.create({
+            data: {
+              compteId: null,
+              roleId: null,
+              titre: body.titre,
+              message: body.message,
+              type: body.type ?? "INFO",
+              url: body.url ?? null,
+              icon: body.icon ?? "bell",
+              statut: body.statut ?? "NON_LU",
+              expedider: body.expedider ?? "SYSTEM",
+              dateEnvoi: new Date(),
+            },
+            include: { role: true, compte: true },
+          }),
+        ];
+
+    return NextResponse.json(
+      { data: rows.length === 1 ? rows[0] : rows },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("POST /api/notification failed:", error);
     return NextResponse.json(
@@ -165,4 +247,3 @@ export async function PUT(req: Request) {
     );
   }
 }
-

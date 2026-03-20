@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
+import { requireAccess } from "@/security/authorization";
 import { NextResponse } from "next/server";
 import { getCurrentAgentId } from "@/server/access/context";
 
@@ -8,6 +9,14 @@ export async function GET() {
     const user = await getAuthenticatedUser();
     if (!user) {
       return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    }
+
+    try {
+      await requireAccess({
+        permissions: ["presence.read", "demande_conge.read", "paie.read"],
+      });
+    } catch {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
     const agentId = await getCurrentAgentId(user);

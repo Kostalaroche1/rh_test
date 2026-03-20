@@ -21,11 +21,10 @@ import Select from "react-select"
 import { toast } from "sonner"
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { BulletinPDF } from "../paie/bulletinPdf"; // chemin selon ton projet
-import { useNotification } from "@/app/contexts/notification/context"
 import { ChartPaieDate } from "@/services/chartPaie"
 import { ChartPaie } from "./chartPaie"
 import { DateFormatFr } from "@/services/dateFormat"
-import { DataEmptyPadding } from "../AdminDashboard/composant"
+import { ZoneDonneesVides } from "@/components/dashboard/commun/DonneesVides"
 import { appReactSelectStyles, getSelectPortalTarget } from "@/components/ui/react-select-theme"
 import { useAuth } from "@/app/contexts/auth/context"
 import { hasAnyPermission } from "@/security/permissions"
@@ -60,10 +59,6 @@ export default function PaieAvantagesDashboard({ session }: any) {
   const [openDialog, setOpenDialog] = useState(false)
   const [selectedPaie, setSelectedPaie] = useState<any>(null)
   const [agentFilter, setAgentFilter] = useState<number | null>(null)
-
-  const {
-    sendNotification,
-  }: any = useNotification()
 
   const [form, setForm] = useState({
     agentId: "",
@@ -119,31 +114,21 @@ export default function PaieAvantagesDashboard({ session }: any) {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
-    const response = await payerAgent(
-      {
-        agentId: Number(form.agentId),
-        periode: form.periode,
-        salaireBase: Number(form.salaireBase),
-        brut: Number(form.brut),
-        net: Number(form.net),
-        etat: "PAYE",
-        primes
-      })
+    const response = await payerAgent({
+      agentId: Number(form.agentId),
+      periode: form.periode,
+      salaireBase: Number(form.salaireBase),
+      brut: Number(form.brut),
+      net: Number(form.net),
+      etat: "PAYE",
+      primes
+    })
     setOpenDialog(false)
     toast.info(response.message)
     setForm({ agentId: "", periode: "", salaireBase: "", brut: "", net: "" })
     setPrimes([])
     refetch()
-    if (response.status !== 200) return;
-    sendNotification({
-      compteId: form.agentId,
-      titre: "Paiement salaire",
-      url: '',
-      icon: '',
-      roleId: 1,
-      message: "Vous avez été payer ",
-      type: "INFO",
-    })
+    if (response.status !== 200) return
   }
 
   const paiesFiltrees = agentFilter
@@ -293,7 +278,7 @@ export default function PaieAvantagesDashboard({ session }: any) {
                   </TableBody>
                 </Table>
               </CardContent> :
-              <DataEmptyPadding />
+              <ZoneDonneesVides />
             }
 
           </Card>
@@ -417,6 +402,9 @@ export default function PaieAvantagesDashboard({ session }: any) {
     </div>
   )
 }
+
+
+
 
 
 

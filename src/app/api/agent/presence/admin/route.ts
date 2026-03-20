@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
+import { getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
 export async function GET() {
   const auth = await getAuthenticatedUser();
@@ -18,7 +19,21 @@ export async function GET() {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
+  const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(auth.userId, [
+    "presence.read",
+    "presence.confirm",
+    "presence.validate",
+  ]);
+
   const getData = await prisma.presence.findMany({
+    where:
+      accessibleAgentIds === null
+        ? undefined
+        : {
+            agentId: {
+              in: accessibleAgentIds.length ? accessibleAgentIds : [-1],
+            },
+          },
     include: {
       agent: true,
       confirmePar: true,

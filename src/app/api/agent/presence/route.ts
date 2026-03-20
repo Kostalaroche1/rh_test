@@ -8,6 +8,7 @@ import {
   getPresenceDayContextForUtilisateur,
 } from "@/server/horaireAgent"
 import { requireAccess } from "@/security/authorization"
+import { canAccessAgentForPermissions } from "@/server/access/scope"
 
 export const POST = async (req: Request) => {
   const data = await req.json()
@@ -21,7 +22,7 @@ export const POST = async (req: Request) => {
 
   try {
     await requireAccess({
-      permissions: ["presence.sign", "presence.create"],
+      permissions: ["presence.sign"],
     })
   } catch {
     return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
@@ -101,6 +102,7 @@ export const POST = async (req: Request) => {
         arrivee.getHours() * 60 + arrivee.getMinutes() > schedule.startMinutes
           ? "RETARD"
           : "PRESENCE",
+      statutWorkflow: "BROUILLON",
       date: dayContext.todayDate,
     },
   })
@@ -158,6 +160,10 @@ export const PUT = async (req: Request) => {
         return NextResponse.json({ status: 404, message: "Presence introuvable" }, { status: 404 })
       }
 
+      if (!(await canAccessAgentForPermissions(utilisateur.userId, presence.agentId, ["presence.update", "presence.sign"]))) {
+        return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+      }
+
       if (["CONGE", "OFF", "ABSENT"].includes(presence.statut)) {
         return NextResponse.json(
           { status: 400, message: `Le statut ${presence.statut} ne peut pas etre transforme en depart.` },
@@ -181,12 +187,25 @@ export const PUT = async (req: Request) => {
         return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
       }
 
+      const presence = await prisma.presence.findUnique({
+        where: { id },
+        select: { agentId: true },
+      })
+
+      if (!presence) {
+        return NextResponse.json({ status: 404, message: "Presence introuvable" }, { status: 404 })
+      }
+
+      if (!(await canAccessAgentForPermissions(utilisateur.userId, presence.agentId, ["presence.confirm"]))) {
+        return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+      }
+
       result = await prisma.presence.update({
         where: { id: id },
         data: {
           confirmePar: { connect: { id: utilisateur.userId } },
           updatedAt: upDate,
-          statut: "CONFIRME",
+          statutWorkflow: "CONFIRME",
         },
       })
     } else if (operation === "validate") {
@@ -198,12 +217,25 @@ export const PUT = async (req: Request) => {
         return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
       }
 
+      const presence = await prisma.presence.findUnique({
+        where: { id },
+        select: { agentId: true },
+      })
+
+      if (!presence) {
+        return NextResponse.json({ status: 404, message: "Presence introuvable" }, { status: 404 })
+      }
+
+      if (!(await canAccessAgentForPermissions(utilisateur.userId, presence.agentId, ["presence.validate"]))) {
+        return NextResponse.json({ status: 403, message: "Acces interdit" }, { status: 403 })
+      }
+
       result = await prisma.presence.update({
         where: { id: id },
         data: {
           validePar: { connect: { id: utilisateur.userId } },
           updatedAt: upDate,
-          statut: "VALIDE",
+          statutWorkflow: "VALIDE",
         },
       })
     } else {

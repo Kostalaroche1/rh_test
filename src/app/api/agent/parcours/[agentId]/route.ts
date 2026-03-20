@@ -28,12 +28,10 @@ export async function GET(_: NextRequest, { params }: Params) {
       include: {
         affectations: {
           include: {
-            departement: true,
-            direction: true,
             poste: true,
             fonction: true,
             grade: true,
-            site: true,
+            uniteOrganisationnelle: true,
           },
           orderBy: { dateDebut: "desc" },
         },
@@ -60,7 +58,7 @@ export async function GET(_: NextRequest, { params }: Params) {
         {
           type: "AFFECTATION_DEBUT",
           date: a.dateDebut,
-          label: `Debut d'affectation: ${a.poste?.libelle ?? "-"} / ${a.departement?.nom ?? "-"}`,
+          label: `Debut d'affectation: ${a.poste?.libelle ?? "-"} / ${a.uniteOrganisationnelle?.nom ?? "-"}`,
           payload: a,
         },
         ...(a.dateFin

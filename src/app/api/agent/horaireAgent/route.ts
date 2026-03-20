@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
   try {
     await requireAccess({
-      permissions: ["horaire_agent.create", "horaire_agent.assign"],
+      permissions: ["horaire_agent.assign"],
     });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });

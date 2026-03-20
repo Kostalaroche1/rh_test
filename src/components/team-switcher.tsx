@@ -3,30 +3,20 @@
 import * as React from "react";
 import { ChevronsUpDown } from "lucide-react";
 
-import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { useAuth } from "@/app/contexts/auth/context";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 
-export function TeamSwitcher({
-  teams,
-}: {
-  teams: {
-    name: string;
-    logo: React.ElementType;
-    key: string;
-  }[];
-}) {
-  const activeTeam = teams[0];
+export function TeamSwitcher() {
   const { auth }: any = useAuth();
+
   const activeRoleNames = Array.isArray(auth?.role)
     ? auth.role
         .filter((item: any) => item?.role?.actif ?? true)
         .map((item: any) => item?.role?.nom)
         .filter(Boolean)
     : [];
-
-  if (!activeTeam) return null;
 
   return (
     <SidebarMenu>
@@ -47,7 +37,7 @@ export function TeamSwitcher({
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{auth?.nom || "Utilisateur"}</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {activeRoleNames.join(", ") || activeTeam.name || "ERP RH"}
+                  {activeRoleNames.join(", ") || "Espace de travail"}
                 </span>
               </div>
 

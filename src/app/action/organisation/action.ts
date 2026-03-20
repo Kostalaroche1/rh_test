@@ -7,201 +7,6 @@ export interface ApiResponse<T> {
 }
 
 /* =========================
-   DIRECTION
-========================= */
-
-export interface Direction {
-  id: string
-  code: string
-  libelle: string
-  description?: string
-}
-
-export async function GetDirections(): Promise<Direction[]> {
-  try {
-    const res = await fetch('../api/directions')
-    const json: ApiResponse<Direction[]> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("GetDirections error:", error)
-    return []
-  }
-}
-
-export async function CreateDirection(
-  payload: Omit<Direction, "id">
-): Promise<Direction | null> {
-  try {
-    const res = await fetch('../api/directions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const json: ApiResponse<Direction> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("CreateDirection error:", error)
-    return null
-  }
-}
-
-export async function UpdateDirection(
-  payload: any
-) {
-  try {
-    const res = await fetch(`../api/directions`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const json: ApiResponse<Direction> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("UpdateDirection error:", error)
-    return null
-  }
-}
-
-export async function DeleteDirection(id: string): Promise<void> {
-  try {
-    await fetch(`../api/directions/${id}`, { method: 'DELETE' })
-  } catch (error) {
-    console.error("DeleteDirection error:", error)
-  }
-}
-
-/* =========================
-   DEPARTEMENT
-========================= */
-
-export interface Departement {
-  id: string
-  code: string
-  nom: string
-  directionId: string
-}
-
-export async function GetDepartements(): Promise<Departement[]> {
-  try {
-    const res = await fetch('../api/departements')
-    const json: ApiResponse<Departement[]> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("GetDepartements error:", error)
-    return []
-  }
-}
-
-export async function CreateDepartement(
-  payload: Omit<Departement, "id">
-): Promise<Departement | null> {
-  try {
-    const res = await fetch('../api/departements', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const json: ApiResponse<Departement> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("CreateDepartement error:", error)
-    return null
-  }
-}
-
-export async function UpdateDepartement(
-  payload: any
-) {
-  try {
-    const res = await fetch(`../api/departements`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const json: ApiResponse<Departement> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("UpdateDepartement error:", error)
-    return null
-  }
-}
-
-export async function DeleteDepartement(id: string): Promise<void> {
-  try {
-    await fetch(`../api/departements/${id}`, { method: 'DELETE' })
-  } catch (error) {
-    console.error("DeleteDepartement error:", error)
-  }
-}
-
-/* =========================
-   SITE
-========================= */
-
-export interface Site {
-  id: string
-  nom: string
-  adresse: string
-  ville: string
-}
-
-export async function GetSites(): Promise<Site[]> {
-  try {
-    const res = await fetch('../api/sites')
-    const json: ApiResponse<Site[]> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("GetSites error:", error)
-    return []
-  }
-}
-
-export async function CreateSite(
-  payload: Omit<Site, "id">
-): Promise<Site | null> {
-  try {
-    const res = await fetch('../api/sites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const json: ApiResponse<Site> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("CreateSite error:", error)
-    return null
-  }
-}
-
-export async function UpdateSite(
-  payload: any
-) {
-  try {
-    const res = await fetch(`../api/sites`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const json: ApiResponse<Site> = await res.json()
-    return json.data
-  } catch (error) {
-    console.error("UpdateSite error:", error)
-    return null
-  }
-}
-
-export async function DeleteSite(id: string): Promise<void> {
-  try {
-    await fetch(`../api/sites`, {
-      method: 'DELETE',
-      body: JSON.stringify({ id: id })
-    })
-  } catch (error) {
-    console.error("DeleteSite error:", error)
-  }
-}
-
-/* =========================
    POSTE
 ========================= */
 
@@ -209,7 +14,7 @@ export interface Poste {
   id: string
   code: string
   libelle: string
-  departementId: string
+  uniteOrganisationnelleId: string
 }
 
 export async function GetPostes(): Promise<Poste[]> {
@@ -259,7 +64,10 @@ export async function UpdatePoste(
 
 export async function DeletePoste(id: string): Promise<void> {
   try {
-    await fetch(`../api/postes/${id}`, { method: 'DELETE' })
+    await fetch(`../api/postes`, {
+      method: 'DELETE',
+      body: JSON.stringify({ id })
+    })
   } catch (error) {
     console.error("DeletePoste error:", error)
   }
@@ -323,7 +131,10 @@ export async function UpdateFonction(
 
 export async function DeleteFonction(id: string): Promise<void> {
   try {
-    await fetch(`../api/fonctions/${id}`, { method: 'DELETE' })
+    await fetch(`../api/fonctions`, {
+      method: 'DELETE',
+      body: JSON.stringify({ id })
+    })
   } catch (error) {
     console.error("DeleteFonction error:", error)
   }

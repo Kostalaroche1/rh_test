@@ -38,7 +38,7 @@ export function computePresenceStatus(input: {
     return statut as PresenceDisplayStatus;
   }
 
-  if (statut === "PRESENCE" || statut === "CONFIRME" || statut === "VALIDE" || statut === "BROUILLON") {
+  if (statut === "PRESENCE" || statut === "BROUILLON" || statut === "CONFIRME" || statut === "VALIDE") {
     return input.heureArrivee && isLateArrival(input.heureArrivee) ? "RETARD" : "PRESENT";
   }
 

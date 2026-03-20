@@ -1,11 +1,16 @@
 import prisma from "@/lib/prisma";
+import { NextResponse } from "next/server";
+
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import { hasAnyPermission } from "@/security/permissions";
-import { AgentWithDetails } from "@/utilities/type";
-import { NextResponse } from "next/server";
-import { getChefDepartementIds } from "@/server/access/context";
+import {
+  getAccessibleAgentIdsForPermissions,
+  getAccessibleOrganisationIdsForPermissions,
+  getScopedUnitIdsForPermissions,
+} from "@/server/access/scope";
 import { emitAffectationExpiryAlerts } from "@/server/services/affectation-alert.service";
+import { AgentWithDetails } from "@/utilities/type";
 
 export async function GET() {
   try {
@@ -16,85 +21,131 @@ export async function GET() {
 
     try {
       await requireAccess({
-        permissions: ["agent.read", "presence.read", "conge.read", "affectation.read"],
+        permissions: ["agent.read", "presence.read", "demande_conge.read", "affectation.read"],
       });
     } catch {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
-    const chefDepartements = await getChefDepartementIds(user);
-    const scoped =
-      chefDepartements.length > 0
-        ? {
-            affectations: {
-              some: {
-                departementId: { in: chefDepartements },
-                OR: [{ dateFin: null }, { dateFin: { gte: new Date() } }],
-              },
-            },
-          }
-        : {};
+    const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(user.userId, [
+      "agent.read",
+      "presence.read",
+      "demande_conge.read",
+      "affectation.read",
+    ]);
+
+    const scopedAgents =
+      accessibleAgentIds === null
+        ? undefined
+        : { id: { in: accessibleAgentIds.length ? accessibleAgentIds : [-1] } };
+
+    const scopedUnitIds = hasAnyPermission(user, ["unite_organisationnelle.read", "affectation.read"])
+      ? await getScopedUnitIdsForPermissions(user.userId, ["unite_organisationnelle.read", "affectation.read"])
+      : [];
+
+    const scopedPosteIds = hasAnyPermission(user, ["poste.read"])
+      ? await getAccessibleOrganisationIdsForPermissions(user.userId, ["poste.read"], "poste")
+      : [];
+
+    const scopedFonctionIds = hasAnyPermission(user, ["fonction.read"])
+      ? await getAccessibleOrganisationIdsForPermissions(user.userId, ["fonction.read"], "fonction")
+      : [];
 
     if (hasAnyPermission(user, ["affectation.read", "user.read", "agent.read"])) {
       await emitAffectationExpiryAlerts(7);
     }
 
-    const [agentsActif, absences, presences, conges, demandeconges, congesAttente, congesConfirme, congesRejete] =
-      await Promise.all([
-        prisma.agent.count({ where: { actif: true, ...(scoped as object) } }),
-        prisma.presence.count({
-          where: {
-            statut: "ABSENT",
-            ...(chefDepartements.length ? { agent: scoped } : {}),
-          },
-        }),
-        prisma.presence.count({
-          where: {
-            heureArrivee: { not: null },
-            statut: { notIn: ["ABSENT"] },
-            ...(chefDepartements.length ? { agent: scoped } : {}),
-          },
-        }),
-        prisma.demandeConge.findMany({
-          where: {
-            statut: "VALIDE",
-            ...(chefDepartements.length ? { agent: scoped } : {}),
-          },
-        }),
-        prisma.demandeConge.count({
-          where: chefDepartements.length ? { agent: scoped } : {},
-        }),
-        prisma.demandeConge.count({
-          where: {
-            statut: "EN_ATTENTE",
-            ...(chefDepartements.length ? { agent: scoped } : {}),
-          },
-        }),
-        prisma.demandeConge.count({
-          where: {
-            statut: "CONFIRME",
-            ...(chefDepartements.length ? { agent: scoped } : {}),
-          },
-        }),
-        prisma.demandeConge.count({
-          where: {
-            statut: "REJETE",
-            ...(chefDepartements.length ? { agent: scoped } : {}),
-          },
-        }),
-      ]);
+    const [
+      agentsActif,
+      absences,
+      presences,
+      congesValides,
+      demandeconges,
+      congesAttente,
+      congesConfirme,
+      congesRejete,
+    ] = await Promise.all([
+      prisma.agent.count({ where: { actif: true, ...(scopedAgents ?? {}) } }),
+      prisma.presence.count({
+        where: {
+          statut: "ABSENT",
+          ...(scopedAgents ? { agent: scopedAgents } : {}),
+        },
+      }),
+      prisma.presence.count({
+        where: {
+          heureArrivee: { not: null },
+          statut: { notIn: ["ABSENT"] },
+          ...(scopedAgents ? { agent: scopedAgents } : {}),
+        },
+      }),
+      prisma.demandeConge.findMany({
+        where: {
+          statut: "VALIDE",
+          ...(scopedAgents ? { agent: scopedAgents } : {}),
+        },
+      }),
+      prisma.demandeConge.count({
+        where: scopedAgents ? { agent: scopedAgents } : {},
+      }),
+      prisma.demandeConge.count({
+        where: {
+          statut: "EN_ATTENTE",
+          ...(scopedAgents ? { agent: scopedAgents } : {}),
+        },
+      }),
+      prisma.demandeConge.count({
+        where: {
+          statut: "CONFIRME",
+          ...(scopedAgents ? { agent: scopedAgents } : {}),
+        },
+      }),
+      prisma.demandeConge.count({
+        where: {
+          statut: "REJETE",
+          ...(scopedAgents ? { agent: scopedAgents } : {}),
+        },
+      }),
+    ]);
 
-    const [sites, directions, departements, fonctions, postes, affectations] = await Promise.all([
-      prisma.site.count(),
-      prisma.direction.count(),
-      prisma.departement.count(),
-      prisma.fonction.count(),
-      prisma.poste.count(),
-      prisma.affectation.count(),
+    const [typesUnites, unites, fonctions, postes, affectations] = await Promise.all([
+      hasAnyPermission(user, ["type_unite_organisationnelle.read"])
+        ? prisma.typeUniteOrganisationnelle.count()
+        : Promise.resolve(0),
+      hasAnyPermission(user, ["unite_organisationnelle.read", "affectation.read"])
+        ? prisma.uniteOrganisationnelle.count({
+            where:
+              scopedUnitIds === null
+                ? undefined
+                : { id: { in: scopedUnitIds.length ? scopedUnitIds : [-1] } },
+          })
+        : Promise.resolve(0),
+      hasAnyPermission(user, ["fonction.read"])
+        ? prisma.fonction.count({
+            where:
+              scopedFonctionIds === null
+                ? undefined
+                : { id: { in: scopedFonctionIds.length ? scopedFonctionIds : [-1] } },
+          })
+        : Promise.resolve(0),
+      hasAnyPermission(user, ["poste.read"])
+        ? prisma.poste.count({
+            where:
+              scopedPosteIds === null
+                ? undefined
+                : { id: { in: scopedPosteIds.length ? scopedPosteIds : [-1] } },
+          })
+        : Promise.resolve(0),
+      prisma.affectation.count({
+        where:
+          accessibleAgentIds === null
+            ? undefined
+            : { agentId: { in: accessibleAgentIds.length ? accessibleAgentIds : [-1] } },
+      }),
     ]);
 
     let totalJoursConge = 0;
-    for (const item of conges) {
+    for (const item of congesValides) {
       if (item.dateDebut && item.dateFin) {
         const diff = item.dateFin.getTime() - item.dateDebut.getTime();
         totalJoursConge += diff / (1000 * 60 * 60 * 24) + 1;
@@ -102,7 +153,7 @@ export async function GET() {
     }
 
     const AgentsServicesPresences: AgentWithDetails[] = await prisma.agent.findMany({
-      where: chefDepartements.length ? (scoped as object) : undefined,
+      where: scopedAgents ?? undefined,
       select: {
         id: true,
         matricule: true,
@@ -112,8 +163,7 @@ export async function GET() {
         statut: true,
         affectations: {
           select: {
-            departement: { select: { id: true, nom: true } },
-            direction: { select: { id: true, libelle: true } },
+            uniteOrganisationnelle: { select: { id: true, nom: true, code: true } },
             grade: { select: { id: true, libelle: true } },
             fonction: {
               select: {
@@ -153,22 +203,6 @@ export async function GET() {
       },
     });
 
-    const congesStatut: CongeStatut = {
-      valide: conges.length,
-      enattente: congesAttente,
-      confirm: congesConfirme,
-      rejete: congesRejete,
-    };
-
-    const organisation: OrganisationStat = {
-      affectation: affectations,
-      direction: directions,
-      departement: departements,
-      fonctions,
-      postes,
-      sites,
-    };
-
     return NextResponse.json(
       {
         data: {
@@ -177,10 +211,21 @@ export async function GET() {
           conges: totalJoursConge,
           demandeconges,
           actif: agentsActif,
-          enconges: conges.length,
+          enconges: congesValides.length,
           AgentsPresences: AgentsServicesPresences,
-          congesStatut,
-          organisation,
+          congesStatut: {
+            valide: congesValides.length,
+            enattente: congesAttente,
+            confirm: congesConfirme,
+            rejete: congesRejete,
+          },
+          organisation: {
+            affectation: affectations,
+            typesUnites,
+            unites,
+            fonctions,
+            postes,
+          },
         },
       },
       { status: 200 }
@@ -190,20 +235,3 @@ export async function GET() {
     return NextResponse.json({ error: "Impossible de recuperer les stats" }, { status: 500 });
   }
 }
-
-export type CongeStatut = {
-  valide: number;
-  enattente: number;
-  confirm: number;
-  rejete: number;
-};
-
-export type OrganisationStat = {
-  sites: number;
-  departement: number;
-  direction: number;
-  affectation: number;
-  postes: number;
-  fonctions: number;
-};
-

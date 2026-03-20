@@ -10,16 +10,11 @@ export type AgentWithDetails = Prisma.AgentGetPayload<{
     actif: true
     affectations: {
       select: {
-        departement: {
+        uniteOrganisationnelle: {
           select: {
             id: true
             nom: true
-          }
-        }
-        direction: {
-          select: {
-            id: true
-            libelle: true
+            code: true
           }
         }
         grade: {

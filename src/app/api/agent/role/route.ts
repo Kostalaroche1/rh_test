@@ -14,21 +14,12 @@ const ACCESS_CONTROL_PERMISSION_CODES = [
   "permission.delete",
 ] as const;
 
-function normalizeKey(value: string | null | undefined) {
-  return String(value ?? "").trim().toLowerCase();
-}
-
 function isAccessControlRole(role: {
-  key?: string | null;
   actif?: boolean;
   rolePermission?: Array<{ permission?: { code?: string | null } | null }>;
 }) {
   if (!role?.actif) {
     return false;
-  }
-
-  if (normalizeKey(role.key) === "admin") {
-    return true;
   }
 
   const codes = new Set(
@@ -48,7 +39,6 @@ async function hasAnotherAccessControlRole(excludedRoleId: number) {
     },
     select: {
       id: true,
-      key: true,
       actif: true,
       rolePermission: {
         select: {
@@ -177,7 +167,6 @@ export async function PUT(req: Request) {
       where: { id },
       select: {
         id: true,
-        key: true,
         actif: true,
         rolePermission: {
           select: {
@@ -262,7 +251,6 @@ export async function DELETE(req: Request) {
       where: { id },
       select: {
         id: true,
-        key: true,
         actif: true,
         rolePermission: {
           select: {

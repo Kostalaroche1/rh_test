@@ -12,7 +12,6 @@ type BaseNotificationPayload = {
 
 type UniqueNotificationPayload = BaseNotificationPayload & {
   compteId?: number | null;
-  roleId?: number | null;
   dedupeHours?: number;
 };
 
@@ -22,24 +21,63 @@ async function resolveRoleIds(keys: string[]) {
     where: {
       OR: [
         { key: { in: keys } },
+        { code: { in: keys } },
         { rolePermission: { some: { permission: { code: { in: keys } } } } },
       ],
     },
-    select: { id: true, key: true },
+    select: { id: true },
   });
   return [...new Set(roles.map((role) => role.id))];
+}
+
+async function resolveCompteIdsForRoleIds(roleIds: number[]) {
+  if (!roleIds.length) return [];
+
+  const assignments = await prisma.utilisateurRole.findMany({
+    where: {
+      roleId: { in: roleIds },
+      role: { actif: true },
+      utilisateur: {
+        actif: true,
+        compteAgent: {
+          isNot: null,
+        },
+      },
+    },
+    select: {
+      utilisateur: {
+        select: {
+          compteAgent: {
+            select: { id: true },
+          },
+        },
+      },
+    },
+  });
+
+  return [
+    ...new Set(
+      assignments
+        .map((item) => item.utilisateur.compteAgent?.id ?? null)
+        .filter((value): value is number => Number.isFinite(value))
+    ),
+  ];
+}
+
+async function resolveCompteIdsForRoleKeys(keys: string[]) {
+  const roleIds = await resolveRoleIds(keys);
+  return resolveCompteIdsForRoleIds(roleIds);
 }
 
 export async function createNotification(
   payload: BaseNotificationPayload & {
     compteId?: number | null;
-    roleId?: number | null;
   }
 ) {
   return prisma.notification.create({
     data: {
       compteId: payload.compteId ?? null,
-      roleId: payload.roleId ?? null,
+      roleId: null,
       titre: payload.titre,
       message: payload.message,
       type: payload.type ?? "INFO",
@@ -52,16 +90,14 @@ export async function createNotification(
   });
 }
 
-export async function createUniqueNotification(
-  payload: UniqueNotificationPayload
-) {
+export async function createUniqueNotification(payload: UniqueNotificationPayload) {
   const dedupeHours = payload.dedupeHours ?? 24;
   const since = new Date(Date.now() - dedupeHours * 60 * 60 * 1000);
 
   const existing = await prisma.notification.findFirst({
     where: {
       compteId: payload.compteId ?? null,
-      roleId: payload.roleId ?? null,
+      roleId: null,
       titre: payload.titre,
       message: payload.message,
       dateEnvoi: { gte: since },
@@ -73,18 +109,15 @@ export async function createUniqueNotification(
   return createNotification(payload);
 }
 
-export async function notifyRoles(
-  roleKeys: string[],
-  payload: BaseNotificationPayload
-) {
-  const roleIds = await resolveRoleIds(roleKeys);
-  if (!roleIds.length) return;
+export async function notifyRoles(roleKeys: string[], payload: BaseNotificationPayload) {
+  const compteIds = await resolveCompteIdsForRoleKeys(roleKeys);
+  if (!compteIds.length) return;
 
   await Promise.all(
-    roleIds.map((roleId) =>
+    compteIds.map((compteId) =>
       createNotification({
         ...payload,
-        roleId,
+        compteId,
       })
     )
   );
@@ -95,30 +128,29 @@ export async function notifyCompteAndRoles(
   roleKeys: string[],
   payload: BaseNotificationPayload
 ) {
-  const jobs: Promise<unknown>[] = [];
+  const compteIds = new Set<number>();
 
   if (compteId) {
-    jobs.push(
-      createNotification({
-        ...payload,
-        compteId,
-      })
-    );
+    compteIds.add(compteId);
   }
 
-  const roleIds = await resolveRoleIds(roleKeys);
-  for (const roleId of roleIds) {
-    jobs.push(
-      createNotification({
-        ...payload,
-        roleId,
-      })
-    );
+  const roleCompteIds = await resolveCompteIdsForRoleKeys(roleKeys);
+  for (const id of roleCompteIds) {
+    compteIds.add(id);
   }
 
-  if (jobs.length) {
-    await Promise.all(jobs);
+  if (!compteIds.size) {
+    return;
   }
+
+  await Promise.all(
+    [...compteIds].map((id) =>
+      createNotification({
+        ...payload,
+        compteId: id,
+      })
+    )
+  );
 }
 
 export async function notifyLogin(user: SessionUser) {
@@ -137,21 +169,20 @@ export async function notifyAffectationExpiry(options: {
   dateFin: Date;
 }) {
   const message = `L'affectation #${options.affectationId} de ${options.agentLabel} arrive a echeance le ${options.dateFin.toLocaleDateString("fr-FR")}.`;
+  const compteIds = await resolveCompteIdsForRoleKeys(["affectation.read", "notification.read"]);
+
   await Promise.all([
     createUniqueNotification({
       titre: "Echeance d'affectation",
       message,
-      roleId: null,
       compteId: null,
       dedupeHours: 24,
     }),
-    ...(
-      await resolveRoleIds(["affectation.read", "notification.read"])
-    ).map((roleId) =>
+    ...compteIds.map((compteId) =>
       createUniqueNotification({
         titre: "Echeance d'affectation",
         message,
-        roleId,
+        compteId,
         dedupeHours: 24,
       })
     ),

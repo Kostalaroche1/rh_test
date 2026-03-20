@@ -137,9 +137,9 @@ export default function GestionCarriere() {
                         <TableHead>Genre</TableHead>
                         <TableHead>Statut</TableHead>
                         <TableHead>Date d'entree</TableHead>
-                        <TableHead>Departement</TableHead>
-                        <TableHead>Site</TableHead>
-                        <TableHead>Service/Poste</TableHead>
+                        <TableHead>Unite</TableHead>
+                        <TableHead>Poste</TableHead>
+                        <TableHead>Grade</TableHead>
                         <TableHead>Age</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -166,9 +166,9 @@ export default function GestionCarriere() {
                                 <TableCell>{agent.genre}</TableCell>
                                 <TableCell><span className={`rounded-full px-2 py-1 text-sm font-medium ${agent.actif ? "bg-emerald-500/18 text-emerald-500" : "bg-rose-500/18 text-rose-500"}`}>{agent.actif ? "Actif" : "Inactif"}</span></TableCell>
                                 <TableCell>{agent.dateEntree ? new Date(agent.dateEntree).toLocaleDateString() : "..."}</TableCell>
-                                <TableCell>{lastAff?.departement?.nom || "..."}</TableCell>
-                                <TableCell>{lastAff?.site?.nom || "..."}</TableCell>
+                                <TableCell>{lastAff?.uniteOrganisationnelle?.nom || "..."}</TableCell>
                                 <TableCell>{lastAff?.poste?.libelle || "..."}</TableCell>
+                                <TableCell>{lastAff?.grade?.libelle || "..."}</TableCell>
                                 <TableCell>{age}</TableCell>
                               </TableRow>
                             );
