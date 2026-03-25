@@ -104,7 +104,42 @@ Si vous changez :
 
 alors il faut mettre a jour :
 - `docs/architecture.md`
-- `docs/codebase-tree.md`
-- `docs/data-model.md`
-- `docs/access-control.md`
+- `docs/arborescence-code.md`
+- `docs/modele-donnees.md`
+- `docs/acces-et-portees.md`
 - `docs/modules/*` si un module est impacte
+## Recuperation apres base vide ou clone neuf
+
+Si la base est vide ou que vous venez de recloner le projet :
+
+```powershell
+npm install
+npx prisma db push
+npx prisma generate
+npm run db:bootstrap
+```
+
+Ce flux :
+- synchronise le schema
+- regenere Prisma
+- synchronise le catalogue de permissions
+- cree ou remet en place le premier compte administrateur
+- cree ou remet en place le role `Admin Gen`
+- attribue au role les permissions minimales de controle d'acces
+- cree les regles de portee associees en `TOUTE_ORGANISATION`
+
+Variables optionnelles :
+- `BOOTSTRAP_ADMIN_LOGIN`
+- `BOOTSTRAP_ADMIN_PASSWORD`
+- `BOOTSTRAP_ADMIN_ROLE_NAME`
+- `BOOTSTRAP_ADMIN_RESET_PASSWORD`
+
+Valeurs par defaut si elles ne sont pas fournies :
+- login : `admin@local.test`
+- mot de passe : `Admin123456!`
+- role : `Admin Gen`
+
+Important :
+- apres execution, se reconnecter pour recharger les permissions dans la session
+- le mot de passe n'est reinitialise si le compte existe deja que si `BOOTSTRAP_ADMIN_RESET_PASSWORD=true`
+- changer le mot de passe bootstrap des que possible dans un environnement reel

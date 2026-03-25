@@ -16,7 +16,7 @@ export function useGet<T>(
 }
 export function useGet_<T>(
   key: string[],
-  api: (id : any) => Promise<any>
+  api: (id: any) => Promise<any>
 ) {
   return useQuery<T>({
     queryKey: key,
