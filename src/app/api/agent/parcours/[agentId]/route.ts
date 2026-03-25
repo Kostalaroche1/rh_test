@@ -28,10 +28,26 @@ export async function GET(_: NextRequest, { params }: Params) {
       include: {
         affectations: {
           include: {
-            poste: true,
+            poste: {
+              include: {
+                uniteOrganisationnelle: {
+                  include: {
+                    province: true,
+                    typeUnite: true,
+                  },
+                },
+              },
+            },
             fonction: true,
             grade: true,
-            uniteOrganisationnelle: true,
+            province: true,
+            uniteOrganisationnelle: {
+              include: {
+                province: true,
+                typeUnite: true,
+                parent: true,
+              },
+            },
           },
           orderBy: { dateDebut: "desc" },
         },

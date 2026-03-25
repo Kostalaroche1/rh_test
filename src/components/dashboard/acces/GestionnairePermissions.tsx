@@ -92,6 +92,7 @@ type ScopeValue =
   | "SOI_MEME"
   | "UNITE"
   | "UNITE_ET_DESCENDANTS"
+  | "PROVINCE"
   | "TOUTE_ORGANISATION";
 
 type RolePermissionResponse = {
@@ -150,6 +151,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   permission: "Permission",
   user: "Utilisateur",
   agent: "Employe",
+  agent_dossier: "Dossier agent",
   presence: "Presence",
   demande_conge: "Demande de conge",
   type_conge: "Type de conge",
@@ -162,6 +164,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   poste: "Poste",
   fonction: "Fonction",
   grade: "Grade",
+  province: "Province",
   notification: "Notification",
   rapport: "Rapport",
 };
@@ -195,6 +198,7 @@ const SCOPE_LABELS: Record<ScopeValue, string> = {
   SOI_MEME: "Moi-meme",
   UNITE: "Mon unite",
   UNITE_ET_DESCENDANTS: "Mon unite et sous-unites",
+  PROVINCE: "Ma province",
   TOUTE_ORGANISATION: "Toute l'organisation",
 };
 
@@ -219,6 +223,11 @@ const SCOPE_HELPERS: Array<{
     description: "La personne agit sur son unite et sur toutes les sous-unites rattachees.",
   },
   {
+    value: "PROVINCE",
+    title: "Ma province",
+    description: "La personne agit sur toutes les unites rattachees a sa province.",
+  },
+  {
     value: "TOUTE_ORGANISATION",
     title: "Toute l'organisation",
     description: "La personne agit sur l'ensemble de l'entreprise.",
@@ -235,6 +244,7 @@ const RESOURCE_MODULES: Record<string, string> = {
   permission: "access",
   user: "employes",
   agent: "employes",
+  agent_dossier: "employes",
   presence: "presence",
   demande_conge: "conges",
   type_conge: "conges",
@@ -247,6 +257,7 @@ const RESOURCE_MODULES: Record<string, string> = {
   poste: "organisation",
   fonction: "organisation",
   grade: "organisation",
+  province: "organisation",
   notification: "communication",
   rapport: "communication",
 };

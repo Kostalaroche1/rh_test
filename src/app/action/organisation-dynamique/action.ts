@@ -14,6 +14,7 @@ export interface UniteOrganisationnelleItem {
   code: string;
   description?: string | null;
   parentId?: number | null;
+  provinceId?: number | null;
   niveau: number;
   actif: boolean;
   typeUniteId: number;
@@ -23,6 +24,11 @@ export interface UniteOrganisationnelleItem {
     code: string;
   };
   parent?: {
+    id: number;
+    nom: string;
+    code: string;
+  } | null;
+  province?: {
     id: number;
     nom: string;
     code: string;

@@ -3,6 +3,7 @@ import {
   Building2,
   CalendarDays,
   Command,
+  FolderOpen,
   LayoutDashboard,
   LifeBuoy,
   Send,
@@ -41,6 +42,11 @@ export const data = {
       title: "Organisations",
       url: "/dashboard/organisation",
       icon: Building2,
+    },
+    {
+      title: "Dossier agent",
+      url: "/dashboard/dossier-agent",
+      icon: FolderOpen,
     },
     {
       title: "Presences & Absences",

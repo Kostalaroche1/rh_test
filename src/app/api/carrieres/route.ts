@@ -1,21 +1,59 @@
 import prisma from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
-import { getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
+import {
+  canAccessAgentForPermissions,
+  canAccessUnitForPermissions,
+  getAccessibleAgentIdsForPermissions,
+} from "@/server/access/scope";
 
 export async function POST(req: Request) {
   try {
+    const auth = await getAuthenticatedUser();
+    if (!auth) {
+      return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+    }
+
     await requireAccess({ permissions: ["affectation.assign"] });
     const body = await req.json();
 
+    const agentId = Number(body.agentId);
+    const uniteOrganisationnelleId = Number(body.uniteOrganisationnelleId);
+
+    if (
+      !(await canAccessAgentForPermissions(auth.userId, agentId, ["affectation.assign"]))
+    ) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
+    if (
+      !(await canAccessUnitForPermissions(auth.userId, uniteOrganisationnelleId, [
+        "unite_organisationnelle.read",
+        "affectation.assign",
+      ]))
+    ) {
+      return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
+    }
+
+    const targetUnit = await prisma.uniteOrganisationnelle.findUnique({
+      where: { id: uniteOrganisationnelleId },
+      select: { id: true, provinceId: true },
+    });
+
+    if (!targetUnit) {
+      return NextResponse.json({ error: "Unite introuvable" }, { status: 404 });
+    }
+
     const affectation = await prisma.affectation.create({
       data: {
-        agentId: body.agentId,
+        agentId,
         posteId: body.posteId,
         fonctionId: body.fonctionId,
         gradeId: body.gradeId,
-        uniteOrganisationnelleId: body.uniteOrganisationnelleId,
+        uniteOrganisationnelleId,
+        provinceId: targetUnit.provinceId ?? null,
         dateDebut: new Date(body.dateDebut),
         motif: body.motif,
         type: body.type,
@@ -28,6 +66,7 @@ export async function POST(req: Request) {
         grade: true,
         fonction: true,
         uniteOrganisationnelle: true,
+        province: true,
       },
     });
 
@@ -76,7 +115,16 @@ export async function GET() {
             gradeId: true,
             posteId: true,
             uniteOrganisationnelleId: true,
-            uniteOrganisationnelle: { select: { nom: true, code: true } },
+            uniteOrganisationnelle: {
+              select: {
+                nom: true,
+                code: true,
+                provinceId: true,
+                province: { select: { id: true, code: true, nom: true } },
+              },
+            },
+            provinceId: true,
+            province: { select: { id: true, code: true, nom: true } },
             poste: { select: { libelle: true } },
             fonction: { select: { libelle: true } },
             grade: { select: { libelle: true } },

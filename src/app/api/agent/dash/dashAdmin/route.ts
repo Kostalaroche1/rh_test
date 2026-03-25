@@ -7,6 +7,7 @@ import { hasAnyPermission } from "@/security/permissions";
 import {
   getAccessibleAgentIdsForPermissions,
   getAccessibleOrganisationIdsForPermissions,
+  getScopedProvinceIdsForPermissions,
   getScopedUnitIdsForPermissions,
 } from "@/server/access/scope";
 import { emitAffectationExpiryAlerts } from "@/server/services/affectation-alert.service";
@@ -41,6 +42,17 @@ export async function GET() {
 
     const scopedUnitIds = hasAnyPermission(user, ["unite_organisationnelle.read", "affectation.read"])
       ? await getScopedUnitIdsForPermissions(user.userId, ["unite_organisationnelle.read", "affectation.read"])
+      : [];
+    const scopedProvinceIds = hasAnyPermission(user, [
+      "province.read",
+      "unite_organisationnelle.read",
+      "affectation.read",
+    ])
+      ? await getScopedProvinceIdsForPermissions(user.userId, [
+          "province.read",
+          "unite_organisationnelle.read",
+          "affectation.read",
+        ])
       : [];
 
     const scopedPosteIds = hasAnyPermission(user, ["poste.read"])
@@ -144,6 +156,50 @@ export async function GET() {
       }),
     ]);
 
+    const organisationParProvince = hasAnyPermission(user, [
+      "province.read",
+      "unite_organisationnelle.read",
+      "affectation.read",
+    ])
+      ? await prisma.province.findMany({
+          where:
+            scopedProvinceIds === null
+              ? undefined
+              : { id: { in: scopedProvinceIds.length ? scopedProvinceIds : [-1] } },
+          select: {
+            id: true,
+            code: true,
+            nom: true,
+            _count: {
+              select: {
+                unites: true,
+                affectations: true,
+              },
+            },
+            unites: {
+              where:
+                scopedUnitIds === null
+                  ? undefined
+                  : { id: { in: scopedUnitIds.length ? scopedUnitIds : [-1] } },
+              select: {
+                id: true,
+                code: true,
+                nom: true,
+                niveau: true,
+                _count: {
+                  select: {
+                    postes: true,
+                    affectations: true,
+                  },
+                },
+              },
+              orderBy: [{ niveau: "asc" }, { nom: "asc" }],
+            },
+          },
+          orderBy: [{ nom: "asc" }],
+        })
+      : [];
+
     let totalJoursConge = 0;
     for (const item of congesValides) {
       if (item.dateDebut && item.dateFin) {
@@ -225,6 +281,7 @@ export async function GET() {
             unites,
             fonctions,
             postes,
+            provinces: organisationParProvince,
           },
         },
       },

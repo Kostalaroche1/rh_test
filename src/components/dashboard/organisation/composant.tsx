@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Award, Briefcase, Building2, FileText, FolderTree, Layers3, Plus, Users } from "lucide-react";
+import { Award, Briefcase, Building2, FileText, Layers3, MapPinned, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { GetAgent } from "@/app/action/agent/getAgent/action";
@@ -30,6 +30,12 @@ import {
   UpdateTypeUniteOrganisationnelle,
   UpdateUniteOrganisationnelle,
 } from "@/app/action/organisation-dynamique/action";
+import {
+  CreateProvince,
+  DeleteProvince,
+  GetProvinces,
+  UpdateProvince,
+} from "@/app/action/provinces/action";
 import { useAuth } from "@/app/contexts/auth/context";
 import {
   AlertDialog,
@@ -52,7 +58,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGet } from "@/hooks/useApi";
 import { hasAnyPermission } from "@/security/permissions";
 
-type FormType = "TYPE_UNITE" | "UNITE" | "POSTE" | "FONCTION" | "GRADE" | "AFFECTATION" | null;
+type FormType =
+  | "PROVINCE"
+  | "TYPE_UNITE"
+  | "UNITE"
+  | "POSTE"
+  | "FONCTION"
+  | "GRADE"
+  | "AFFECTATION"
+  | null;
 type ManagedType = Exclude<FormType, null>;
 type RowMap = Record<string, any>;
 
@@ -61,6 +75,7 @@ const emptyForm = {
   nom: "",
   code: "",
   description: "",
+  provinceId: "",
   ordre: "0",
   typeUniteId: "",
   parentId: "",
@@ -78,6 +93,10 @@ const emptyForm = {
 };
 
 const permissions: Record<ManagedType, { read: string[]; write: string[] }> = {
+  PROVINCE: {
+    read: ["province.read"],
+    write: ["province.create", "province.update", "province.delete"],
+  },
   TYPE_UNITE: {
     read: ["type_unite_organisationnelle.read"],
     write: [
@@ -106,6 +125,10 @@ export default function OrganisationDashboard() {
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; type: ManagedType } | null>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
 
+  const { data: provinces = [], refetch: refetchProvinces } = useGet(
+    ["provinces"],
+    GetProvinces
+  );
   const { data: types = [], refetch: refetchTypes } = useGet(["organisation-types"], GetTypesUnitesOrganisationnelles);
   const { data: unites = [], refetch: refetchUnites } = useGet(["organisation-unites"], GetUnitesOrganisationnelles);
   const { data: postes = [], refetch: refetchPostes } = useGet(["postes"], GetPostes);
@@ -119,6 +142,7 @@ export default function OrganisationDashboard() {
 
   const tabs = useMemo(() => {
     const base = [];
+    if (canRead("PROVINCE")) base.push({ value: "provinces", label: "Provinces", icon: MapPinned, type: "PROVINCE" as const });
     if (canRead("TYPE_UNITE")) base.push({ value: "types", label: "Types d'unite", icon: Layers3, type: "TYPE_UNITE" as const });
     if (canRead("UNITE")) {
       for (const type of types as any[]) {
@@ -145,6 +169,7 @@ export default function OrganisationDashboard() {
       ? {
           ...emptyForm,
           ...item,
+          provinceId: item.provinceId != null ? String(item.provinceId) : "",
           ordre: item.ordre != null ? String(item.ordre) : "0",
           typeUniteId: item.typeUniteId != null ? String(item.typeUniteId) : "",
           parentId: item.parentId != null ? String(item.parentId) : "",
@@ -162,6 +187,7 @@ export default function OrganisationDashboard() {
   };
 
   const refetchByType = async (type: ManagedType) => {
+    if (type === "PROVINCE") await refetchProvinces();
     if (type === "TYPE_UNITE") await refetchTypes();
     if (type === "UNITE") await refetchUnites();
     if (type === "POSTE") await refetchPostes();
@@ -174,15 +200,32 @@ export default function OrganisationDashboard() {
     event.preventDefault();
     if (!activeForm) return;
     try {
+      if (activeForm === "PROVINCE") {
+        const payload = {
+          nom: formData.nom,
+          code: formData.code,
+          description: formData.description || undefined,
+          actif: true,
+        };
+        await (editingItem
+          ? UpdateProvince({ id: editingItem.id, ...payload })
+          : CreateProvince(payload));
+      }
       if (activeForm === "TYPE_UNITE") {
         const payload = { nom: formData.nom, code: formData.code, description: formData.description || undefined, ordre: Number(formData.ordre || 0), actif: true };
         await (editingItem ? UpdateTypeUniteOrganisationnelle({ id: editingItem.id, ...payload }) : CreateTypeUniteOrganisationnelle(payload));
       }
       if (activeForm === "UNITE") {
+        if (!Number(formData.provinceId)) {
+          toast.error("Selectionnez une province avant d'enregistrer l'unite.");
+          return;
+        }
+
         const payload = {
           nom: formData.nom,
           code: formData.code,
           description: formData.description || undefined,
+          provinceId: Number(formData.provinceId),
           typeUniteId: Number(formData.typeUniteId),
           parentId: formData.parentId ? Number(formData.parentId) : null,
           actif: true,
@@ -230,6 +273,7 @@ export default function OrganisationDashboard() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
+      if (deleteTarget.type === "PROVINCE") await DeleteProvince({ id: deleteTarget.id });
       if (deleteTarget.type === "TYPE_UNITE") await DeleteTypeUniteOrganisationnelle({ id: deleteTarget.id });
       if (deleteTarget.type === "UNITE") await DeleteUniteOrganisationnelle({ id: deleteTarget.id });
       if (deleteTarget.type === "POSTE") await DeletePoste(String(deleteTarget.id));
@@ -248,18 +292,27 @@ export default function OrganisationDashboard() {
 
   const renderTable = (type: ManagedType, rows: any[], title: string, buttonLabel: string, onCreate?: () => void) => {
     const headers: Record<ManagedType, string[]> = {
+      PROVINCE: ["Nom", "Code", "Utilisation", "Etat"],
       TYPE_UNITE: ["Nom", "Code", "Ordre", "Etat"],
-      UNITE: ["Nom", "Parent", "Niveau", "Utilisation"],
+      UNITE: ["Nom", "Province", "Parent", "Niveau", "Utilisation"],
       POSTE: ["Code", "Libelle", "Unite"],
       FONCTION: ["Code", "Libelle", "Poste"],
       GRADE: ["Code", "Libelle", "Indice"],
-      AFFECTATION: ["Agent", "Unite", "Poste", "Fonction", "Grade", "Date debut"],
+      AFFECTATION: ["Agent", "Province", "Unite", "Poste", "Fonction", "Grade", "Date debut"],
     };
 
     const cells = (item: any) => {
+      if (type === "PROVINCE")
+        return [
+          item.nom,
+          item.code,
+          `${item._count?.unites ?? 0} unite(s) / ${item._count?.affectations ?? 0} affectation(s)`,
+          item.actif ? "Actif" : "Inactif",
+        ];
       if (type === "TYPE_UNITE") return [item.nom, item.code, item.ordre, item.systeme ? "Systeme" : item.actif ? "Actif" : "Inactif"];
       if (type === "UNITE") return [
         <div key="nom"><div className="font-medium">{item.nom}</div><div className="text-xs text-muted-foreground">{item.code}</div></div>,
+        item.province?.nom ?? "--",
         item.parent?.nom ?? "Racine",
         item.niveau,
         `${item._count?.enfants ?? 0} enfant(s) / ${item._count?.postes ?? 0} poste(s)`,
@@ -269,6 +322,7 @@ export default function OrganisationDashboard() {
       if (type === "GRADE") return [item.code, item.libelle, item.indiceSalarial];
       return [
         `${item.agent?.matricule} - ${item.agent?.nom} ${item.agent?.prenom}`,
+        item.province?.nom ?? item.uniteOrganisationnelle?.province?.nom ?? "--",
         item.uniteOrganisationnelle?.nom ?? "--",
         item.poste?.libelle ?? "--",
         item.fonction?.libelle ?? "--",
@@ -379,6 +433,18 @@ export default function OrganisationDashboard() {
           </TabsContent>
         )}
 
+        {canRead("PROVINCE") && (
+          <TabsContent value="provinces">
+            {renderTable(
+              "PROVINCE",
+              provinces as any[],
+              "Provinces",
+              "Ajouter une province",
+              () => openForm("PROVINCE")
+            )}
+          </TabsContent>
+        )}
+
         {canRead("UNITE") &&
           (types as any[]).map((typeItem) => (
             <TabsContent key={typeItem.id} value={`unites-${typeItem.id}`}>
@@ -415,12 +481,14 @@ export default function OrganisationDashboard() {
             {renderTable("AFFECTATION", affectations as any[], "Affectations", "Nouvelle affectation", () => openForm("AFFECTATION"))}
           </TabsContent>
         )}
+
       </Tabs>
 
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
+              {activeForm === "PROVINCE" && (editingItem ? "Modifier une province" : "Ajouter une province")}
               {activeForm === "TYPE_UNITE" && (editingItem ? "Modifier un type d'unite" : "Ajouter un type d'unite")}
               {activeForm === "UNITE" && (editingItem ? "Modifier une unite" : "Ajouter une unite")}
               {activeForm === "POSTE" && (editingItem ? "Modifier un poste" : "Ajouter un poste")}
@@ -430,6 +498,32 @@ export default function OrganisationDashboard() {
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
+            {activeForm === "PROVINCE" && (
+              <>
+                <Input
+                  placeholder="Nom"
+                  value={formData.nom || ""}
+                  onChange={(e) =>
+                    setFormData((p: any) => ({ ...p, nom: e.target.value }))
+                  }
+                />
+                <Input
+                  placeholder="Code (ex: KIN)"
+                  value={formData.code || ""}
+                  onChange={(e) =>
+                    setFormData((p: any) => ({ ...p, code: e.target.value.toUpperCase() }))
+                  }
+                />
+                <Input
+                  placeholder="Description"
+                  value={formData.description || ""}
+                  onChange={(e) =>
+                    setFormData((p: any) => ({ ...p, description: e.target.value }))
+                  }
+                />
+              </>
+            )}
+
             {activeForm === "TYPE_UNITE" && (
               <>
                 <Input placeholder="Nom" value={formData.nom || ""} onChange={(e) => setFormData((p: any) => ({ ...p, nom: e.target.value }))} />
@@ -444,6 +538,28 @@ export default function OrganisationDashboard() {
                 <Input placeholder="Nom" value={formData.nom || ""} onChange={(e) => setFormData((p: any) => ({ ...p, nom: e.target.value }))} />
                 <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
                 <Input placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
+                <p className="text-xs font-medium text-muted-foreground">
+                  Province (obligatoire)
+                </p>
+                <select
+                  className="w-full rounded border p-2"
+                  value={formData.provinceId || ""}
+                  onChange={(e) =>
+                    setFormData((p: any) => ({ ...p, provinceId: e.target.value }))
+                  }
+                >
+                  <option value="">-- Selectionnez la province --</option>
+                  {(provinces as any[]).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nom}
+                    </option>
+                  ))}
+                </select>
+                {Array.isArray(provinces) && provinces.length === 0 ? (
+                  <p className="text-xs text-destructive">
+                    Aucune province disponible. Verifiez migration/seed et permission `province.read`.
+                  </p>
+                ) : null}
                 <select className="w-full rounded border p-2" value={formData.typeUniteId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, typeUniteId: e.target.value }))}>
                   <option value="">-- Selectionnez le type d'unite --</option>
                   {(types as any[]).map((item) => <option key={item.id} value={item.id}>{item.nom}</option>)}
@@ -532,7 +648,16 @@ export default function OrganisationDashboard() {
               </>
             )}
 
-            <Button type="submit" className="w-full">{editingItem ? "Modifier" : "Enregistrer"}</Button>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={
+                activeForm === "UNITE" &&
+                (!Number(formData.provinceId) || !Array.isArray(provinces) || provinces.length === 0)
+              }
+            >
+              {editingItem ? "Modifier" : "Enregistrer"}
+            </Button>
           </form>
         </DialogContent>
       </Dialog>

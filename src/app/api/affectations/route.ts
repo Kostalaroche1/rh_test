@@ -73,6 +73,15 @@ export async function POST(req: Request) {
     }
   }
 
+  const targetUnit = await prisma.uniteOrganisationnelle.findUnique({
+    where: { id: uniteOrganisationnelleId },
+    select: { id: true, provinceId: true },
+  });
+
+  if (!targetUnit) {
+    return NextResponse.json({ message: "Unite introuvable" }, { status: 404 });
+  }
+
   const active = await prisma.affectation.findFirst({
     where: {
       agentId,
@@ -94,6 +103,7 @@ export async function POST(req: Request) {
       fonctionId: body.fonctionId ? Number(body.fonctionId) : null,
       gradeId: Number(body.gradeId),
       uniteOrganisationnelleId,
+      provinceId: targetUnit.provinceId ?? null,
       dateDebut: new Date(body.dateDebut),
       dateFin: body.dateFin ? new Date(body.dateFin) : null,
       motif: body.motif ?? null,
@@ -112,6 +122,7 @@ export async function POST(req: Request) {
       grade: true,
       fonction: true,
       uniteOrganisationnelle: true,
+      province: true,
     },
   });
 
@@ -137,7 +148,7 @@ export async function PUT(req: Request) {
   const body = await req.json();
   const existing = await prisma.affectation.findUnique({
     where: { id: Number(body.id) },
-    select: { agentId: true },
+    select: { agentId: true, uniteOrganisationnelleId: true },
   });
 
   if (!existing) {
@@ -151,6 +162,19 @@ export async function PUT(req: Request) {
   const uniteOrganisationnelleId = body.uniteOrganisationnelleId
     ? Number(body.uniteOrganisationnelleId)
     : undefined;
+
+  const resolvedUniteOrganisationnelleId = Number.isFinite(uniteOrganisationnelleId)
+    ? (uniteOrganisationnelleId as number)
+    : existing.uniteOrganisationnelleId;
+
+  const targetUnit = await prisma.uniteOrganisationnelle.findUnique({
+    where: { id: resolvedUniteOrganisationnelleId },
+    select: { id: true, provinceId: true },
+  });
+
+  if (!targetUnit) {
+    return NextResponse.json({ message: "Unite introuvable" }, { status: 404 });
+  }
 
   if (Number.isFinite(uniteOrganisationnelleId)) {
     const scopedUniteId = uniteOrganisationnelleId as number;
@@ -172,6 +196,7 @@ export async function PUT(req: Request) {
       fonctionId: body.fonctionId ? Number(body.fonctionId) : null,
       gradeId: Number(body.gradeId),
       uniteOrganisationnelleId: Number.isFinite(uniteOrganisationnelleId) ? uniteOrganisationnelleId : undefined,
+      provinceId: targetUnit.provinceId ?? null,
       dateDebut: new Date(body.dateDebut),
       dateFin: body.dateFin ? new Date(body.dateFin) : null,
       motif: body.motif ?? null,
@@ -188,6 +213,7 @@ export async function PUT(req: Request) {
       },
       poste: true,
       uniteOrganisationnelle: true,
+      province: true,
     },
   });
 

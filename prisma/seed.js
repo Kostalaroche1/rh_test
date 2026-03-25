@@ -9,6 +9,7 @@ const CRUD_RESOURCES = [
   "permission",
   "user",
   "agent",
+  "province",
   "type_conge",
   "paie",
   "horaire_travail",
@@ -47,6 +48,7 @@ const RESOURCE_LABELS = {
   permission: "permissions",
   user: "utilisateurs",
   agent: "agents",
+  province: "provinces",
   presence: "presences",
   demande_conge: "demandes de conge",
   type_conge: "types de conge",
@@ -70,6 +72,7 @@ const MODULE_LABELS = {
   regle_portee_role: "Roles & Permissions",
   user: "Utilisateurs",
   agent: "Agents",
+  province: "Organisation",
   presence: "Presences",
   demande_conge: "Conges",
   type_conge: "Conges",
@@ -130,6 +133,35 @@ const DEPRECATED_WORKFLOW_PERMISSIONS = [
   "affectation.create",
   "horaire_agent.create",
   "presence.signal_absence",
+];
+
+const PROVINCES_RDC = [
+  { code: "KIN", nom: "Kinshasa" },
+  { code: "KON", nom: "Kongo Central" },
+  { code: "KWI", nom: "Kwilu" },
+  { code: "KWG", nom: "Kwango" },
+  { code: "MAI", nom: "Mai-Ndombe" },
+  { code: "KAS", nom: "Kasaï" },
+  { code: "KSC", nom: "Kasaï Central" },
+  { code: "KSO", nom: "Kasaï Oriental" },
+  { code: "LOM", nom: "Lomami" },
+  { code: "SAN", nom: "Sankuru" },
+  { code: "MAN", nom: "Maniema" },
+  { code: "SKD", nom: "Sud-Kivu" },
+  { code: "NKV", nom: "Nord-Kivu" },
+  { code: "TAN", nom: "Tanganyika" },
+  { code: "HTL", nom: "Haut-Lomami" },
+  { code: "LUA", nom: "Lualaba" },
+  { code: "HTK", nom: "Haut-Katanga" },
+  { code: "ITU", nom: "Ituri" },
+  { code: "HUE", nom: "Haut-Uele" },
+  { code: "TSH", nom: "Tshopo" },
+  { code: "BAS", nom: "Bas-Uele" },
+  { code: "NOR", nom: "Nord-Ubangi" },
+  { code: "SUD", nom: "Sud-Ubangi" },
+  { code: "MON", nom: "Mongala" },
+  { code: "EQU", nom: "Equateur" },
+  { code: "TSU", nom: "Tshuapa" },
 ];
 
 function normalizeText(value) {
@@ -321,8 +353,26 @@ async function ensureRoleCodes() {
   }
 }
 
+async function seedProvinces() {
+  for (const province of PROVINCES_RDC) {
+    await prisma.province.upsert({
+      where: { code: province.code },
+      update: {
+        nom: province.nom,
+        actif: true,
+      },
+      create: {
+        code: province.code,
+        nom: province.nom,
+        actif: true,
+      },
+    });
+  }
+}
+
 async function main() {
   await seedPermissions();
+  await seedProvinces();
   const migratedLegacyLeavePermissions = await migrateLegacyLeavePermissions();
   const removedLegacyPermissions = await removeLegacyPermissions();
   const removedDeprecatedWorkflowPermissions = await removeDeprecatedWorkflowPermissions();
@@ -330,6 +380,7 @@ async function main() {
 
   console.log("Seed complete", {
     permissions: DEFAULT_PERMISSION_CODES.length,
+    provinces: PROVINCES_RDC.length,
     migratedLegacyLeavePermissions,
     removedLegacyPermissions,
     removedDeprecatedWorkflowPermissions,

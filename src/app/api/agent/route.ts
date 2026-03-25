@@ -7,15 +7,16 @@ import { requireAccess } from "@/security/authorization";
 import { generateMatricule } from "@/services/generateMat";
 import { canAccessAgentForPermissions, getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
-async function ensureAgentAccess(permission: string) {
+async function ensureAgentAccess(permission: string | string[]) {
   const auth = await getAuthenticatedUser();
   if (!auth) {
     return { response: NextResponse.json({ message: "Non authentifie" }, { status: 401 }) };
   }
 
   try {
+    const permissions = Array.isArray(permission) ? permission : [permission];
     await requireAccess({
-      permissions: [permission],
+      permissions,
     });
   } catch {
     return { response: NextResponse.json({ message: "Acces interdit" }, { status: 403 }) };
@@ -30,11 +31,12 @@ export async function GET() {
     return NextResponse.json({ message: "Non authentifie" }, { status: 401 });
   }
 
-  const guard = await ensureAgentAccess("agent.read");
+  const guard = await ensureAgentAccess(["agent.read", "agent_dossier.read"]);
   if (guard.response) return guard.response;
 
   const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(auth.userId, [
     "agent.read",
+    "agent_dossier.read",
   ]);
 
   const where =

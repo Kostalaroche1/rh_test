@@ -3,9 +3,9 @@ import bcrypt from "bcryptjs";
 
 import prisma from "@/lib/prisma";
 import { modifierUtilisateur } from "@/app/application/utilisateur/modifierUtilisateur";
-import { listerUtilisateurs } from "@/app/application/utilisateur/listerUtilisateurs";
 import { requireAccess } from "@/security/authorization";
 import { getAuthenticatedUser } from "@/security/auth";
+import { getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
 type CreateUserPayload = {
   login?: string;
@@ -26,7 +26,50 @@ export async function GET() {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
-  const users = await listerUtilisateurs();
+  const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(auth.userId, [
+    "user.read",
+    "agent.read",
+  ]);
+
+  const users = await prisma.utilisateur.findMany({
+    where:
+      accessibleAgentIds === null
+        ? undefined
+        : {
+            OR: [
+              {
+                compteAgent: {
+                  is: {
+                    agentId: {
+                      in: accessibleAgentIds.length ? accessibleAgentIds : [-1],
+                    },
+                  },
+                },
+              },
+              { id: auth.userId },
+            ],
+          },
+    include: {
+      roles: { include: { role: true } },
+      compteAgent: {
+        select: {
+          id: true,
+          utilisateur: true,
+          agent: {
+            select: {
+              matricule: true,
+              id: true,
+              nom: true,
+              prenom: true,
+              statut: true,
+              genre: true,
+              actif: true,
+            },
+          },
+        },
+      },
+    },
+  });
   return NextResponse.json(users);
 }
 

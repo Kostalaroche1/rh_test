@@ -46,7 +46,13 @@ export async function GET() {
             id: { in: accessibleIds.length ? accessibleIds : [-1] },
           },
     include: {
-      uniteOrganisationnelle: true,
+      uniteOrganisationnelle: {
+        include: {
+          province: {
+            select: { id: true, nom: true, code: true },
+          },
+        },
+      },
       fonctions: true,
     },
   })
@@ -74,6 +80,7 @@ export async function POST(req : Request) {
       id: true,
       parentId: true,
       code: true,
+      provinceId: true,
       parent: {
         select: {
           id: true,
@@ -92,6 +99,13 @@ export async function POST(req : Request) {
 
   if (!unite) {
     return NextResponse.json({ message: "Unite introuvable" }, { status: 404 })
+  }
+
+  if (!unite.provinceId) {
+    return NextResponse.json(
+      { message: "Cette unite n'est reliee a aucune province." },
+      { status: 400 }
+    )
   }
 
   const canAccessUnit = await canAccessUnitForPermissions(
@@ -130,6 +144,35 @@ export async function PUT(req: Request) {
   const uniteOrganisationnelleId = body.uniteOrganisationnelleId
     ? Number(body.uniteOrganisationnelleId)
     : undefined
+
+  if (Number.isFinite(uniteOrganisationnelleId)) {
+    const scopedUnitId = uniteOrganisationnelleId as number
+    const canAccessUnit = await canAccessUnitForPermissions(auth.userId, scopedUnitId, [
+      "unite_organisationnelle.read",
+      "poste.update",
+    ])
+
+    if (!canAccessUnit) {
+      return NextResponse.json({ message: "Acces refuse" }, { status: 403 })
+    }
+
+    const unit = await prisma.uniteOrganisationnelle.findUnique({
+      where: { id: scopedUnitId },
+      select: { id: true, provinceId: true },
+    })
+
+    if (!unit) {
+      return NextResponse.json({ message: "Unite introuvable" }, { status: 404 })
+    }
+
+    if (!unit.provinceId) {
+      return NextResponse.json(
+        { message: "Cette unite n'est reliee a aucune province." },
+        { status: 400 }
+      )
+    }
+  }
+
   const data = await prisma.poste.update({
     where: { id: body.id },
     data: {

@@ -5,6 +5,7 @@ const CRUD_RESOURCES = [
   "permission",
   "user",
   "agent",
+  "province",
   "type_conge",
   "paie",
   "horaire_travail",
@@ -19,6 +20,7 @@ const CRUD_RESOURCES = [
 ] as const;
 
 const EXTRA_PERMISSIONS = [
+  "agent_dossier.read",
   "presence.read",
   "presence.update",
   "presence.delete",

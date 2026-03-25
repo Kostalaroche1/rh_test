@@ -4,6 +4,12 @@ const { PrismaClient } = prismaPkg;
 
 const prisma = new PrismaClient();
 
+const PROVINCES = [
+  { code: "KIN", nom: "Kinshasa" },
+  { code: "KON", nom: "Kongo Central" },
+  { code: "NKV", nom: "Nord-Kivu" },
+];
+
 const TYPES_UNITE = [
   {
     code: "SITE",
@@ -30,16 +36,19 @@ const DIRECTIONS = [
     code: "DIR-RH",
     nom: "Direction Ressources Humaines",
     description: "Gestion du personnel et administration RH",
+    provinceCode: "KIN",
   },
   {
     code: "DIR-PROD",
     nom: "Direction Production",
     description: "Coordination des contenus et emissions",
+    provinceCode: "KIN",
   },
   {
     code: "DIR-IT",
     nom: "Direction Informatique",
     description: "Support technique, infrastructure et reseau",
+    provinceCode: "KIN",
   },
 ];
 
@@ -75,11 +84,13 @@ const SITES = [
     code: "SITE-KIN-SIEGE",
     nom: "RTNC Siege",
     description: "Avenue de la Radio 1, Kinshasa",
+    provinceCode: "KIN",
   },
   {
     code: "SITE-KIN-GOMBE",
     nom: "RTNC Gombe",
     description: "Boulevard 30 Juin, Kinshasa",
+    provinceCode: "KIN",
   },
 ];
 
@@ -145,6 +156,23 @@ function buildUnitPath(parent, code) {
 
 async function main() {
   const result = await prisma.$transaction(async (tx) => {
+    const provinceByCode = new Map();
+    for (const province of PROVINCES) {
+      const persisted = await tx.province.upsert({
+        where: { code: province.code },
+        update: {
+          nom: province.nom,
+          actif: true,
+        },
+        create: {
+          code: province.code,
+          nom: province.nom,
+          actif: true,
+        },
+      });
+      provinceByCode.set(province.code, persisted);
+    }
+
     const typeByCode = new Map();
     for (const typeUnite of TYPES_UNITE) {
       const persisted = await tx.typeUniteOrganisationnelle.upsert({
@@ -174,6 +202,11 @@ async function main() {
     }
 
     for (const direction of DIRECTIONS) {
+      const province = provinceByCode.get(direction.provinceCode ?? "KIN");
+      if (!province) {
+        throw new Error(`Province introuvable pour direction ${direction.code}`);
+      }
+
       const path = buildUnitPath(null, direction.code);
       const persisted = await tx.uniteOrganisationnelle.upsert({
         where: { code: direction.code },
@@ -182,6 +215,7 @@ async function main() {
           description: direction.description,
           typeUniteId: directionType.id,
           parentId: null,
+          provinceId: province.id,
           chemin: path,
           niveau: 0,
           actif: true,
@@ -192,6 +226,7 @@ async function main() {
           description: direction.description,
           typeUniteId: directionType.id,
           parentId: null,
+          provinceId: province.id,
           chemin: path,
           niveau: 0,
           actif: true,
@@ -222,6 +257,7 @@ async function main() {
           description: departement.description,
           typeUniteId: departementType.id,
           parentId: parent.id,
+          provinceId: parent.provinceId ?? null,
           chemin: path,
           niveau: 1,
           actif: true,
@@ -232,6 +268,7 @@ async function main() {
           description: departement.description,
           typeUniteId: departementType.id,
           parentId: parent.id,
+          provinceId: parent.provinceId ?? null,
           chemin: path,
           niveau: 1,
           actif: true,
@@ -247,6 +284,11 @@ async function main() {
 
     const sitesByCode = new Map();
     for (const site of SITES) {
+      const province = provinceByCode.get(site.provinceCode ?? "KIN");
+      if (!province) {
+        throw new Error(`Province introuvable pour site ${site.code}`);
+      }
+
       const path = buildUnitPath(null, site.code);
       const persisted = await tx.uniteOrganisationnelle.upsert({
         where: { code: site.code },
@@ -255,6 +297,7 @@ async function main() {
           description: site.description,
           typeUniteId: siteType.id,
           parentId: null,
+          provinceId: province.id,
           chemin: path,
           niveau: 0,
           actif: true,
@@ -265,6 +308,7 @@ async function main() {
           description: site.description,
           typeUniteId: siteType.id,
           parentId: null,
+          provinceId: province.id,
           chemin: path,
           niveau: 0,
           actif: true,
@@ -330,6 +374,7 @@ async function main() {
 
     return {
       typesUnite: TYPES_UNITE.length,
+      provinces: PROVINCES.length,
       directions: DIRECTIONS.length,
       departements: DEPARTEMENTS.length,
       sites: SITES.length,

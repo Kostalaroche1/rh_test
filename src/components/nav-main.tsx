@@ -21,10 +21,11 @@ import { cn } from "@/lib/utils";
 import { canManageAccessControl, hasAnyPermission } from "@/security/permissions";
 import Link from "next/link";
 import { useMemo } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 const MENU_PERMISSIONS: Record<string, string[]> = {
   "/dashboard/agents": ["agent.read", "user.read"],
+  "/dashboard/dossier-agent": ["agent_dossier.read", "agent.read"],
   "/dashboard/organisation": [
     "type_unite_organisationnelle.read",
     "unite_organisationnelle.read",
@@ -57,15 +58,18 @@ export function NavMain({
   auth: any;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const getBaseHref = (href: string) => href.split("?")[0].split("#")[0];
 
   const filteredMenuLinks = useMemo(() => {
     return items.filter((item) => {
-      const requiredPermissions = MENU_PERMISSIONS[item.url];
+      const requiredPermissions = MENU_PERMISSIONS[item.url] ?? MENU_PERMISSIONS[getBaseHref(item.url)];
       if (!requiredPermissions?.length) {
         return true;
       }
 
-      if (item.url === "/dashboard/access") {
+      if (getBaseHref(item.url) === "/dashboard/access") {
         return canManageAccessControl(auth);
       }
 
@@ -73,10 +77,26 @@ export function NavMain({
     });
   }, [auth, items]);
 
+  const hasMatchingQuery = (href: string) => {
+    if (!href.includes("?")) return true;
+    const queryString = href.split("?")[1] ?? "";
+    const expected = new URLSearchParams(queryString);
+    for (const [key, value] of expected.entries()) {
+      if (searchParams.get(key) !== value) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const isActivePath = (href: string) => {
     if (href === "#") return false;
-    if (href === "/dashboard") return pathname === href;
-    return pathname === href || pathname.startsWith(`${href}/`);
+    const baseHref = getBaseHref(href);
+    if (baseHref === "/dashboard") return pathname === baseHref && hasMatchingQuery(href);
+    if (pathname === baseHref || pathname.startsWith(`${baseHref}/`)) {
+      return hasMatchingQuery(href);
+    }
+    return false;
   };
 
   return (

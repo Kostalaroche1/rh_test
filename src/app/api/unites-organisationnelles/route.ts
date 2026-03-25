@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import {
+  canAccessProvinceForPermissions,
   canAccessUnitForPermissions,
   getScopedUnitIdsForPermissions,
 } from "@/server/access/scope";
@@ -80,6 +81,9 @@ export async function GET() {
           },
     include: {
       typeUnite: true,
+      province: {
+        select: { id: true, nom: true, code: true },
+      },
       parent: {
         select: { id: true, nom: true, code: true },
       },
@@ -103,6 +107,56 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const parentId = body.parentId ? Number(body.parentId) : null;
+  const provinceIdInput = body.provinceId ? Number(body.provinceId) : null;
+
+  const parent =
+    parentId !== null
+      ? await prisma.uniteOrganisationnelle.findUnique({
+          where: { id: parentId },
+          select: { id: true, provinceId: true },
+        })
+      : null;
+
+  if (parentId !== null && !parent) {
+    return NextResponse.json({ message: "Unite parente introuvable" }, { status: 404 });
+  }
+
+  const resolvedProvinceId = Number.isFinite(provinceIdInput as number)
+    ? (provinceIdInput as number)
+    : parent?.provinceId ?? null;
+
+  if (!resolvedProvinceId) {
+    return NextResponse.json(
+      { message: "La province est obligatoire pour une unite organisationnelle." },
+      { status: 400 }
+    );
+  }
+
+  if (parent?.provinceId && parent.provinceId !== resolvedProvinceId) {
+    return NextResponse.json(
+      { message: "La province de l'unite doit correspondre a celle de son parent." },
+      { status: 400 }
+    );
+  }
+
+  const province = await prisma.province.findUnique({
+    where: { id: resolvedProvinceId },
+    select: { id: true },
+  });
+
+  if (!province) {
+    return NextResponse.json({ message: "Province introuvable" }, { status: 404 });
+  }
+
+  const canAccessProvince = await canAccessProvinceForPermissions(
+    guard.auth!.userId,
+    resolvedProvinceId,
+    ["unite_organisationnelle.create", "province.read"]
+  );
+
+  if (!canAccessProvince) {
+    return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+  }
 
   if (parentId) {
     const canAccessParent = await canAccessUnitForPermissions(
@@ -121,6 +175,7 @@ export async function POST(req: Request) {
       nom: body.nom,
       code: body.code,
       description: body.description ?? null,
+      provinceId: resolvedProvinceId,
       typeUniteId: Number(body.typeUniteId),
       parentId,
       actif: body.actif ?? true,
@@ -139,6 +194,7 @@ export async function PUT(req: Request) {
   const body = await req.json();
   const id = Number(body.id);
   const parentId = body.parentId ? Number(body.parentId) : null;
+  const provinceIdInput = body.provinceId ? Number(body.provinceId) : null;
 
   const canAccessUnit = await canAccessUnitForPermissions(
     guard.auth!.userId,
@@ -147,6 +203,64 @@ export async function PUT(req: Request) {
   );
 
   if (!canAccessUnit) {
+    return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
+  }
+
+  const existingUnit = await prisma.uniteOrganisationnelle.findUnique({
+    where: { id },
+    select: { id: true, provinceId: true },
+  });
+
+  if (!existingUnit) {
+    return NextResponse.json({ message: "Unite introuvable" }, { status: 404 });
+  }
+
+  const parent =
+    parentId !== null
+      ? await prisma.uniteOrganisationnelle.findUnique({
+          where: { id: parentId },
+          select: { id: true, provinceId: true },
+        })
+      : null;
+
+  if (parentId !== null && !parent) {
+    return NextResponse.json({ message: "Unite parente introuvable" }, { status: 404 });
+  }
+
+  const resolvedProvinceId = Number.isFinite(provinceIdInput as number)
+    ? (provinceIdInput as number)
+    : parent?.provinceId ?? existingUnit.provinceId ?? null;
+
+  if (!resolvedProvinceId) {
+    return NextResponse.json(
+      { message: "La province est obligatoire pour une unite organisationnelle." },
+      { status: 400 }
+    );
+  }
+
+  if (parent?.provinceId && parent.provinceId !== resolvedProvinceId) {
+    return NextResponse.json(
+      { message: "La province de l'unite doit correspondre a celle de son parent." },
+      { status: 400 }
+    );
+  }
+
+  const province = await prisma.province.findUnique({
+    where: { id: resolvedProvinceId },
+    select: { id: true },
+  });
+
+  if (!province) {
+    return NextResponse.json({ message: "Province introuvable" }, { status: 404 });
+  }
+
+  const canAccessProvince = await canAccessProvinceForPermissions(
+    guard.auth!.userId,
+    resolvedProvinceId,
+    ["unite_organisationnelle.update", "province.read"]
+  );
+
+  if (!canAccessProvince) {
     return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
   }
 
@@ -168,6 +282,7 @@ export async function PUT(req: Request) {
       nom: body.nom,
       code: body.code,
       description: body.description ?? null,
+      provinceId: resolvedProvinceId,
       typeUniteId: Number(body.typeUniteId),
       parentId,
       actif: body.actif ?? true,

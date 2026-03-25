@@ -99,9 +99,12 @@ async function getScopedPorteeForPermissions(
   };
 }
 
-async function getPrimaryUnitIdForAgent(agentId: number | null) {
+async function getPrimaryAffectationContextForAgent(agentId: number | null) {
   if (!agentId) {
-    return null;
+    return {
+      ownUnitId: null as number | null,
+      ownProvinceId: null as number | null,
+    };
   }
 
   const today = startOfToday();
@@ -115,10 +118,29 @@ async function getPrimaryUnitIdForAgent(agentId: number | null) {
     orderBy: [{ principale: "desc" }, { dateDebut: "desc" }],
     select: {
       uniteOrganisationnelleId: true,
+      provinceId: true,
+      uniteOrganisationnelle: {
+        select: {
+          provinceId: true,
+        },
+      },
     },
   });
 
-  return affectation?.uniteOrganisationnelleId ?? null;
+  return {
+    ownUnitId: affectation?.uniteOrganisationnelleId ?? null,
+    ownProvinceId:
+      affectation?.provinceId ?? affectation?.uniteOrganisationnelle?.provinceId ?? null,
+  };
+}
+
+async function getUnitIdsByProvinceId(provinceId: number) {
+  const units = await prisma.uniteOrganisationnelle.findMany({
+    where: { provinceId },
+    select: { id: true },
+  });
+
+  return units.map((unit) => unit.id);
 }
 
 async function getDescendantUnitIds(unitId: number) {
@@ -156,21 +178,31 @@ export async function getScopedUnitIdsForPermissions(
     return null;
   }
 
-  const ownUnitId = await getPrimaryUnitIdForAgent(ownAgentId);
-  if (!ownUnitId) {
-    return [];
+  const { ownUnitId, ownProvinceId } = await getPrimaryAffectationContextForAgent(
+    ownAgentId
+  );
+  const scopedUnitIds = new Set<number>();
+
+  if (scopes.includes("PROVINCE") && ownProvinceId) {
+    const unitIdsByProvince = await getUnitIdsByProvinceId(ownProvinceId);
+    for (const unitId of unitIdsByProvince) {
+      scopedUnitIds.add(unitId);
+    }
   }
 
   // Descendant scope is resolved from the current primary assignment in the organisation tree.
-  if (scopes.includes("UNITE_ET_DESCENDANTS")) {
-    return getDescendantUnitIds(ownUnitId);
+  if (scopes.includes("UNITE_ET_DESCENDANTS") && ownUnitId) {
+    const descendantUnitIds = await getDescendantUnitIds(ownUnitId);
+    for (const unitId of descendantUnitIds) {
+      scopedUnitIds.add(unitId);
+    }
   }
 
-  if (scopes.includes("UNITE")) {
-    return [ownUnitId];
+  if (scopes.includes("UNITE") && ownUnitId) {
+    scopedUnitIds.add(ownUnitId);
   }
 
-  return [];
+  return [...scopedUnitIds];
 }
 
 export async function canAccessUnitForPermissions(
@@ -201,39 +233,111 @@ export async function getAccessibleAgentIdsForPermissions(
   }
 
   const agentIds = new Set<number>();
+  const scopedUnitIds = new Set<number>();
+  const { ownUnitId, ownProvinceId } = await getPrimaryAffectationContextForAgent(
+    ownAgentId
+  );
 
   if (scopes.includes("SOI_MEME") && ownAgentId) {
     agentIds.add(ownAgentId);
   }
 
   // Unit scopes are expanded through current active affectations so list endpoints can filter by agentId only.
-  if (scopes.includes("UNITE") || scopes.includes("UNITE_ET_DESCENDANTS")) {
-    const ownUnitId = await getPrimaryUnitIdForAgent(ownAgentId);
+  if (scopes.includes("UNITE_ET_DESCENDANTS") && ownUnitId) {
+    const unitIds = await getDescendantUnitIds(ownUnitId);
+    for (const unitId of unitIds) {
+      scopedUnitIds.add(unitId);
+    }
+  }
 
-    if (ownUnitId) {
-      const unitIds = scopes.includes("UNITE_ET_DESCENDANTS")
-        ? await getDescendantUnitIds(ownUnitId)
-        : [ownUnitId];
+  if (scopes.includes("UNITE") && ownUnitId) {
+    scopedUnitIds.add(ownUnitId);
+  }
 
-      const today = startOfToday();
-      const scopedAffectations = await prisma.affectation.findMany({
-        where: {
-          actif: true,
-          uniteOrganisationnelleId: { in: unitIds },
-          dateDebut: { lte: today },
-          OR: [{ dateFin: null }, { dateFin: { gte: today } }],
-        },
-        select: { agentId: true },
-        distinct: ["agentId"],
-      });
+  if (scopes.includes("PROVINCE") && ownProvinceId) {
+    const unitIdsByProvince = await getUnitIdsByProvinceId(ownProvinceId);
+    for (const unitId of unitIdsByProvince) {
+      scopedUnitIds.add(unitId);
+    }
+  }
 
-      for (const item of scopedAffectations) {
-        agentIds.add(item.agentId);
-      }
+  if (scopedUnitIds.size || (scopes.includes("PROVINCE") && ownProvinceId)) {
+    const today = startOfToday();
+    const scopedAffectations = await prisma.affectation.findMany({
+      where: {
+        actif: true,
+        dateDebut: { lte: today },
+        OR: [{ dateFin: null }, { dateFin: { gte: today } }],
+        AND: [
+          {
+            OR: [
+              ...(scopedUnitIds.size
+                ? [{ uniteOrganisationnelleId: { in: [...scopedUnitIds] } }]
+                : []),
+              ...(scopes.includes("PROVINCE") && ownProvinceId
+                ? [{ provinceId: ownProvinceId }]
+                : []),
+            ],
+          },
+        ],
+      },
+      select: { agentId: true },
+      distinct: ["agentId"],
+    });
+
+    for (const item of scopedAffectations) {
+      agentIds.add(item.agentId);
     }
   }
 
   return [...agentIds];
+}
+
+export async function getScopedProvinceIdsForPermissions(
+  utilisateurId: number,
+  permissionCodes: string[]
+) {
+  const { ownAgentId, scopes } = await getScopedPorteeForPermissions(
+    utilisateurId,
+    permissionCodes
+  );
+
+  if (scopes.includes("TOUTE_ORGANISATION")) {
+    return null;
+  }
+
+  const { ownProvinceId } = await getPrimaryAffectationContextForAgent(ownAgentId);
+  if (!ownProvinceId) {
+    return [];
+  }
+
+  if (
+    scopes.includes("PROVINCE") ||
+    scopes.includes("UNITE") ||
+    scopes.includes("UNITE_ET_DESCENDANTS") ||
+    scopes.includes("SOI_MEME")
+  ) {
+    return [ownProvinceId];
+  }
+
+  return [];
+}
+
+export async function canAccessProvinceForPermissions(
+  utilisateurId: number,
+  provinceId: number,
+  permissionCodes: string[]
+) {
+  const provinceIds = await getScopedProvinceIdsForPermissions(
+    utilisateurId,
+    permissionCodes
+  );
+
+  if (provinceIds === null) {
+    return true;
+  }
+
+  return provinceIds.includes(provinceId);
 }
 
 export async function canAccessAgentForPermissions(

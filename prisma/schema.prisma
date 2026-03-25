@@ -188,6 +188,7 @@ enum PorteeDonnees {
   SOI_MEME
   UNITE
   UNITE_ET_DESCENDANTS
+  PROVINCE
   TOUTE_ORGANISATION
 }
 
@@ -214,6 +215,21 @@ model TypeUniteOrganisationnelle {
   @@index([ordre])
 }
 
+model Province {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  nom         String   @unique
+  description String?
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  unites      UniteOrganisationnelle[]
+  affectations Affectation[]
+
+  @@index([actif])
+}
+
 model UniteOrganisationnelle {
   id            Int      @id @default(autoincrement())
   nom           String
@@ -221,6 +237,7 @@ model UniteOrganisationnelle {
   description   String?
   typeUniteId   Int
   parentId      Int?
+  provinceId    Int?
   chemin        String?
   niveau        Int      @default(0)
   actif         Boolean  @default(true)
@@ -230,12 +247,14 @@ model UniteOrganisationnelle {
   typeUnite     TypeUniteOrganisationnelle @relation(fields: [typeUniteId], references: [id])
   parent        UniteOrganisationnelle?    @relation("ArbreOrganisationnel", fields: [parentId], references: [id], onDelete: SetNull)
   enfants       UniteOrganisationnelle[]   @relation("ArbreOrganisationnel")
+  province      Province?                  @relation(fields: [provinceId], references: [id], onDelete: SetNull)
 
   postes        Poste[]
   affectations  Affectation[]
 
   @@index([typeUniteId])
   @@index([parentId])
+  @@index([provinceId])
   @@index([actif])
   @@index([chemin])
 }
@@ -247,6 +266,7 @@ model Affectation {
   fonctionId        Int?
   gradeId           Int
   uniteOrganisationnelleId Int
+  provinceId        Int?
   dateDebut         DateTime
   dateFin           DateTime?
   statut            StatutConge?     @default(EN_ATTENTE)
@@ -265,10 +285,12 @@ model Affectation {
   fonction          Fonction?            @relation(fields: [fonctionId], references: [id], onDelete: Cascade)
   grade             Grade                @relation(fields: [gradeId], references: [id], onDelete: Cascade)
   uniteOrganisationnelle UniteOrganisationnelle @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: Restrict)
+  province          Province?            @relation(fields: [provinceId], references: [id], onDelete: SetNull)
 
   historique        HistoriqueAffectation[]
 
   @@index([uniteOrganisationnelleId])
+  @@index([provinceId])
   @@index([actif, principale])
   @@index([dateDebut, dateFin])
 }

@@ -42,6 +42,7 @@ const MODULES: ModuleCard[] = [
     href: "/dashboard/organisation",
     icon: Building2,
     permissions: [
+      "province.read",
       "type_unite_organisationnelle.read",
       "unite_organisationnelle.read",
       "poste.read",

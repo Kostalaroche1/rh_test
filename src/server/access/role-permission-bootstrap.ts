@@ -52,7 +52,9 @@ const AGENT_PERMISSION_CODES = [
 ];
 
 const CHEF_SERVICE_PERMISSION_CODES = [
+  "province.read",
   "agent.read",
+  "agent_dossier.read",
   "user.read",
   "presence.sign",
   "presence.read",
@@ -70,10 +72,12 @@ const CHEF_SERVICE_PERMISSION_CODES = [
 ];
 
 const RH_PERMISSION_CODES = [
+  "province.read",
   "user.read",
   "user.create",
   "user.update",
   "agent.read",
+  "agent_dossier.read",
   "agent.create",
   "agent.update",
   "type_conge.read",

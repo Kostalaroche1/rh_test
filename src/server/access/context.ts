@@ -43,6 +43,7 @@ export async function canAccessAgent(user: SessionUser, agentId: number) {
 
   const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(user.userId, [
     "agent.read",
+    "agent_dossier.read",
     "user.read",
     "affectation.read",
     "presence.confirm",
