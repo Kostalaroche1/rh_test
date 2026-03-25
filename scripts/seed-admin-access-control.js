@@ -86,6 +86,7 @@ async function ensureAccessControlPermissions() {
   const missingCodes = ACCESS_CONTROL_PERMISSION_CODES.filter(
     (code) => !existingCodes.has(code)
   );
+  //gioto
 
   for (const code of missingCodes) {
     const data = buildPermissionData(code);
