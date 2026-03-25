@@ -108,10 +108,42 @@ type RolePermissionResponse = {
   message?: string;
 };
 
+type PermissionMenuEntry = {
+  id: number;
+  code: string;
+};
+
+type PermissionMenuItem = {
+  itemKey: string;
+  itemLabel: string;
+  permissions: PermissionMenuEntry[];
+};
+
+type PermissionMenuModule = {
+  moduleKey: string;
+  moduleLabel: string;
+  items: PermissionMenuItem[];
+};
+
+type PermissionModalState = {
+  roleId: number;
+  roleName: string;
+  moduleKey: string;
+  moduleLabel: string;
+  itemKey: string;
+  itemLabel: string;
+  permissionIds: number[];
+} | null;
+
 const defaultRoleForm = {
   nom: "",
   description: "",
 };
+
+const EMPTY_PERMISSION_ITEMS: PermissionItem[] = [];
+const EMPTY_ROLE_ITEMS: RolePermissionItem[] = [];
+const EMPTY_ASSIGNABLE_PERMISSIONS: NonNullable<RolePermissionResponse["data"]>["permissions"] =
+  [];
 
 const RESOURCE_LABELS: Record<string, string> = {
   role: "Role",
@@ -256,6 +288,10 @@ export default function GestionnairePermissions() {
   const [roleListPage, setRoleListPage] = useState(1);
   const [roleListPageSize, setRoleListPageSize] = useState(5);
   const [selectedRoleView, setSelectedRoleView] = useState("all");
+  const [expandedModulesByRole, setExpandedModulesByRole] = useState<
+    Record<number, Record<string, boolean>>
+  >({});
+  const [permissionModal, setPermissionModal] = useState<PermissionModalState>(null);
 
   const { data: permissionsResponse, refetch: refetchPermissions } = useGet<{ status: number; data?: PermissionItem[]; message?: string }>(
     ["PermissionList"],
@@ -270,15 +306,15 @@ export default function GestionnairePermissions() {
     ? permissionsResponse.data.filter(
         (permission) => !HIDDEN_WORKFLOW_PERMISSIONS.has(canonicalizePermissionCode(permission.code))
       )
-    : [];
+    : EMPTY_PERMISSION_ITEMS;
   const roles = Array.isArray(rolePermissionResponse?.data?.roles)
     ? rolePermissionResponse.data.roles
-    : [];
+    : EMPTY_ROLE_ITEMS;
   const assignablePermissions = Array.isArray(rolePermissionResponse?.data?.permissions)
     ? rolePermissionResponse.data.permissions.filter(
         (permission) => !HIDDEN_WORKFLOW_PERMISSIONS.has(canonicalizePermissionCode(permission.code))
       )
-    : [];
+    : EMPTY_ASSIGNABLE_PERMISSIONS;
 
   useEffect(() => {
     const nextSelections: Record<number, number[]> = {};
@@ -440,23 +476,84 @@ export default function GestionnairePermissions() {
     }));
   }, [paginatedPermissions]);
 
-  const groupedAssignablePermissions = useMemo(() => {
-    const groups = new Map<string, Array<{ id: number; code: string }>>();
+  const permissionMenuModules = useMemo<PermissionMenuModule[]>(() => {
+    const modules = new Map<
+      string,
+      {
+        moduleKey: string;
+        moduleLabel: string;
+        itemMap: Map<string, PermissionMenuItem>;
+      }
+    >();
 
     for (const permission of assignablePermissions) {
       const label = formatPermissionLabel(permission.code);
-      const key = label.moduleKey ?? "autres";
-      const current = groups.get(key) ?? [];
-      current.push(permission);
-      groups.set(key, current);
+      const moduleKey = label.moduleKey ?? "autres";
+      const moduleLabel = label.moduleLabel ?? MODULE_LABELS[moduleKey] ?? moduleKey;
+      const itemLabel = label.subtitle || "Autres actions";
+      const itemKey = itemLabel.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+
+      if (!modules.has(moduleKey)) {
+        modules.set(moduleKey, {
+          moduleKey,
+          moduleLabel,
+          itemMap: new Map(),
+        });
+      }
+
+      const module = modules.get(moduleKey)!;
+      if (!module.itemMap.has(itemKey)) {
+        module.itemMap.set(itemKey, {
+          itemKey,
+          itemLabel,
+          permissions: [],
+        });
+      }
+
+      module.itemMap.get(itemKey)!.permissions.push({
+        id: permission.id,
+        code: permission.code,
+      });
     }
 
-    return [...groups.entries()].map(([moduleKey, items]) => ({
-      moduleKey,
-      moduleLabel: MODULE_LABELS[moduleKey] ?? moduleKey,
-      items,
-    }));
+    return [...modules.values()]
+      .map((module) => ({
+        moduleKey: module.moduleKey,
+        moduleLabel: module.moduleLabel,
+        items: [...module.itemMap.values()].sort((left, right) =>
+          left.itemLabel.localeCompare(right.itemLabel)
+        ),
+      }))
+      .sort((left, right) => left.moduleLabel.localeCompare(right.moduleLabel));
   }, [assignablePermissions]);
+
+  const assignablePermissionById = useMemo(() => {
+    return new Map(assignablePermissions.map((permission) => [permission.id, permission]));
+  }, [assignablePermissions]);
+
+  const modalPermissionItems = useMemo(() => {
+    if (!permissionModal) {
+      return [];
+    }
+
+    return permissionModal.permissionIds
+      .map((permissionId) => {
+        const permission = assignablePermissionById.get(permissionId);
+        if (!permission) return null;
+        const label = formatPermissionLabel(permission.code);
+
+        return {
+          id: permission.id,
+          code: permission.code,
+          label,
+        };
+      })
+      .filter(Boolean) as Array<{
+      id: number;
+      code: string;
+      label: ReturnType<typeof formatPermissionLabel>;
+    }>;
+  }, [permissionModal, assignablePermissionById]);
 
   function togglePermission(roleId: number, permissionId: number, checked: boolean) {
     setRoleSelections((prev) => {
@@ -531,6 +628,36 @@ export default function GestionnairePermissions() {
         [permissionId]: value,
       },
     }));
+  }
+
+  function toggleModuleSection(roleId: number, moduleKey: string) {
+    setExpandedModulesByRole((prev) => ({
+      ...prev,
+      [roleId]: {
+        ...(prev[roleId] ?? {}),
+        [moduleKey]: !(prev[roleId]?.[moduleKey] ?? false),
+      },
+    }));
+  }
+
+  function openPermissionModalForItem(
+    role: RolePermissionItem,
+    module: PermissionMenuModule,
+    item: PermissionMenuItem
+  ) {
+    setPermissionModal({
+      roleId: role.id,
+      roleName: role.nom,
+      moduleKey: module.moduleKey,
+      moduleLabel: module.moduleLabel,
+      itemKey: item.itemKey,
+      itemLabel: item.itemLabel,
+      permissionIds: item.permissions.map((permission) => permission.id),
+    });
+  }
+
+  function closePermissionModal() {
+    setPermissionModal(null);
   }
 
   async function handleCreateRole() {
@@ -1076,116 +1203,72 @@ export default function GestionnairePermissions() {
                       <IconTrash className="mr-2 h-4 w-4" />
                       Supprimer
                     </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => handleSaveRole(role.id)}
-                      disabled={savingPermissions}
-                    >
-                      <IconDeviceFloppy className="mr-2 h-4 w-4" />
-                      Enregistrer
-                    </Button>
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   {assignablePermissions.length > 0 ? (
-                    groupedAssignablePermissions.map((group) => (
-                      <div key={`${role.id}-${group.moduleKey}`} className="rounded-xl border">
-                        <div className="flex items-center justify-between border-b px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold">{group.moduleLabel}</p>
-                            <Badge variant="outline">{group.items.length}</Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setModulePermissions(
-                                  role.id,
-                                  group.items.map((item) => item.id),
-                                  true
-                                )
-                              }
-                            >
-                              Tout cocher
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setModulePermissions(
-                                  role.id,
-                                  group.items.map((item) => item.id),
-                                  false
-                                )
-                              }
-                            >
-                              Tout decocher
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="grid gap-3 p-3 md:grid-cols-2 xl:grid-cols-3">
-                          {group.items.map((permission) => {
-                            const checked = (roleSelections[role.id] ?? []).includes(permission.id);
-                            const permissionLabel = formatPermissionLabel(permission.code);
-                            const selectedScope = roleScopes[role.id]?.[permission.id] ?? "TOUTE_ORGANISATION";
-                            return (
-                              <div
-                                key={`${role.id}-${permission.id}`}
-                                className="flex flex-col gap-3 rounded-lg border px-3 py-2"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-medium">{permissionLabel.title}</p>
-                                    <p className="truncate text-xs text-muted-foreground">
-                                      {permissionLabel.subtitle}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {permission.code}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      Utilisee dans {permissionUsage.get(permission.id) ?? 0} role(s)
-                                    </p>
-                                  </div>
-                                  <Checkbox
-                                    checked={checked}
-                                    onCheckedChange={(value) =>
-                                      togglePermission(role.id, permission.id, Boolean(value))
-                                    }
-                                  />
-                                </div>
+                    permissionMenuModules.map((module) => {
+                      const roleSelectionSet = new Set(roleSelections[role.id] ?? []);
+                      const modulePermissionIds = module.items.flatMap((item) =>
+                        item.permissions.map((permission) => permission.id)
+                      );
+                      const moduleSelectedCount = modulePermissionIds.filter((permissionId) =>
+                        roleSelectionSet.has(permissionId)
+                      ).length;
+                      const isOpen = Boolean(expandedModulesByRole[role.id]?.[module.moduleKey]);
 
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">Portee</span>
-                                  <Select
-                                    value={selectedScope}
-                                    onValueChange={(value) =>
-                                      setPermissionScope(role.id, permission.id, value as ScopeValue)
-                                    }
-                                    disabled={!checked}
+                      return (
+                        <div key={`${role.id}-${module.moduleKey}`} className="rounded-xl border">
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left hover:bg-muted/40"
+                            onClick={() => toggleModuleSection(role.id, module.moduleKey)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold">{module.moduleLabel}</p>
+                              <Badge variant="outline">
+                                {moduleSelectedCount}/{modulePermissionIds.length}
+                              </Badge>
+                            </div>
+                            <IconChevronRight
+                              className={`h-4 w-4 transition-transform ${
+                                isOpen ? "rotate-90" : ""
+                              }`}
+                            />
+                          </button>
+
+                          {isOpen ? (
+                            <div className="grid gap-3 border-t p-3 md:grid-cols-2 xl:grid-cols-3">
+                              {module.items.map((item) => {
+                                const itemSelectedCount = item.permissions.filter((permission) =>
+                                  roleSelectionSet.has(permission.id)
+                                ).length;
+
+                                return (
+                                  <button
+                                    key={`${role.id}-${module.moduleKey}-${item.itemKey}`}
+                                    type="button"
+                                    className="rounded-lg border bg-background px-3 py-3 text-left transition-colors hover:bg-muted/30"
+                                    onClick={() => openPermissionModalForItem(role, module, item)}
                                   >
-                                    <SelectTrigger className="h-8 w-full">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {Object.entries(SCOPE_LABELS).map(([value, label]) => (
-                                        <SelectItem key={value} value={value}>
-                                          {label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-                            );
-                          })}
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-medium">{item.itemLabel}</p>
+                                      <Badge variant="secondary">
+                                        {itemSelectedCount}/{item.permissions.length}
+                                      </Badge>
+                                    </div>
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      Ouvrir les permissions et portees de cette section
+                                    </p>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="rounded-lg border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
                       Le catalogue d'autorisations est vide. Chargez d'abord le catalogue standard.
@@ -1201,6 +1284,137 @@ export default function GestionnairePermissions() {
           )}
         </div>
       </div>
+
+      <Dialog open={Boolean(permissionModal)} onOpenChange={() => undefined}>
+        <DialogContent
+          showCloseButton={false}
+          className="h-[92vh] w-[98vw] max-w-[min(1400px,98vw)] sm:max-w-[min(1400px,98vw)] overflow-hidden rounded-2xl p-0"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+        >
+          <div className="flex h-full flex-col">
+            <DialogHeader className="border-b px-8 py-5">
+              <DialogTitle>
+                {permissionModal?.roleName} - {permissionModal?.moduleLabel}
+              </DialogTitle>
+              <DialogDescription>
+                {permissionModal?.itemLabel}. Selectionnez les permissions et portees, puis enregistrez ce modal.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex items-center justify-end gap-2 border-b px-8 py-3">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  permissionModal
+                    ? setModulePermissions(permissionModal.roleId, permissionModal.permissionIds, true)
+                    : null
+                }
+                disabled={!permissionModal}
+              >
+                Tout cocher
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  permissionModal
+                    ? setModulePermissions(permissionModal.roleId, permissionModal.permissionIds, false)
+                    : null
+                }
+                disabled={!permissionModal}
+              >
+                Tout decocher
+              </Button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-8 py-6">
+              <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
+                {modalPermissionItems.map((permission) => {
+                  const checked = permissionModal
+                    ? (roleSelections[permissionModal.roleId] ?? []).includes(permission.id)
+                    : false;
+                  const selectedScope = permissionModal
+                    ? roleScopes[permissionModal.roleId]?.[permission.id] ?? "TOUTE_ORGANISATION"
+                    : "TOUTE_ORGANISATION";
+
+                  return (
+                    <div
+                      key={`modal-${permission.id}`}
+                      className="flex min-h-[188px] flex-col gap-4 rounded-xl border bg-background p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold leading-5">{permission.label.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {permission.label.subtitle}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{permission.code}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Utilisee dans {permissionUsage.get(permission.id) ?? 0} role(s)
+                          </p>
+                        </div>
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(value) =>
+                            permissionModal
+                              ? togglePermission(permissionModal.roleId, permission.id, Boolean(value))
+                              : null
+                          }
+                        />
+                      </div>
+
+                      <div className="mt-auto flex flex-col gap-2">
+                        <span className="text-xs text-muted-foreground">Portee</span>
+                        <Select
+                          value={selectedScope}
+                          onValueChange={(value) =>
+                            permissionModal
+                              ? setPermissionScope(permissionModal.roleId, permission.id, value as ScopeValue)
+                              : null
+                          }
+                          disabled={!checked || !permissionModal}
+                        >
+                          <SelectTrigger className="h-9 w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(SCOPE_LABELS).map(([value, label]) => (
+                              <SelectItem key={`modal-scope-${value}`} value={value}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <DialogFooter className="border-t px-8 py-4 sm:justify-between">
+              <Button variant="outline" onClick={closePermissionModal}>
+                Close
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!permissionModal) return;
+                  await handleSaveRole(permissionModal.roleId);
+                  closePermissionModal();
+                }}
+                disabled={!permissionModal || savingPermissions}
+              >
+                <IconDeviceFloppy className="mr-2 h-4 w-4" />
+                {savingPermissions ? "Enregistrement..." : "Enregistrer"}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(editRole)} onOpenChange={(open) => !open && setEditRole(null)}>
         <DialogContent>
