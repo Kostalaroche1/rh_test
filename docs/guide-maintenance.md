@@ -18,6 +18,7 @@ npm run build
 npx tsc --noEmit
 npx prisma generate
 node prisma/seed.js
+npm run access:bootstrap
 ```
 
 Role des commandes :
@@ -25,6 +26,8 @@ Role des commandes :
 - `npx tsc --noEmit` : validation TypeScript
 - `npx prisma generate` : regeneration du client Prisma
 - `node prisma/seed.js` : synchronisation du catalogue de permissions et nettoyage des codes obsoletes
+- `npm run access:bootstrap` : attribution des permissions par defaut aux roles metier (`admin`, `rh`, `chefservice`, `agent`)
+- `npm run access:bootstrap:force` : reinitialisation forcee des permissions des roles templates
 
 ## 3. Maintenance Prisma
 

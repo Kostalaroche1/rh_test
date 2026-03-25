@@ -102,3 +102,33 @@ Ne pas renommer une route publique sans verifier l'impact sur les URLs et la nav
 - garder l'URL stable
 - nettoyer d'abord le composant interne
 - documenter ensuite le changement si une vraie migration de route est decidee
+
+## 8. Compte admin connecte mais dashboard presque vide
+
+### Symptomes
+- le compte affiche un role (`admin`, `Admin Gen`, etc.)
+- presque aucun module n'apparait
+- il reste seulement la vue generique
+
+### Cause principale
+Le role est actif mais il n'a aucune ligne dans `RolePermission`/`ReglePorteeRole`.
+
+### Correctif local (recommande)
+```powershell
+npm run access:bootstrap
+```
+
+Si vous voulez reinitialiser explicitement les roles templates (ecrase les attributions existantes des roles reconnus) :
+```powershell
+npm run access:bootstrap:force
+```
+
+### Correctif d'urgence via API (token)
+1. definir `ACCESS_BOOTSTRAP_TOKEN` (secret fort) dans l'environnement
+2. appeler:
+```http
+POST /api/agent/role-permission/bootstrap
+x-access-bootstrap-token: <ACCESS_BOOTSTRAP_TOKEN>
+```
+
+Le mode token n'est accepte que quand `RolePermission` est vide (phase d'initialisation).

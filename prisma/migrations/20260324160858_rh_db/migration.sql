@@ -14,11 +14,16 @@ CREATE TABLE `Utilisateur` (
 CREATE TABLE `Role` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `key` VARCHAR(191) NULL,
+    `code` VARCHAR(191) NULL,
     `nom` VARCHAR(191) NOT NULL,
     `description` VARCHAR(191) NULL,
     `actif` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
+    UNIQUE INDEX `Role_code_key`(`code`),
     UNIQUE INDEX `Role_nom_key`(`nom`),
+    INDEX `Role_actif_idx`(`actif`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -77,55 +82,19 @@ CREATE TABLE `HistoriqueAgent` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `Direction` (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `code` VARCHAR(191) NOT NULL,
-    `libelle` VARCHAR(191) NOT NULL,
-    `description` VARCHAR(191) NULL,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `Direction_code_key`(`code`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `Departement` (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `code` VARCHAR(191) NOT NULL,
-    `nom` VARCHAR(191) NOT NULL,
-    `directionId` INTEGER NOT NULL,
-
-    UNIQUE INDEX `Departement_code_key`(`code`),
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `Site` (
-    `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `nom` VARCHAR(191) NOT NULL,
-    `adresse` VARCHAR(191) NOT NULL,
-    `ville` VARCHAR(191) NOT NULL,
-
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `SiteDepartement` (
-    `siteId` INTEGER NOT NULL,
-    `departementId` INTEGER NOT NULL,
-
-    PRIMARY KEY (`siteId`, `departementId`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
 CREATE TABLE `Poste` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `code` VARCHAR(191) NOT NULL,
     `libelle` VARCHAR(191) NOT NULL,
-    `departementId` INTEGER NOT NULL,
+    `description` VARCHAR(191) NULL,
+    `uniteOrganisationnelleId` INTEGER NOT NULL,
+    `actif` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     UNIQUE INDEX `Poste_code_key`(`code`),
+    INDEX `Poste_uniteOrganisationnelleId_idx`(`uniteOrganisationnelleId`),
+    INDEX `Poste_actif_idx`(`actif`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -152,23 +121,69 @@ CREATE TABLE `Grade` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `TypeUniteOrganisationnelle` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `nom` VARCHAR(191) NOT NULL,
+    `code` VARCHAR(191) NOT NULL,
+    `description` VARCHAR(191) NULL,
+    `ordre` INTEGER NOT NULL DEFAULT 0,
+    `actif` BOOLEAN NOT NULL DEFAULT true,
+    `systeme` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `TypeUniteOrganisationnelle_code_key`(`code`),
+    INDEX `TypeUniteOrganisationnelle_actif_idx`(`actif`),
+    INDEX `TypeUniteOrganisationnelle_ordre_idx`(`ordre`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `UniteOrganisationnelle` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `nom` VARCHAR(191) NOT NULL,
+    `code` VARCHAR(191) NOT NULL,
+    `description` VARCHAR(191) NULL,
+    `typeUniteId` INTEGER NOT NULL,
+    `parentId` INTEGER NULL,
+    `chemin` VARCHAR(191) NULL,
+    `niveau` INTEGER NOT NULL DEFAULT 0,
+    `actif` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `UniteOrganisationnelle_code_key`(`code`),
+    INDEX `UniteOrganisationnelle_typeUniteId_idx`(`typeUniteId`),
+    INDEX `UniteOrganisationnelle_parentId_idx`(`parentId`),
+    INDEX `UniteOrganisationnelle_actif_idx`(`actif`),
+    INDEX `UniteOrganisationnelle_chemin_idx`(`chemin`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `Affectation` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `agentId` INTEGER NOT NULL,
     `posteId` INTEGER NOT NULL,
     `fonctionId` INTEGER NULL,
     `gradeId` INTEGER NOT NULL,
-    `departementId` INTEGER NOT NULL,
-    `directionId` INTEGER NOT NULL,
-    `siteId` INTEGER NOT NULL,
+    `uniteOrganisationnelleId` INTEGER NOT NULL,
     `dateDebut` DATETIME(3) NOT NULL,
     `dateFin` DATETIME(3) NULL,
     `statut` ENUM('EN_ATTENTE', 'CONFIRME', 'VALIDE', 'REJETE') NULL DEFAULT 'EN_ATTENTE',
+    `statutOrganisationnel` ENUM('ACTIVE', 'SUSPENDUE', 'TERMINEE') NOT NULL DEFAULT 'ACTIVE',
     `motif` VARCHAR(191) NULL,
     `typeContrat` ENUM('CDI', 'CDD', 'STAGE', 'CONSULTANT', 'INTERIM', 'PRESTATION') NULL,
     `statutContrat` ENUM('ACTIF', 'TERMINE', 'SUSPENDU', 'RESILIE') NULL,
     `type` ENUM('PROMOTION', 'MUTATION', 'NOMINATION', 'AFFECTATION', 'INTERIM', 'REINTEGRATION', 'DETACHEMENT', 'MONTEE_GRADE', 'RETROGRADATION') NULL DEFAULT 'AFFECTATION',
+    `principale` BOOLEAN NOT NULL DEFAULT true,
+    `actif` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
+    INDEX `Affectation_uniteOrganisationnelleId_idx`(`uniteOrganisationnelleId`),
+    INDEX `Affectation_actif_principale_idx`(`actif`, `principale`),
+    INDEX `Affectation_dateDebut_dateFin_idx`(`dateDebut`, `dateFin`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -281,13 +296,88 @@ CREATE TABLE `Presence` (
     `date` DATE NOT NULL,
     `heureArrivee` DATETIME(3) NULL,
     `heureDepart` DATETIME(3) NULL,
-    `statut` ENUM('BROUILLON', 'CONFIRME', 'VALIDE', 'CONGE', 'MISSION', 'MALADIE', 'ABSENT', 'PRESENCE', 'RETARD') NOT NULL DEFAULT 'BROUILLON',
+    `statut` ENUM('BROUILLON', 'CONFIRME', 'VALIDE', 'CONGE', 'MISSION', 'MALADIE', 'ABSENT', 'PRESENCE', 'RETARD', 'OFF') NOT NULL DEFAULT 'PRESENCE',
+    `statutWorkflow` ENUM('BROUILLON', 'CONFIRME', 'VALIDE') NOT NULL DEFAULT 'BROUILLON',
     `confirmeParId` INTEGER NULL,
     `valideParId` INTEGER NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `Presence_agentId_date_key`(`agentId`, `date`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `HoraireTravail` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `nomHoraire` VARCHAR(191) NOT NULL,
+    `heureDebut` TIME NOT NULL,
+    `heureFin` TIME NOT NULL,
+    `creerParId` INTEGER NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `HoraireAgent` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `agentId` INTEGER NOT NULL,
+    `horaireId` INTEGER NOT NULL,
+    `dateDebut` DATE NOT NULL,
+    `dateFin` DATE NULL,
+    `creerParId` INTEGER NOT NULL,
+    `lundi` BOOLEAN NOT NULL DEFAULT false,
+    `mardi` BOOLEAN NOT NULL DEFAULT false,
+    `mercredi` BOOLEAN NOT NULL DEFAULT false,
+    `jeudi` BOOLEAN NOT NULL DEFAULT false,
+    `vendredi` BOOLEAN NOT NULL DEFAULT false,
+    `samedi` BOOLEAN NOT NULL DEFAULT false,
+    `dimanche` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `HoraireAgent_agentId_idx`(`agentId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Permisions` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `code` VARCHAR(191) NOT NULL,
+    `libelle` VARCHAR(191) NULL,
+    `description` VARCHAR(191) NULL,
+    `module` VARCHAR(191) NULL,
+    `actif` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    UNIQUE INDEX `Permisions_code_key`(`code`),
+    INDEX `Permisions_module_idx`(`module`),
+    INDEX `Permisions_actif_idx`(`actif`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `RolePermission` (
+    `permissionId` INTEGER NOT NULL,
+    `roleId` INTEGER NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `RolePermission_permissionId_idx`(`permissionId`),
+    PRIMARY KEY (`roleId`, `permissionId`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `ReglePorteeRole` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `roleId` INTEGER NOT NULL,
+    `permissionId` INTEGER NOT NULL,
+    `portee` ENUM('SOI_MEME', 'UNITE', 'UNITE_ET_DESCENDANTS', 'TOUTE_ORGANISATION') NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `ReglePorteeRole_permissionId_idx`(`permissionId`),
+    INDEX `ReglePorteeRole_portee_idx`(`portee`),
+    UNIQUE INDEX `ReglePorteeRole_roleId_permissionId_key`(`roleId`, `permissionId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -307,19 +397,16 @@ ALTER TABLE `CompteAgent` ADD CONSTRAINT `CompteAgent_utilisateurId_fkey` FOREIG
 ALTER TABLE `HistoriqueAgent` ADD CONSTRAINT `HistoriqueAgent_agentId_fkey` FOREIGN KEY (`agentId`) REFERENCES `Agent`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Departement` ADD CONSTRAINT `Departement_directionId_fkey` FOREIGN KEY (`directionId`) REFERENCES `Direction`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `SiteDepartement` ADD CONSTRAINT `SiteDepartement_siteId_fkey` FOREIGN KEY (`siteId`) REFERENCES `Site`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `SiteDepartement` ADD CONSTRAINT `SiteDepartement_departementId_fkey` FOREIGN KEY (`departementId`) REFERENCES `Departement`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Poste` ADD CONSTRAINT `Poste_departementId_fkey` FOREIGN KEY (`departementId`) REFERENCES `Departement`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE `Poste` ADD CONSTRAINT `Poste_uniteOrganisationnelleId_fkey` FOREIGN KEY (`uniteOrganisationnelleId`) REFERENCES `UniteOrganisationnelle`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Fonction` ADD CONSTRAINT `Fonction_posteId_fkey` FOREIGN KEY (`posteId`) REFERENCES `Poste`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `UniteOrganisationnelle` ADD CONSTRAINT `UniteOrganisationnelle_typeUniteId_fkey` FOREIGN KEY (`typeUniteId`) REFERENCES `TypeUniteOrganisationnelle`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `UniteOrganisationnelle` ADD CONSTRAINT `UniteOrganisationnelle_parentId_fkey` FOREIGN KEY (`parentId`) REFERENCES `UniteOrganisationnelle`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Affectation` ADD CONSTRAINT `Affectation_agentId_fkey` FOREIGN KEY (`agentId`) REFERENCES `Agent`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -334,13 +421,7 @@ ALTER TABLE `Affectation` ADD CONSTRAINT `Affectation_fonctionId_fkey` FOREIGN K
 ALTER TABLE `Affectation` ADD CONSTRAINT `Affectation_gradeId_fkey` FOREIGN KEY (`gradeId`) REFERENCES `Grade`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Affectation` ADD CONSTRAINT `Affectation_departementId_fkey` FOREIGN KEY (`departementId`) REFERENCES `Departement`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Affectation` ADD CONSTRAINT `Affectation_directionId_fkey` FOREIGN KEY (`directionId`) REFERENCES `Direction`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `Affectation` ADD CONSTRAINT `Affectation_siteId_fkey` FOREIGN KEY (`siteId`) REFERENCES `Site`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `Affectation` ADD CONSTRAINT `Affectation_uniteOrganisationnelleId_fkey` FOREIGN KEY (`uniteOrganisationnelleId`) REFERENCES `UniteOrganisationnelle`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `HistoriqueAffectation` ADD CONSTRAINT `HistoriqueAffectation_affectationId_fkey` FOREIGN KEY (`affectationId`) REFERENCES `Affectation`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -383,3 +464,27 @@ ALTER TABLE `Presence` ADD CONSTRAINT `Presence_confirmeParId_fkey` FOREIGN KEY 
 
 -- AddForeignKey
 ALTER TABLE `Presence` ADD CONSTRAINT `Presence_valideParId_fkey` FOREIGN KEY (`valideParId`) REFERENCES `Utilisateur`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `HoraireTravail` ADD CONSTRAINT `HoraireTravail_creerParId_fkey` FOREIGN KEY (`creerParId`) REFERENCES `Utilisateur`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `HoraireAgent` ADD CONSTRAINT `HoraireAgent_agentId_fkey` FOREIGN KEY (`agentId`) REFERENCES `Agent`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `HoraireAgent` ADD CONSTRAINT `HoraireAgent_horaireId_fkey` FOREIGN KEY (`horaireId`) REFERENCES `HoraireTravail`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `HoraireAgent` ADD CONSTRAINT `HoraireAgent_creerParId_fkey` FOREIGN KEY (`creerParId`) REFERENCES `Utilisateur`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `RolePermission` ADD CONSTRAINT `RolePermission_permissionId_fkey` FOREIGN KEY (`permissionId`) REFERENCES `Permisions`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `RolePermission` ADD CONSTRAINT `RolePermission_roleId_fkey` FOREIGN KEY (`roleId`) REFERENCES `Role`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ReglePorteeRole` ADD CONSTRAINT `ReglePorteeRole_roleId_fkey` FOREIGN KEY (`roleId`) REFERENCES `Role`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ReglePorteeRole` ADD CONSTRAINT `ReglePorteeRole_permissionId_fkey` FOREIGN KEY (`permissionId`) REFERENCES `Permisions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

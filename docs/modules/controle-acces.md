@@ -18,6 +18,7 @@ Ce module gere :
 - `src/components/dashboard/acces/GestionnairePermissions.tsx`
 - `src/app/api/agent/role/route.ts`
 - `src/app/api/agent/role-permission/route.ts`
+- `src/app/api/agent/role-permission/bootstrap/route.ts`
 - `src/app/api/agent/permission/bootstrap/route.ts`
 - `src/server/access/permission-catalog.ts`
 - `src/server/access/scope.ts`
