@@ -30,22 +30,20 @@ export async function GET(_: NextRequest, { params }: Params) {
           include: {
             poste: {
               include: {
-                uniteOrganisationnelle: {
-                  include: {
-                    province: true,
-                    typeUnite: true,
-                  },
-                },
+                uniteOrganisationnelle: true,
               },
             },
             fonction: true,
             grade: true,
-            province: true,
-            uniteOrganisationnelle: {
+            typeOrgaUniteProvince: {
               include: {
-                province: true,
                 typeUnite: true,
-                parent: true,
+                province: true,
+                uniteOrganisationnelle: {
+                  include: {
+                    parent: true,
+                  },
+                },
               },
             },
           },
@@ -71,10 +69,11 @@ export async function GET(_: NextRequest, { params }: Params) {
 
     const timeline = [
       ...agent.affectations.flatMap((a) => [
+        // Chronologie principale du parcours d'affectation.
         {
           type: "AFFECTATION_DEBUT",
           date: a.dateDebut,
-          label: `Debut d'affectation: ${a.poste?.libelle ?? "-"} / ${a.uniteOrganisationnelle?.nom ?? "-"}`,
+          label: `Debut d'affectation: ${a.poste?.libelle ?? "-"} / ${a.typeOrgaUniteProvince?.uniteOrganisationnelle?.nom ?? "-"}`,
           payload: a,
         },
         ...(a.dateFin

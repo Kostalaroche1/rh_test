@@ -161,43 +161,102 @@ export async function GET() {
       "unite_organisationnelle.read",
       "affectation.read",
     ])
-      ? await prisma.province.findMany({
-          where:
-            scopedProvinceIds === null
-              ? undefined
-              : { id: { in: scopedProvinceIds.length ? scopedProvinceIds : [-1] } },
-          select: {
-            id: true,
-            code: true,
-            nom: true,
-            _count: {
-              select: {
-                unites: true,
-                affectations: true,
-              },
+      ? await (async () => {
+          const provinces = await prisma.province.findMany({
+            where:
+              scopedProvinceIds === null
+                ? undefined
+                : { id: { in: scopedProvinceIds.length ? scopedProvinceIds : [-1] } },
+            select: {
+              id: true,
+              code: true,
+              nom: true,
             },
-            unites: {
-              where:
-                scopedUnitIds === null
-                  ? undefined
-                  : { id: { in: scopedUnitIds.length ? scopedUnitIds : [-1] } },
-              select: {
-                id: true,
-                code: true,
-                nom: true,
-                niveau: true,
-                _count: {
-                  select: {
-                    postes: true,
-                    affectations: true,
+            orderBy: [{ nom: "asc" }],
+          });
+
+          return Promise.all(
+            provinces.map(async (province) => {
+              const links = await prisma.typeOrgaUniteProvince.findMany({
+                where: {
+                  provinceId: province.id,
+                  uniteOrganisationnelleId: { not: null },
+                  ...(scopedUnitIds === null
+                    ? {}
+                    : {
+                        uniteOrganisationnelleId: {
+                          in: scopedUnitIds.length ? scopedUnitIds : [-1],
+                        },
+                      }),
+                },
+                select: {
+                  uniteOrganisationnelleId: true,
+                  uniteOrganisationnelle: {
+                    select: {
+                      id: true,
+                      code: true,
+                      nom: true,
+                      niveau: true,
+                      _count: {
+                        select: { postes: true },
+                      },
+                    },
+                  },
+                  _count: {
+                    select: { affectations: true },
                   },
                 },
-              },
-              orderBy: [{ niveau: "asc" }, { nom: "asc" }],
-            },
-          },
-          orderBy: [{ nom: "asc" }],
-        })
+                orderBy: [{ uniteOrganisationnelleId: "asc" }],
+              });
+
+              const unitMap = new Map<
+                number,
+                {
+                  id: number;
+                  code: string;
+                  nom: string;
+                  niveau: number;
+                  _count: { postes: number; affectations: number };
+                }
+              >();
+
+              let affectationsCount = 0;
+              for (const link of links) {
+                affectationsCount += link._count.affectations;
+                const unit = link.uniteOrganisationnelle;
+                if (!unit) continue;
+                const current = unitMap.get(unit.id);
+                if (!current) {
+                  unitMap.set(unit.id, {
+                    id: unit.id,
+                    code: unit.code,
+                    nom: unit.nom,
+                    niveau: unit.niveau,
+                    _count: {
+                      postes: unit._count.postes,
+                      affectations: link._count.affectations,
+                    },
+                  });
+                } else {
+                  current._count.affectations += link._count.affectations;
+                }
+              }
+
+              const unites = [...unitMap.values()].sort((a, b) =>
+                a.niveau === b.niveau ? a.nom.localeCompare(b.nom) : a.niveau - b.niveau
+              );
+
+              return {
+                ...province,
+                _count: {
+                  unites: unites.length,
+                  affectations: affectationsCount,
+                },
+                unites,
+              };
+            })
+          );
+        })()
       : [];
 
     let totalJoursConge = 0;
@@ -219,7 +278,11 @@ export async function GET() {
         statut: true,
         affectations: {
           select: {
-            uniteOrganisationnelle: { select: { id: true, nom: true, code: true } },
+            typeOrgaUniteProvince: {
+              select: {
+                uniteOrganisationnelle: { select: { id: true, nom: true, code: true } },
+              },
+            },
             grade: { select: { id: true, libelle: true } },
             fonction: {
               select: {

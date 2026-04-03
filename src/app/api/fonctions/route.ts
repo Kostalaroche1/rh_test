@@ -47,13 +47,7 @@ export async function GET() {
     include: {
       poste: {
         include: {
-          uniteOrganisationnelle: {
-            include: {
-              province: {
-                select: { id: true, nom: true, code: true },
-              },
-            },
-          },
+          uniteOrganisationnelle: true,
         },
       },
     },

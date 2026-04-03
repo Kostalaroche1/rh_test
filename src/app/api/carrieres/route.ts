@@ -9,6 +9,42 @@ import {
   getAccessibleAgentIdsForPermissions,
 } from "@/server/access/scope";
 
+function parseOptionalInt(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
+async function resolveTypeOrgaUniteProvinceId(body: any) {
+  const directId = parseOptionalInt(body?.typeOrgaUniteProvinceId);
+  if (directId) return directId;
+
+  const typeUniteId = parseOptionalInt(body?.typeUniteId);
+  const uniteOrganisationnelleId = parseOptionalInt(body?.uniteOrganisationnelleId);
+  const provinceId = parseOptionalInt(body?.provinceId);
+
+  if (!typeUniteId || !uniteOrganisationnelleId || !provinceId) {
+    return null;
+  }
+
+  const link = await prisma.typeOrgaUniteProvince.findFirst({
+    where: {
+      typeUniteId,
+      uniteOrganisationnelleId,
+      provinceId,
+      actif: true,
+    },
+    select: { id: true },
+  });
+
+  return link?.id ?? null;
+}
+
 export async function POST(req: Request) {
   try {
     const auth = await getAuthenticatedUser();
@@ -19,17 +55,34 @@ export async function POST(req: Request) {
     await requireAccess({ permissions: ["affectation.assign"] });
     const body = await req.json();
 
-    const agentId = Number(body.agentId);
-    const uniteOrganisationnelleId = Number(body.uniteOrganisationnelleId);
+    const agentId = parseOptionalInt(body?.agentId);
+    const posteId = parseOptionalInt(body?.posteId);
+    const gradeId = parseOptionalInt(body?.gradeId);
+    const fonctionId = parseOptionalInt(body?.fonctionId);
+    const typeOrgaUniteProvinceId = await resolveTypeOrgaUniteProvinceId(body);
 
-    if (
-      !(await canAccessAgentForPermissions(auth.userId, agentId, ["affectation.assign"]))
-    ) {
+    if (!agentId || !posteId || !gradeId || !typeOrgaUniteProvinceId) {
+      return NextResponse.json(
+        { error: "agent, poste, grade et lien type/unite/province sont obligatoires" },
+        { status: 400 }
+      );
+    }
+
+    if (!(await canAccessAgentForPermissions(auth.userId, agentId, ["affectation.assign"]))) {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
+    const link = await prisma.typeOrgaUniteProvince.findUnique({
+      where: { id: typeOrgaUniteProvinceId },
+      select: { id: true, uniteOrganisationnelleId: true },
+    });
+
+    if (!link || !link.uniteOrganisationnelleId) {
+      return NextResponse.json({ error: "Lien type/unite/province introuvable" }, { status: 404 });
+    }
+
     if (
-      !(await canAccessUnitForPermissions(auth.userId, uniteOrganisationnelleId, [
+      !(await canAccessUnitForPermissions(auth.userId, link.uniteOrganisationnelleId, [
         "unite_organisationnelle.read",
         "affectation.assign",
       ]))
@@ -37,36 +90,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });
     }
 
-    const targetUnit = await prisma.uniteOrganisationnelle.findUnique({
-      where: { id: uniteOrganisationnelleId },
-      select: { id: true, provinceId: true },
-    });
-
-    if (!targetUnit) {
-      return NextResponse.json({ error: "Unite introuvable" }, { status: 404 });
-    }
-
     const affectation = await prisma.affectation.create({
       data: {
         agentId,
-        posteId: body.posteId,
-        fonctionId: body.fonctionId,
-        gradeId: body.gradeId,
-        uniteOrganisationnelleId,
-        provinceId: targetUnit.provinceId ?? null,
-        dateDebut: new Date(body.dateDebut),
-        motif: body.motif,
-        type: body.type,
-        typeContrat: body.typeContrat,
-        statutContrat: body.statutContrat,
+        posteId,
+        fonctionId,
+        gradeId,
+        typeOrgaUniteProvinceId,
+        dateDebut: body.dateDebut ? new Date(body.dateDebut) : new Date(),
+        dateFin: body.dateFin ? new Date(body.dateFin) : null,
+        motif: body.motif ?? null,
+        type: body.type ?? "AFFECTATION",
+        typeContrat: body.typeContrat ?? null,
+        statutContrat: body.statutContrat ?? null,
+        statut: body.statut ?? "EN_ATTENTE",
       },
       include: {
         agent: true,
         poste: true,
         grade: true,
         fonction: true,
-        uniteOrganisationnelle: true,
-        province: true,
+        typeOrgaUniteProvince: {
+          include: {
+            typeUnite: true,
+            uniteOrganisationnelle: true,
+            province: true,
+          },
+        },
       },
     });
 
@@ -114,26 +164,43 @@ export async function GET() {
             fonctionId: true,
             gradeId: true,
             posteId: true,
-            uniteOrganisationnelleId: true,
-            uniteOrganisationnelle: {
+            typeOrgaUniteProvinceId: true,
+            typeOrgaUniteProvince: {
               select: {
-                nom: true,
-                code: true,
-                provinceId: true,
+                typeUnite: {
+                  select: { id: true, nom: true, code: true },
+                },
+                uniteOrganisationnelle: {
+                  select: { id: true, nom: true, code: true, parentId: true },
+                },
                 province: { select: { id: true, code: true, nom: true } },
               },
             },
-            provinceId: true,
-            province: { select: { id: true, code: true, nom: true } },
             poste: { select: { libelle: true } },
             fonction: { select: { libelle: true } },
             grade: { select: { libelle: true } },
+            dateDebut: true,
+            dateFin: true,
+            type: true,
+            statut: true,
+            typeContrat: true,
+            statutContrat: true,
           },
         },
       },
     });
 
-    return NextResponse.json({ data: carrieres });
+    const data = carrieres.map((agent) => ({
+      ...agent,
+      affectations: (agent.affectations ?? []).map((item) => ({
+        ...item,
+        typeUnite: item.typeOrgaUniteProvince?.typeUnite ?? null,
+        uniteOrganisationnelle: item.typeOrgaUniteProvince?.uniteOrganisationnelle ?? null,
+        province: item.typeOrgaUniteProvince?.province ?? null,
+      })),
+    }));
+
+    return NextResponse.json({ data });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur serveur";
     return NextResponse.json({ error: message }, { status: 500 });

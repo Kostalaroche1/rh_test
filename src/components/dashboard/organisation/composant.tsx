@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Award, Briefcase, Building2, FileText, Layers3, MapPinned, Plus, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Award, Briefcase, Building2, FileText, Layers3, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { GetAgent } from "@/app/action/agent/getAgent/action";
@@ -72,6 +72,7 @@ type RowMap = Record<string, any>;
 
 const emptyForm = {
   id: undefined,
+  mappingId: undefined,
   nom: "",
   code: "",
   description: "",
@@ -79,6 +80,7 @@ const emptyForm = {
   ordre: "0",
   typeUniteId: "",
   parentId: "",
+  uniteExistanteId: "",
   libelle: "",
   indiceSalarial: "",
   uniteOrganisationnelleId: "",
@@ -124,6 +126,8 @@ export default function OrganisationDashboard() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; type: ManagedType } | null>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
+  const [selectedUniteTypeId, setSelectedUniteTypeId] = useState<number | null>(null);
+  const [uniteDrillPath, setUniteDrillPath] = useState<number[]>([]);
 
   const { data: provinces = [], refetch: refetchProvinces } = useGet(
     ["provinces"],
@@ -142,25 +146,201 @@ export default function OrganisationDashboard() {
 
   const tabs = useMemo(() => {
     const base = [];
-    if (canRead("PROVINCE")) base.push({ value: "provinces", label: "Provinces", icon: MapPinned, type: "PROVINCE" as const });
-    if (canRead("TYPE_UNITE")) base.push({ value: "types", label: "Types d'unite", icon: Layers3, type: "TYPE_UNITE" as const });
-    if (canRead("UNITE")) {
-      for (const type of types as any[]) {
-        base.push({
-          value: `unites-${type.id}`,
-          label: type.nom,
-          icon: Building2,
-          type: "UNITE" as const,
-          typeUniteId: type.id,
-        });
-      }
-    }
+    if (canRead("TYPE_UNITE")) base.push({ value: "types", label: "Stations", icon: Layers3, type: "TYPE_UNITE" as const });
+    if (canRead("UNITE")) base.push({ value: "unites", label: "Directions", icon: Building2, type: "UNITE" as const });
     if (canRead("POSTE")) base.push({ value: "postes", label: "Postes", icon: Briefcase, type: "POSTE" as const });
     if (canRead("FONCTION")) base.push({ value: "fonctions", label: "Fonctions", icon: FileText, type: "FONCTION" as const });
     if (canRead("GRADE")) base.push({ value: "grades", label: "Grades", icon: Award, type: "GRADE" as const });
     if (canRead("AFFECTATION")) base.push({ value: "affectations", label: "Affectations", icon: Users, type: "AFFECTATION" as const });
     return base;
   }, [types, auth]);
+
+  const selectedProvinceId = Number(formData.provinceId || 0);
+  const selectedTypeUniteId = Number(formData.typeUniteId || 0);
+
+  const filteredTypesByProvince = useMemo(() => {
+    if (!selectedProvinceId) return [] as any[];
+    return (types as any[]).filter((item) =>
+      (item.typeOrgaUniteProvinces ?? []).some(
+        (link: any) => Number(link.provinceId) === selectedProvinceId && link.actif !== false
+      )
+    );
+  }, [types, selectedProvinceId]);
+
+  const filteredUnitesByProvince = useMemo(() => {
+    if (!selectedProvinceId) return [] as any[];
+    const rows = (unites as any[]).filter((item) => Number(item.provinceId) === selectedProvinceId);
+    const uniqueById = new Map<number, any>();
+    for (const row of rows) {
+      const id = Number(row.id);
+      if (!uniqueById.has(id)) {
+        uniqueById.set(id, row);
+      }
+    }
+    return [...uniqueById.values()];
+  }, [unites, selectedProvinceId]);
+
+  const filteredUnitesByProvinceAndType = useMemo(() => {
+    if (!selectedProvinceId || !selectedTypeUniteId) return [] as any[];
+    return (unites as any[]).filter(
+      (item) =>
+        Number(item.provinceId) === selectedProvinceId &&
+        Number(item.typeUniteId) === selectedTypeUniteId
+    );
+  }, [unites, selectedProvinceId, selectedTypeUniteId]);
+
+  const availableExistingUnites = useMemo(() => {
+    const allUnits = new Map<number, any>();
+    for (const unit of unites as any[]) {
+      if (!allUnits.has(Number(unit.id))) {
+        allUnits.set(Number(unit.id), unit);
+      }
+    }
+    const base = [...allUnits.values()];
+    if (!selectedProvinceId || !selectedTypeUniteId) {
+      return base;
+    }
+    return base.filter(
+      (unit) =>
+        !(unites as any[]).some(
+          (row) =>
+            Number(row.id) === Number(unit.id) &&
+            Number(row.provinceId) === selectedProvinceId &&
+            Number(row.typeUniteId) === selectedTypeUniteId
+        )
+    );
+  }, [unites, selectedProvinceId, selectedTypeUniteId]);
+
+  const unitesTypes = useMemo(() => {
+    return (types as any[]).slice().sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
+  }, [types]);
+
+  useEffect(() => {
+    if (!selectedUniteTypeId) return;
+    const exists = unitesTypes.some((item) => Number(item.id) === Number(selectedUniteTypeId));
+    if (!exists) {
+      setSelectedUniteTypeId(null);
+      setUniteDrillPath([]);
+    }
+  }, [unitesTypes, selectedUniteTypeId]);
+
+  const unitsForSelectedType = useMemo(() => {
+    if (!selectedUniteTypeId) return [] as any[];
+    return (unites as any[]).filter((item) => Number(item.typeUniteId) === Number(selectedUniteTypeId));
+  }, [unites, selectedUniteTypeId]);
+
+  useEffect(() => {
+    if (!selectedUniteTypeId) {
+      setUniteDrillPath([]);
+    }
+  }, [selectedUniteTypeId]);
+
+  useEffect(() => {
+    if (!uniteDrillPath.length) return;
+    const validIds = new Set((unitsForSelectedType as any[]).map((item) => Number(item.id)));
+    const sanitized = uniteDrillPath.filter((id) => validIds.has(Number(id)));
+    if (sanitized.length !== uniteDrillPath.length) {
+      setUniteDrillPath(sanitized);
+    }
+  }, [uniteDrillPath, unitsForSelectedType]);
+
+  const childrenByParentForSelectedType = useMemo(() => {
+    const childrenByParent = new Map<number, any[]>();
+    for (const unit of unitsForSelectedType as any[]) {
+      const parentKey = Number(unit.parentId || 0);
+      if (!childrenByParent.has(parentKey)) {
+        childrenByParent.set(parentKey, []);
+      }
+      childrenByParent.get(parentKey)!.push(unit);
+    }
+    return childrenByParent;
+  }, [unitsForSelectedType]);
+
+  const uniteChildrenStatsById = useMemo(() => {
+    const unitIds = new Set<number>();
+    for (const unit of unitsForSelectedType as any[]) {
+      unitIds.add(Number(unit.id));
+    }
+    const descendantsMemo = new Map<number, number>();
+    const directChildrenCount = new Map<number, number>();
+
+    const countDescendants = (unitId: number): number => {
+      if (descendantsMemo.has(unitId)) return descendantsMemo.get(unitId) ?? 0;
+      const directChildren = childrenByParentForSelectedType.get(unitId) ?? [];
+      let total = directChildren.length;
+      for (const child of directChildren) {
+        total += countDescendants(Number(child.id));
+      }
+      descendantsMemo.set(unitId, total);
+      directChildrenCount.set(unitId, directChildren.length);
+      return total;
+    };
+
+    const stats = new Map<number, { direct: number; descendants: number }>();
+    for (const unitId of unitIds) {
+      const descendants = countDescendants(unitId);
+      stats.set(unitId, {
+        direct: directChildrenCount.get(unitId) ?? 0,
+        descendants,
+      });
+    }
+
+    return stats;
+  }, [unitsForSelectedType, childrenByParentForSelectedType]);
+
+  const parentUnitsForSelectedType = useMemo(() => {
+    const ids = new Set((unitsForSelectedType as any[]).map((item) => Number(item.id)));
+    const roots = (unitsForSelectedType as any[]).filter(
+      (item) => !item.parentId || !ids.has(Number(item.parentId))
+    );
+    return roots.sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
+  }, [unitsForSelectedType]);
+
+  const selectedUniteType = useMemo(() => {
+    return (unitesTypes as any[]).find((item) => Number(item.id) === Number(selectedUniteTypeId)) ?? null;
+  }, [unitesTypes, selectedUniteTypeId]);
+
+  const selectedUniteTypeProvinceId = useMemo(() => {
+    const links = selectedUniteType?.typeOrgaUniteProvinces ?? [];
+    const active = links.find((item: any) => item.actif !== false) ?? links[0];
+    return active?.provinceId ? Number(active.provinceId) : null;
+  }, [selectedUniteType]);
+
+  const activeUniteParentId = uniteDrillPath.length
+    ? Number(uniteDrillPath[uniteDrillPath.length - 1])
+    : null;
+
+  const activeUniteParent = useMemo(() => {
+    if (!activeUniteParentId) return null;
+    return (unitsForSelectedType as any[]).find((item) => Number(item.id) === Number(activeUniteParentId)) ?? null;
+  }, [unitsForSelectedType, activeUniteParentId]);
+
+  const activeUniteRows = useMemo(() => {
+    const rows = activeUniteParentId
+      ? childrenByParentForSelectedType.get(Number(activeUniteParentId)) ?? []
+      : parentUnitsForSelectedType;
+    return [...rows].sort((a, b) => {
+      if (Number(a.niveau) !== Number(b.niveau)) return Number(a.niveau) - Number(b.niveau);
+      return String(a.nom).localeCompare(String(b.nom));
+    });
+  }, [activeUniteParentId, childrenByParentForSelectedType, parentUnitsForSelectedType]);
+
+  const openUniteTypeHierarchy = (typeId: number) => {
+    setSelectedUniteTypeId(typeId);
+    setUniteDrillPath([]);
+  };
+
+  const backUniteHierarchy = () => {
+    if (uniteDrillPath.length > 0) {
+      setUniteDrillPath((prev) => prev.slice(0, -1));
+      return;
+    }
+    setSelectedUniteTypeId(null);
+  };
+
+  const viewUnitChildren = (unitId: number) => {
+    setUniteDrillPath((prev) => [...prev, unitId]);
+  };
 
   const openForm = (type: ManagedType, item?: any, preset?: RowMap) => {
     setActiveForm(type);
@@ -169,10 +349,10 @@ export default function OrganisationDashboard() {
       ? {
           ...emptyForm,
           ...item,
-          provinceId: item.provinceId != null ? String(item.provinceId) : "",
+          mappingId: item.mappingId ?? undefined,
           ordre: item.ordre != null ? String(item.ordre) : "0",
-          typeUniteId: item.typeUniteId != null ? String(item.typeUniteId) : "",
           parentId: item.parentId != null ? String(item.parentId) : "",
+          uniteExistanteId: item.uniteExistanteId != null ? String(item.uniteExistanteId) : "",
           uniteOrganisationnelleId: item.uniteOrganisationnelleId != null ? String(item.uniteOrganisationnelleId) : "",
           posteId: item.posteId != null ? String(item.posteId) : "",
           fonctionId: item.fonctionId != null ? String(item.fonctionId) : "",
@@ -180,6 +360,18 @@ export default function OrganisationDashboard() {
           agentId: item.agentId != null ? String(item.agentId) : "",
           dateDebut: item.dateDebut ? new Date(item.dateDebut).toISOString().slice(0, 10) : "",
           dateFin: item.dateFin ? new Date(item.dateFin).toISOString().slice(0, 10) : "",
+          provinceId:
+            item.provinceId != null
+              ? String(item.provinceId)
+              : item.province?.id != null
+              ? String(item.province.id)
+              : "",
+          typeUniteId:
+            item.typeUniteId != null
+              ? String(item.typeUniteId)
+              : item.typeUnite?.id != null
+              ? String(item.typeUnite.id)
+              : "",
         }
       : emptyForm;
     setFormData({ ...base, ...preset });
@@ -212,25 +404,56 @@ export default function OrganisationDashboard() {
           : CreateProvince(payload));
       }
       if (activeForm === "TYPE_UNITE") {
-        const payload = { nom: formData.nom, code: formData.code, description: formData.description || undefined, ordre: Number(formData.ordre || 0), actif: true };
-        await (editingItem ? UpdateTypeUniteOrganisationnelle({ id: editingItem.id, ...payload }) : CreateTypeUniteOrganisationnelle(payload));
-      }
-      if (activeForm === "UNITE") {
         if (!Number(formData.provinceId)) {
-          toast.error("Selectionnez une province avant d'enregistrer l'unite.");
+          toast.error("Selectionnez une province avant d'enregistrer la station.");
           return;
         }
-
         const payload = {
           nom: formData.nom,
           code: formData.code,
           description: formData.description || undefined,
-          provinceId: Number(formData.provinceId),
-          typeUniteId: Number(formData.typeUniteId),
           parentId: formData.parentId ? Number(formData.parentId) : null,
+          provinceId: Number(formData.provinceId),
+          ordre: Number(formData.ordre || 0),
           actif: true,
         };
-        await (editingItem ? UpdateUniteOrganisationnelle({ id: editingItem.id, ...payload }) : CreateUniteOrganisationnelle(payload));
+        await (editingItem ? UpdateTypeUniteOrganisationnelle({ id: editingItem.id, ...payload }) : CreateTypeUniteOrganisationnelle(payload));
+      }
+      if (activeForm === "UNITE") {
+        const provinceId = Number(formData.provinceId || 0);
+        const typeUniteId = Number(formData.typeUniteId || 0);
+        const parentId = formData.parentId ? Number(formData.parentId) : null;
+        const uniteExistanteId = formData.uniteExistanteId
+          ? Number(formData.uniteExistanteId)
+          : null;
+
+        if (!provinceId || !typeUniteId) {
+          toast.error("Selectionnez la province et la station.");
+          return;
+        }
+
+        if (!editingItem && !uniteExistanteId && (!formData.nom || !formData.code)) {
+          toast.error("Saisissez le nom et le code ou selectionnez une direction existante.");
+          return;
+        }
+
+        const payload = {
+          mappingId: editingItem?.mappingId ?? formData.mappingId ?? undefined,
+          nom: formData.nom || undefined,
+          code: formData.code || undefined,
+          description: formData.description || undefined,
+          provinceId,
+          typeUniteId,
+          parentId,
+          uniteExistanteId,
+          actif: true,
+        };
+        await (editingItem
+          ? UpdateUniteOrganisationnelle({
+              id: editingItem.id,
+              ...payload,
+            })
+          : CreateUniteOrganisationnelle(payload));
       }
       if (activeForm === "POSTE") {
         const payload = { code: formData.code, libelle: formData.libelle, description: formData.description || undefined, uniteOrganisationnelleId: Number(formData.uniteOrganisationnelleId) };
@@ -245,11 +468,20 @@ export default function OrganisationDashboard() {
         await (editingItem ? UpdateGrade({ id: editingItem.id, ...payload }) : CreateGrade(payload as any));
       }
       if (activeForm === "AFFECTATION") {
+        const provinceId = Number(formData.provinceId || 0);
+        const typeUniteId = Number(formData.typeUniteId || 0);
+        const uniteOrganisationnelleId = Number(formData.uniteOrganisationnelleId || 0);
+        if (!provinceId || !typeUniteId || !uniteOrganisationnelleId) {
+          toast.error("Selectionnez province, station et direction.");
+          return;
+        }
         const payload = {
           id: editingItem?.id,
           agentId: Number(formData.agentId),
           posteId: Number(formData.posteId),
-          uniteOrganisationnelleId: Number(formData.uniteOrganisationnelleId),
+          provinceId,
+          typeUniteId,
+          uniteOrganisationnelleId,
           fonctionId: formData.fonctionId ? Number(formData.fonctionId) : null,
           gradeId: Number(formData.gradeId),
           dateDebut: formData.dateDebut,
@@ -290,15 +522,28 @@ export default function OrganisationDashboard() {
     }
   };
 
-  const renderTable = (type: ManagedType, rows: any[], title: string, buttonLabel: string, onCreate?: () => void) => {
+  const renderTable = (
+    type: ManagedType,
+    rows: any[],
+    title: string,
+    buttonLabel: string,
+    onCreate?: () => void,
+    options?: {
+      onBack?: () => void;
+      backLabel?: string;
+      onViewChildren?: (item: any) => void;
+      canViewChildren?: (item: any) => boolean;
+      viewChildrenLabel?: string;
+    }
+  ) => {
     const headers: Record<ManagedType, string[]> = {
       PROVINCE: ["Nom", "Code", "Utilisation", "Etat"],
       TYPE_UNITE: ["Nom", "Code", "Ordre", "Etat"],
       UNITE: ["Nom", "Province", "Parent", "Niveau", "Utilisation"],
-      POSTE: ["Code", "Libelle", "Unite"],
+      POSTE: ["Code", "Libelle", "Direction"],
       FONCTION: ["Code", "Libelle", "Poste"],
       GRADE: ["Code", "Libelle", "Indice"],
-      AFFECTATION: ["Agent", "Province", "Unite", "Poste", "Fonction", "Grade", "Date debut"],
+      AFFECTATION: ["Agent", "Province", "Direction", "Poste", "Fonction", "Grade", "Date debut"],
     };
 
     const cells = (item: any) => {
@@ -306,23 +551,28 @@ export default function OrganisationDashboard() {
         return [
           item.nom,
           item.code,
-          `${item._count?.unites ?? 0} unite(s) / ${item._count?.affectations ?? 0} affectation(s)`,
+          `${item._count?.types ?? 0} station(s) / ${item._count?.unites ?? 0} direction(s) / ${item._count?.affectations ?? 0} affectation(s)`,
           item.actif ? "Actif" : "Inactif",
         ];
       if (type === "TYPE_UNITE") return [item.nom, item.code, item.ordre, item.systeme ? "Systeme" : item.actif ? "Actif" : "Inactif"];
-      if (type === "UNITE") return [
-        <div key="nom"><div className="font-medium">{item.nom}</div><div className="text-xs text-muted-foreground">{item.code}</div></div>,
-        item.province?.nom ?? "--",
-        item.parent?.nom ?? "Racine",
-        item.niveau,
-        `${item._count?.enfants ?? 0} enfant(s) / ${item._count?.postes ?? 0} poste(s)`,
-      ];
+      if (type === "UNITE") {
+        const stats = uniteChildrenStatsById.get(Number(item.id));
+        const directChildren = stats?.direct ?? Number(item._count?.enfants ?? 0);
+        const descendants = stats?.descendants ?? directChildren;
+        return [
+          <div key="nom"><div className="font-medium">{item.nom}</div><div className="text-xs text-muted-foreground">{item.code}</div></div>,
+          item.province?.nom ?? "--",
+          item.parent?.nom ?? "Racine",
+          item.niveau,
+          `${directChildren} enfant(s) direct(s) / ${descendants} descendant(s) / ${item._count?.postes ?? 0} poste(s)`,
+        ];
+      }
       if (type === "POSTE") return [item.code, item.libelle, item.uniteOrganisationnelle?.nom ?? "--"];
       if (type === "FONCTION") return [item.code, item.libelle, item.poste?.libelle ?? "--"];
       if (type === "GRADE") return [item.code, item.libelle, item.indiceSalarial];
       return [
         `${item.agent?.matricule} - ${item.agent?.nom} ${item.agent?.prenom}`,
-        item.province?.nom ?? item.uniteOrganisationnelle?.province?.nom ?? "--",
+        item.province?.nom ?? "--",
         item.uniteOrganisationnelle?.nom ?? "--",
         item.poste?.libelle ?? "--",
         item.fonction?.libelle ?? "--",
@@ -331,13 +581,26 @@ export default function OrganisationDashboard() {
       ];
     };
 
+    const showActionColumn =
+      canWrite(type) || (type === "UNITE" && Boolean(options?.onViewChildren));
+
     return (
       <>
-        {canWrite(type) && onCreate && (
-          <Button variant="outline" className="mb-2" onClick={onCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            {buttonLabel}
-          </Button>
+        {(options?.onBack || (canWrite(type) && onCreate)) && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {options?.onBack && (
+              <Button variant="outline" onClick={options.onBack}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                {options.backLabel ?? "Retour"}
+              </Button>
+            )}
+            {canWrite(type) && onCreate && (
+              <Button variant="outline" onClick={onCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                {buttonLabel}
+              </Button>
+            )}
+          </div>
         )}
         <Card>
           <CardHeader>
@@ -348,33 +611,60 @@ export default function OrganisationDashboard() {
               <TableHeader>
                 <TableRow>
                   {headers[type].map((header) => <TableHead key={header}>{header}</TableHead>)}
-                  {canWrite(type) && <TableHead className="text-right">Actions</TableHead>}
+                  {showActionColumn && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((item) => (
-                  <TableRow key={item.id}>
-                    {cells(item).map((cell, index) => <TableCell key={`${item.id}-${index}`}>{cell}</TableCell>)}
-                    {canWrite(type) && (
+                  <TableRow key={item.mappingId ?? item.id}>
+                    {cells(item).map((cell, index) => <TableCell key={`${item.mappingId ?? item.id}-${index}`}>{cell}</TableCell>)}
+                    {showActionColumn && (
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button size="sm" variant="outline">Actions</Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openForm(type, item)}>Modifier</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget({ id: item.id, type })}>
-                              Supprimer
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="flex justify-end gap-2">
+                          {type === "UNITE" &&
+                            options?.onViewChildren &&
+                            (options.canViewChildren?.(item) ?? false) && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => options.onViewChildren?.(item)}
+                              >
+                                {options.viewChildrenLabel ?? "Voir"}
+                              </Button>
+                            )}
+
+                          {canWrite(type) && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button size="sm" variant="outline">Actions</Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openForm(type, item)}>Modifier</DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() =>
+                                    setDeleteTarget({
+                                      id:
+                                        type === "UNITE"
+                                          ? Number(item.mappingId ?? item.typeOrgaUniteProvinceId ?? item.id)
+                                          : item.id,
+                                      type,
+                                    })
+                                  }
+                                >
+                                  Supprimer
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
                       </TableCell>
                     )}
                   </TableRow>
                 ))}
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={headers[type].length + (canWrite(type) ? 1 : 0)} className="text-center text-muted-foreground">
+                    <TableCell colSpan={headers[type].length + (showActionColumn ? 1 : 0)} className="text-center text-muted-foreground">
                       Aucune donnee
                     </TableCell>
                   </TableRow>
@@ -392,7 +682,7 @@ export default function OrganisationDashboard() {
       <div className="erp-page">
         <div>
           <h1 className="text-3xl font-bold">Espace organisation</h1>
-          <p className="text-muted-foreground">Structure dynamique basee sur les types d'unite et les unites organisationnelles.</p>
+          <p className="text-muted-foreground">Structure dynamique basee sur les stations et les directions organisationnelles.</p>
         </div>
         <Separator />
         <Card>
@@ -409,7 +699,7 @@ export default function OrganisationDashboard() {
       <div>
         <h1 className="text-3xl font-bold">Espace organisation</h1>
         <p className="text-muted-foreground">
-          Chaque type d'unite dispose maintenant de sa propre liste d'unites dans les onglets.
+          Naviguez par station, puis par direction pour consulter les bureaux.
         </p>
       </div>
       <Separator />
@@ -429,34 +719,82 @@ export default function OrganisationDashboard() {
 
         {canRead("TYPE_UNITE") && (
           <TabsContent value="types">
-            {renderTable("TYPE_UNITE", types as any[], "Types d'unite", "Ajouter un type d'unite", () => openForm("TYPE_UNITE"))}
+            {renderTable("TYPE_UNITE", types as any[], "Stations", "Ajouter une station", () => openForm("TYPE_UNITE"))}
           </TabsContent>
         )}
 
-        {canRead("PROVINCE") && (
-          <TabsContent value="provinces">
-            {renderTable(
-              "PROVINCE",
-              provinces as any[],
-              "Provinces",
-              "Ajouter une province",
-              () => openForm("PROVINCE")
+        {canRead("UNITE") && (
+          <TabsContent value="unites" className="space-y-4">
+            {!selectedUniteTypeId ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Stations</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {unitesTypes.length > 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                      {unitesTypes.map((typeItem: any) => (
+                        <button
+                          key={typeItem.id}
+                          type="button"
+                          onClick={() => openUniteTypeHierarchy(Number(typeItem.id))}
+                          className="rounded-xl border border-border bg-card p-4 text-left transition hover:border-primary/60"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-md border p-2">
+                              <Building2 className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{typeItem.nom}</p>
+                              <p className="text-xs text-muted-foreground">{typeItem.code}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Aucune station disponible.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              renderTable(
+                "UNITE",
+                activeUniteRows,
+                activeUniteParent
+                  ? `Bureaux de ${activeUniteParent.nom}`
+                  : `Directions de ${selectedUniteType?.nom ?? "--"}`,
+                activeUniteParent
+                  ? `Ajouter un bureau (${String(selectedUniteType?.nom ?? "").toLowerCase()})`
+                  : `Ajouter une direction (${String(selectedUniteType?.nom ?? "").toLowerCase()})`,
+                canWrite("UNITE")
+                  ? () =>
+                      openForm("UNITE", undefined, {
+                        typeUniteId: String(selectedUniteTypeId ?? ""),
+                        provinceId: selectedUniteTypeProvinceId
+                          ? String(selectedUniteTypeProvinceId)
+                          : "",
+                        parentId: activeUniteParent ? String(activeUniteParent.id) : "",
+                      })
+                  : undefined,
+                {
+                  onBack: backUniteHierarchy,
+                  backLabel:
+                    uniteDrillPath.length > 0
+                      ? "Retour"
+                      : "Retour aux stations",
+                  onViewChildren: (item) => viewUnitChildren(Number(item.id)),
+                  canViewChildren: (item) =>
+                    (uniteChildrenStatsById.get(Number(item.id))?.direct ??
+                      Number(item._count?.enfants ?? 0)) > 0,
+                  viewChildrenLabel: "Voir",
+                }
+              )
             )}
           </TabsContent>
         )}
-
-        {canRead("UNITE") &&
-          (types as any[]).map((typeItem) => (
-            <TabsContent key={typeItem.id} value={`unites-${typeItem.id}`}>
-              {renderTable(
-                "UNITE",
-                (unites as any[]).filter((item) => item.typeUniteId === typeItem.id),
-                typeItem.nom,
-                `Ajouter une unite ${String(typeItem.nom).toLowerCase()}`,
-                () => openForm("UNITE", undefined, { typeUniteId: String(typeItem.id) })
-              )}
-            </TabsContent>
-          ))}
 
         {canRead("POSTE") && (
           <TabsContent value="postes">
@@ -489,8 +827,8 @@ export default function OrganisationDashboard() {
           <DialogHeader>
             <DialogTitle>
               {activeForm === "PROVINCE" && (editingItem ? "Modifier une province" : "Ajouter une province")}
-              {activeForm === "TYPE_UNITE" && (editingItem ? "Modifier un type d'unite" : "Ajouter un type d'unite")}
-              {activeForm === "UNITE" && (editingItem ? "Modifier une unite" : "Ajouter une unite")}
+              {activeForm === "TYPE_UNITE" && (editingItem ? "Modifier une station" : "Ajouter une station")}
+              {activeForm === "UNITE" && (editingItem ? "Modifier une direction" : "Ajouter une direction")}
               {activeForm === "POSTE" && (editingItem ? "Modifier un poste" : "Ajouter un poste")}
               {activeForm === "FONCTION" && (editingItem ? "Modifier une fonction" : "Ajouter une fonction")}
               {activeForm === "GRADE" && (editingItem ? "Modifier un grade" : "Ajouter un grade")}
@@ -530,14 +868,39 @@ export default function OrganisationDashboard() {
                 <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
                 <Input placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
                 <Input placeholder="Ordre" type="number" value={formData.ordre || "0"} onChange={(e) => setFormData((p: any) => ({ ...p, ordre: e.target.value }))} />
+                <p className="text-xs font-medium text-muted-foreground">Province de rattachement</p>
+                <select
+                  className="w-full rounded border p-2"
+                  value={formData.provinceId || ""}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, provinceId: e.target.value, parentId: "" }))}
+                >
+                  <option value="">-- Selectionnez la province --</option>
+                  {(provinces as any[]).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nom}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="w-full rounded border p-2"
+                  value={formData.parentId || ""}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, parentId: e.target.value }))}
+                >
+                  <option value="">-- Station parente (optionnel) --</option>
+                  {filteredTypesByProvince
+                    .filter((item) => Number(item.id) !== Number(editingItem?.id))
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.parentId ? "-- " : ""}
+                        {item.nom}
+                      </option>
+                    ))}
+                </select>
               </>
             )}
 
             {activeForm === "UNITE" && (
               <>
-                <Input placeholder="Nom" value={formData.nom || ""} onChange={(e) => setFormData((p: any) => ({ ...p, nom: e.target.value }))} />
-                <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
-                <Input placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
                 <p className="text-xs font-medium text-muted-foreground">
                   Province (obligatoire)
                 </p>
@@ -545,7 +908,13 @@ export default function OrganisationDashboard() {
                   className="w-full rounded border p-2"
                   value={formData.provinceId || ""}
                   onChange={(e) =>
-                    setFormData((p: any) => ({ ...p, provinceId: e.target.value }))
+                    setFormData((p: any) => ({
+                      ...p,
+                      provinceId: e.target.value,
+                      typeUniteId: "",
+                      parentId: "",
+                      uniteExistanteId: "",
+                    }))
                   }
                 >
                   <option value="">-- Selectionnez la province --</option>
@@ -560,16 +929,61 @@ export default function OrganisationDashboard() {
                     Aucune province disponible. Verifiez migration/seed et permission `province.read`.
                   </p>
                 ) : null}
-                <select className="w-full rounded border p-2" value={formData.typeUniteId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, typeUniteId: e.target.value }))}>
-                  <option value="">-- Selectionnez le type d'unite --</option>
-                  {(types as any[]).map((item) => <option key={item.id} value={item.id}>{item.nom}</option>)}
-                </select>
-                <select className="w-full rounded border p-2" value={formData.parentId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, parentId: e.target.value }))}>
-                  <option value="">-- Unite parente (optionnel) --</option>
-                  {(unites as any[]).filter((item) => item.id !== editingItem?.id).map((item) => (
-                    <option key={item.id} value={item.id}>{getIndent(item.niveau, item.nom)}</option>
+                <select
+                  className="w-full rounded border p-2"
+                  value={formData.typeUniteId || ""}
+                  onChange={(e) =>
+                    setFormData((p: any) => ({
+                      ...p,
+                      typeUniteId: e.target.value,
+                      parentId: "",
+                      uniteExistanteId: "",
+                    }))
+                  }
+                >
+                  <option value="">-- Selectionnez la station --</option>
+                  {filteredTypesByProvince.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nom}
+                    </option>
                   ))}
                 </select>
+                {!editingItem && (
+                  <select
+                    className="w-full rounded border p-2"
+                    value={formData.uniteExistanteId || ""}
+                    onChange={(e) => setFormData((p: any) => ({ ...p, uniteExistanteId: e.target.value }))}
+                  >
+                    <option value="">-- Nouvelle direction (par defaut) --</option>
+                    {availableExistingUnites.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.code} - {item.nom}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!formData.uniteExistanteId && (
+                  <>
+                    <Input placeholder="Nom" value={formData.nom || ""} onChange={(e) => setFormData((p: any) => ({ ...p, nom: e.target.value }))} />
+                    <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
+                    <Input placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
+                  </>
+                )}
+                <select
+                  className="w-full rounded border p-2"
+                  value={formData.parentId || ""}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, parentId: e.target.value }))}
+                >
+                  <option value="">-- Direction parente (optionnel) --</option>
+                  {filteredUnitesByProvince
+                    .filter((item) => Number(item.id) !== Number(editingItem?.id))
+                    .map((item) => (
+                    <option key={`${item.id}-${item.mappingId ?? "x"}`} value={item.id}>{getIndent(item.niveau, item.nom)}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Si aucune direction parente n'est choisie, cette direction sera racine.
+                </p>
               </>
             )}
 
@@ -579,7 +993,7 @@ export default function OrganisationDashboard() {
                 <Input placeholder="Libelle" value={formData.libelle || ""} onChange={(e) => setFormData((p: any) => ({ ...p, libelle: e.target.value }))} />
                 <Input placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
                 <select className="w-full rounded border p-2" value={formData.uniteOrganisationnelleId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, uniteOrganisationnelleId: e.target.value }))}>
-                  <option value="">-- Selectionnez l'unite --</option>
+                  <option value="">-- Selectionnez la direction --</option>
                   {(unites as any[]).map((item) => <option key={item.id} value={item.id}>{getIndent(item.niveau, item.nom)}</option>)}
                 </select>
               </>
@@ -614,9 +1028,50 @@ export default function OrganisationDashboard() {
                     </option>
                   ))}
                 </select>
+                <select
+                  className="w-full rounded border p-2"
+                  value={formData.provinceId || ""}
+                  onChange={(e) =>
+                    setFormData((p: any) => ({
+                      ...p,
+                      provinceId: e.target.value,
+                      typeUniteId: "",
+                      uniteOrganisationnelleId: "",
+                    }))
+                  }
+                >
+                  <option value="">-- Selectionnez la province --</option>
+                  {(provinces as any[]).map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nom}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="w-full rounded border p-2"
+                  value={formData.typeUniteId || ""}
+                  onChange={(e) =>
+                    setFormData((p: any) => ({
+                      ...p,
+                      typeUniteId: e.target.value,
+                      uniteOrganisationnelleId: "",
+                    }))
+                  }
+                >
+                  <option value="">-- Selectionnez la station --</option>
+                  {filteredTypesByProvince.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nom}
+                    </option>
+                  ))}
+                </select>
                 <select className="w-full rounded border p-2" value={formData.uniteOrganisationnelleId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, uniteOrganisationnelleId: e.target.value }))}>
-                  <option value="">-- Selectionnez l'unite --</option>
-                  {(unites as any[]).map((item) => <option key={item.id} value={item.id}>{getIndent(item.niveau, item.nom)}</option>)}
+                  <option value="">-- Selectionnez la direction --</option>
+                  {filteredUnitesByProvinceAndType.map((item) => (
+                    <option key={`${item.id}-${item.mappingId ?? "x"}`} value={item.id}>
+                      {getIndent(item.niveau, item.nom)}
+                    </option>
+                  ))}
                 </select>
                 <select className="w-full rounded border p-2" value={formData.posteId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, posteId: e.target.value }))}>
                   <option value="">-- Selectionnez le poste --</option>
@@ -653,7 +1108,10 @@ export default function OrganisationDashboard() {
               className="w-full"
               disabled={
                 activeForm === "UNITE" &&
-                (!Number(formData.provinceId) || !Array.isArray(provinces) || provinces.length === 0)
+                (!Number(formData.provinceId) ||
+                  !Number(formData.typeUniteId) ||
+                  !Array.isArray(provinces) ||
+                  provinces.length === 0)
               }
             >
               {editingItem ? "Modifier" : "Enregistrer"}
@@ -679,3 +1137,4 @@ export default function OrganisationDashboard() {
     </div>
   );
 }
+

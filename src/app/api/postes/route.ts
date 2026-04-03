@@ -46,13 +46,7 @@ export async function GET() {
             id: { in: accessibleIds.length ? accessibleIds : [-1] },
           },
     include: {
-      uniteOrganisationnelle: {
-        include: {
-          province: {
-            select: { id: true, nom: true, code: true },
-          },
-        },
-      },
+      uniteOrganisationnelle: true,
       fonctions: true,
     },
   })
@@ -80,7 +74,6 @@ export async function POST(req : Request) {
       id: true,
       parentId: true,
       code: true,
-      provinceId: true,
       parent: {
         select: {
           id: true,
@@ -99,13 +92,6 @@ export async function POST(req : Request) {
 
   if (!unite) {
     return NextResponse.json({ message: "Unite introuvable" }, { status: 404 })
-  }
-
-  if (!unite.provinceId) {
-    return NextResponse.json(
-      { message: "Cette unite n'est reliee a aucune province." },
-      { status: 400 }
-    )
   }
 
   const canAccessUnit = await canAccessUnitForPermissions(
@@ -158,18 +144,11 @@ export async function PUT(req: Request) {
 
     const unit = await prisma.uniteOrganisationnelle.findUnique({
       where: { id: scopedUnitId },
-      select: { id: true, provinceId: true },
+      select: { id: true },
     })
 
     if (!unit) {
       return NextResponse.json({ message: "Unite introuvable" }, { status: 404 })
-    }
-
-    if (!unit.provinceId) {
-      return NextResponse.json(
-        { message: "Cette unite n'est reliee a aucune province." },
-        { status: 400 }
-      )
     }
   }
 

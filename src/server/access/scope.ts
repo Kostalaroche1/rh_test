@@ -18,7 +18,6 @@ async function getScopedPorteeForPermissions(
   utilisateurId: number,
   permissionCodes: string[]
 ) {
-  // Resolve only the scopes attached to permissions the user really has through active roles.
   const normalizedCodes = [...new Set(permissionCodes.map(normalizePermissionCode))];
   const expandedCodes = expandPermissionCodeAliasesList(normalizedCodes);
   const user = await prisma.utilisateur.findUnique({
@@ -113,14 +112,14 @@ async function getPrimaryAffectationContextForAgent(agentId: number | null) {
       agentId,
       actif: true,
       dateDebut: { lte: today },
+      statut: { not: "REJETE" },
       OR: [{ dateFin: null }, { dateFin: { gte: today } }],
     },
     orderBy: [{ principale: "desc" }, { dateDebut: "desc" }],
     select: {
-      uniteOrganisationnelleId: true,
-      provinceId: true,
-      uniteOrganisationnelle: {
+      typeOrgaUniteProvince: {
         select: {
+          uniteOrganisationnelleId: true,
           provinceId: true,
         },
       },
@@ -128,19 +127,25 @@ async function getPrimaryAffectationContextForAgent(agentId: number | null) {
   });
 
   return {
-    ownUnitId: affectation?.uniteOrganisationnelleId ?? null,
-    ownProvinceId:
-      affectation?.provinceId ?? affectation?.uniteOrganisationnelle?.provinceId ?? null,
+    ownUnitId: affectation?.typeOrgaUniteProvince?.uniteOrganisationnelleId ?? null,
+    ownProvinceId: affectation?.typeOrgaUniteProvince?.provinceId ?? null,
   };
 }
 
 async function getUnitIdsByProvinceId(provinceId: number) {
-  const units = await prisma.uniteOrganisationnelle.findMany({
-    where: { provinceId },
-    select: { id: true },
+  const links = await prisma.typeOrgaUniteProvince.findMany({
+    where: {
+      provinceId,
+      uniteOrganisationnelleId: { not: null },
+      actif: true,
+    },
+    select: { uniteOrganisationnelleId: true },
+    distinct: ["uniteOrganisationnelleId"],
   });
 
-  return units.map((unit) => unit.id);
+  return links
+    .map((item) => item.uniteOrganisationnelleId)
+    .filter((id): id is number => Number.isFinite(id as number));
 }
 
 async function getDescendantUnitIds(unitId: number) {
@@ -190,7 +195,6 @@ export async function getScopedUnitIdsForPermissions(
     }
   }
 
-  // Descendant scope is resolved from the current primary assignment in the organisation tree.
   if (scopes.includes("UNITE_ET_DESCENDANTS") && ownUnitId) {
     const descendantUnitIds = await getDescendantUnitIds(ownUnitId);
     for (const unitId of descendantUnitIds) {
@@ -242,7 +246,6 @@ export async function getAccessibleAgentIdsForPermissions(
     agentIds.add(ownAgentId);
   }
 
-  // Unit scopes are expanded through current active affectations so list endpoints can filter by agentId only.
   if (scopes.includes("UNITE_ET_DESCENDANTS") && ownUnitId) {
     const unitIds = await getDescendantUnitIds(ownUnitId);
     for (const unitId of unitIds) {
@@ -266,16 +269,29 @@ export async function getAccessibleAgentIdsForPermissions(
     const scopedAffectations = await prisma.affectation.findMany({
       where: {
         actif: true,
+        statut: { not: "REJETE" },
         dateDebut: { lte: today },
         OR: [{ dateFin: null }, { dateFin: { gte: today } }],
         AND: [
           {
             OR: [
               ...(scopedUnitIds.size
-                ? [{ uniteOrganisationnelleId: { in: [...scopedUnitIds] } }]
+                ? [
+                    {
+                      typeOrgaUniteProvince: {
+                        uniteOrganisationnelleId: { in: [...scopedUnitIds] },
+                      },
+                    },
+                  ]
                 : []),
               ...(scopes.includes("PROVINCE") && ownProvinceId
-                ? [{ provinceId: ownProvinceId }]
+                ? [
+                    {
+                      typeOrgaUniteProvince: {
+                        provinceId: ownProvinceId,
+                      },
+                    },
+                  ]
                 : []),
             ],
           },

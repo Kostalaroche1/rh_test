@@ -10,26 +10,13 @@ const PROVINCES = [
   { code: "NKV", nom: "Nord-Kivu" },
 ];
 
-const TYPES_UNITE = [
-  {
-    code: "SITE",
-    nom: "Site",
-    description: "Site geographique",
-    ordre: 1,
-  },
-  {
-    code: "DIRECTION",
-    nom: "Direction",
-    description: "Niveau direction",
-    ordre: 2,
-  },
-  {
-    code: "DEPARTEMENT",
-    nom: "Departement",
-    description: "Niveau departement",
-    ordre: 3,
-  },
-];
+const TYPES_UNITE = PROVINCES.map((province, index) => ({
+  code: `RTNC-${province.code}`,
+  nom: `RTNC ${province.nom}`,
+  description: `Type organisationnel principal de ${province.nom}`,
+  ordre: index + 1,
+  provinceCode: province.code,
+}));
 
 const DIRECTIONS = [
   {
@@ -154,6 +141,91 @@ function buildUnitPath(parent, code) {
   return `${basePath}/${code}`;
 }
 
+async function ensureTypeProvinceTemplate(tx, { typeUniteId, provinceId }) {
+  const existingTemplate = await tx.typeOrgaUniteProvince.findFirst({
+    where: {
+      typeUniteId,
+      provinceId,
+      uniteOrganisationnelleId: null,
+    },
+    select: { id: true },
+    orderBy: { id: "asc" },
+  });
+
+  if (existingTemplate) {
+    await tx.typeOrgaUniteProvince.update({
+      where: { id: existingTemplate.id },
+      data: { actif: true },
+    });
+    return existingTemplate.id;
+  }
+
+  const createdTemplate = await tx.typeOrgaUniteProvince.create({
+    data: {
+      typeUniteId,
+      provinceId,
+      uniteOrganisationnelleId: null,
+      actif: true,
+    },
+    select: { id: true },
+  });
+
+  return createdTemplate.id;
+}
+
+async function linkUnitToTypeProvince(tx, { typeUniteId, uniteOrganisationnelleId, provinceId }) {
+  const existingLink = await tx.typeOrgaUniteProvince.findFirst({
+    where: {
+      typeUniteId,
+      uniteOrganisationnelleId,
+      provinceId,
+    },
+    select: { id: true },
+  });
+
+  if (existingLink) {
+    await tx.typeOrgaUniteProvince.update({
+      where: { id: existingLink.id },
+      data: { actif: true },
+    });
+    return existingLink.id;
+  }
+
+  const template = await tx.typeOrgaUniteProvince.findFirst({
+    where: {
+      typeUniteId,
+      provinceId,
+      uniteOrganisationnelleId: null,
+    },
+    select: { id: true },
+    orderBy: { id: "asc" },
+  });
+
+  if (template) {
+    const linkedFromTemplate = await tx.typeOrgaUniteProvince.update({
+      where: { id: template.id },
+      data: {
+        uniteOrganisationnelleId,
+        actif: true,
+      },
+      select: { id: true },
+    });
+    return linkedFromTemplate.id;
+  }
+
+  const createdLink = await tx.typeOrgaUniteProvince.create({
+    data: {
+      typeUniteId,
+      uniteOrganisationnelleId,
+      provinceId,
+      actif: true,
+    },
+    select: { id: true },
+  });
+
+  return createdLink.id;
+}
+
 async function main() {
   const result = await prisma.$transaction(async (tx) => {
     const provinceByCode = new Map();
@@ -173,7 +245,7 @@ async function main() {
       provinceByCode.set(province.code, persisted);
     }
 
-    const typeByCode = new Map();
+    const typeByProvinceCode = new Map();
     for (const typeUnite of TYPES_UNITE) {
       const persisted = await tx.typeUniteOrganisationnelle.upsert({
         where: { code: typeUnite.code },
@@ -192,19 +264,32 @@ async function main() {
           systeme: false,
         },
       });
-      typeByCode.set(typeUnite.code, persisted);
+      typeByProvinceCode.set(typeUnite.provinceCode, persisted);
     }
 
     const directionsByCode = new Map();
-    const directionType = typeByCode.get("DIRECTION");
-    if (!directionType) {
-      throw new Error("Type d'unite DIRECTION introuvable");
+    const directionProvinceByCode = new Map();
+
+    for (const provinceDef of PROVINCES) {
+      const province = provinceByCode.get(provinceDef.code);
+      const provinceType = typeByProvinceCode.get(provinceDef.code);
+      if (!province || !provinceType) {
+        throw new Error(`Configuration province/type introuvable pour ${provinceDef.code}`);
+      }
+      await ensureTypeProvinceTemplate(tx, {
+        typeUniteId: provinceType.id,
+        provinceId: province.id,
+      });
     }
 
     for (const direction of DIRECTIONS) {
       const province = provinceByCode.get(direction.provinceCode ?? "KIN");
       if (!province) {
         throw new Error(`Province introuvable pour direction ${direction.code}`);
+      }
+      const provinceType = typeByProvinceCode.get(direction.provinceCode ?? "KIN");
+      if (!provinceType) {
+        throw new Error(`Type d'unite introuvable pour la province ${direction.provinceCode ?? "KIN"}`);
       }
 
       const path = buildUnitPath(null, direction.code);
@@ -213,9 +298,7 @@ async function main() {
         update: {
           nom: direction.nom,
           description: direction.description,
-          typeUniteId: directionType.id,
           parentId: null,
-          provinceId: province.id,
           chemin: path,
           niveau: 0,
           actif: true,
@@ -224,28 +307,42 @@ async function main() {
           code: direction.code,
           nom: direction.nom,
           description: direction.description,
-          typeUniteId: directionType.id,
           parentId: null,
-          provinceId: province.id,
           chemin: path,
           niveau: 0,
           actif: true,
         },
       });
+
+      await linkUnitToTypeProvince(tx, {
+        typeUniteId: provinceType.id,
+        uniteOrganisationnelleId: persisted.id,
+        provinceId: province.id,
+      });
+
       directionsByCode.set(direction.code, persisted);
+      directionProvinceByCode.set(direction.code, province);
     }
 
     const departementsByCode = new Map();
-    const departementType = typeByCode.get("DEPARTEMENT");
-    if (!departementType) {
-      throw new Error("Type d'unite DEPARTEMENT introuvable");
-    }
 
     for (const departement of DEPARTEMENTS) {
       const parent = directionsByCode.get(departement.directionCode);
       if (!parent) {
         throw new Error(
           `Direction introuvable pour departement ${departement.code}`
+        );
+      }
+      const province = directionProvinceByCode.get(departement.directionCode);
+      if (!province) {
+        throw new Error(
+          `Province introuvable pour departement ${departement.code}`
+        );
+      }
+      const provinceType = typeByProvinceCode.get(province.code);
+      if (!provinceType) {
+        throw new Error(
+          `Type d'unite introuvable pour la province ${province.code}`
         );
       }
 
@@ -255,9 +352,7 @@ async function main() {
         update: {
           nom: departement.nom,
           description: departement.description,
-          typeUniteId: departementType.id,
           parentId: parent.id,
-          provinceId: parent.provinceId ?? null,
           chemin: path,
           niveau: 1,
           actif: true,
@@ -266,20 +361,20 @@ async function main() {
           code: departement.code,
           nom: departement.nom,
           description: departement.description,
-          typeUniteId: departementType.id,
           parentId: parent.id,
-          provinceId: parent.provinceId ?? null,
           chemin: path,
           niveau: 1,
           actif: true,
         },
       });
-      departementsByCode.set(departement.code, persisted);
-    }
 
-    const siteType = typeByCode.get("SITE");
-    if (!siteType) {
-      throw new Error("Type d'unite SITE introuvable");
+      await linkUnitToTypeProvince(tx, {
+        typeUniteId: provinceType.id,
+        uniteOrganisationnelleId: persisted.id,
+        provinceId: province.id,
+      });
+
+      departementsByCode.set(departement.code, persisted);
     }
 
     const sitesByCode = new Map();
@@ -288,6 +383,10 @@ async function main() {
       if (!province) {
         throw new Error(`Province introuvable pour site ${site.code}`);
       }
+      const provinceType = typeByProvinceCode.get(site.provinceCode ?? "KIN");
+      if (!provinceType) {
+        throw new Error(`Type d'unite introuvable pour la province ${site.provinceCode ?? "KIN"}`);
+      }
 
       const path = buildUnitPath(null, site.code);
       const persisted = await tx.uniteOrganisationnelle.upsert({
@@ -295,9 +394,7 @@ async function main() {
         update: {
           nom: site.nom,
           description: site.description,
-          typeUniteId: siteType.id,
           parentId: null,
-          provinceId: province.id,
           chemin: path,
           niveau: 0,
           actif: true,
@@ -306,14 +403,19 @@ async function main() {
           code: site.code,
           nom: site.nom,
           description: site.description,
-          typeUniteId: siteType.id,
           parentId: null,
-          provinceId: province.id,
           chemin: path,
           niveau: 0,
           actif: true,
         },
       });
+
+      await linkUnitToTypeProvince(tx, {
+        typeUniteId: provinceType.id,
+        uniteOrganisationnelleId: persisted.id,
+        provinceId: province.id,
+      });
+
       sitesByCode.set(site.code, persisted);
     }
 

@@ -3,13 +3,39 @@ export interface TypeUniteOrganisationnelleItem {
   nom: string;
   code: string;
   description?: string | null;
+  parentId?: number | null;
   ordre: number;
   actif: boolean;
   systeme: boolean;
+  parent?: {
+    id: number;
+    nom: string;
+    code: string;
+    parentId?: number | null;
+  } | null;
+  enfants?: Array<{
+    id: number;
+    nom: string;
+    code: string;
+    parentId?: number | null;
+  }>;
+  typeOrgaUniteProvinces?: Array<{
+    id: number;
+    provinceId: number;
+    uniteOrganisationnelleId?: number | null;
+    actif: boolean;
+    province?: {
+      id: number;
+      nom: string;
+      code: string;
+    };
+  }>;
 }
 
 export interface UniteOrganisationnelleItem {
   id: number;
+  mappingId?: number;
+  typeOrgaUniteProvinceId?: number;
   nom: string;
   code: string;
   description?: string | null;
@@ -22,6 +48,7 @@ export interface UniteOrganisationnelleItem {
     id: number;
     nom: string;
     code: string;
+    parentId?: number | null;
   };
   parent?: {
     id: number;
@@ -38,6 +65,7 @@ export interface UniteOrganisationnelleItem {
     postes?: number;
     affectations?: number;
   };
+  uniteExistanteId?: number | null;
 }
 
 export async function GetTypesUnitesOrganisationnelles(): Promise<TypeUniteOrganisationnelleItem[]> {

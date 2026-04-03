@@ -5,6 +5,7 @@ export interface ProvinceItem {
   description?: string | null;
   actif: boolean;
   _count?: {
+    types?: number;
     unites?: number;
     affectations?: number;
   };

@@ -7,6 +7,17 @@ import {
   getScopedProvinceIdsForPermissions,
 } from "@/server/access/scope";
 
+function parseOptionalInt(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
 async function ensureProvinceAccess(permission: string) {
   const auth = await getAuthenticatedUser();
   if (!auth) {
@@ -49,25 +60,54 @@ export async function GET() {
     ["province.read"]
   );
 
-  const data = await prisma.province.findMany({
+  const provinces = await prisma.province.findMany({
     where:
       scopedProvinceIds === null
         ? undefined
         : {
             id: { in: scopedProvinceIds.length ? scopedProvinceIds : [-1] },
           },
-    include: {
-      _count: {
-        select: {
-          unites: true,
-          affectations: true,
-        },
-      },
-    },
     orderBy: [{ nom: "asc" }],
   });
 
-  return NextResponse.json({ data }, { status: 200 });
+  const countsByProvince = await Promise.all(
+    provinces.map(async (province) => {
+      const [typeLinks, linksWithUnit, affectations] = await Promise.all([
+        prisma.typeOrgaUniteProvince.count({
+          where: {
+            provinceId: province.id,
+            actif: true,
+          },
+        }),
+        prisma.typeOrgaUniteProvince.count({
+          where: {
+            provinceId: province.id,
+            uniteOrganisationnelleId: { not: null },
+            actif: true,
+          },
+        }),
+        prisma.affectation.count({
+          where: {
+            typeOrgaUniteProvince: {
+              provinceId: province.id,
+            },
+            statut: { not: "REJETE" },
+          },
+        }),
+      ]);
+
+      return {
+        ...province,
+        _count: {
+          types: typeLinks,
+          unites: linksWithUnit,
+          affectations,
+        },
+      };
+    })
+  );
+
+  return NextResponse.json({ data: countsByProvince }, { status: 200 });
 }
 
 export async function POST(req: Request) {
@@ -116,7 +156,7 @@ export async function PUT(req: Request) {
   if (!guard.ok) return guard.response;
 
   const body = await req.json();
-  const id = Number(body?.id);
+  const id = parseOptionalInt(body?.id);
   const code = normalizeProvinceCode(body?.code);
   const nom = String(body?.nom ?? "").trim();
   const description =
@@ -125,7 +165,7 @@ export async function PUT(req: Request) {
       : null;
   const actif = body?.actif !== false;
 
-  if (!Number.isFinite(id)) {
+  if (!id) {
     return NextResponse.json({ message: "id invalide" }, { status: 400 });
   }
 
@@ -164,8 +204,8 @@ export async function DELETE(req: Request) {
   if (!guard.ok) return guard.response;
 
   const body = await req.json();
-  const id = Number(body?.id);
-  if (!Number.isFinite(id)) {
+  const id = parseOptionalInt(body?.id);
+  if (!id) {
     return NextResponse.json({ message: "id invalide" }, { status: 400 });
   }
 
@@ -181,25 +221,22 @@ export async function DELETE(req: Request) {
 
   const existing = await prisma.province.findUnique({
     where: { id },
-    select: {
-      _count: {
-        select: {
-          unites: true,
-          affectations: true,
-        },
-      },
-    },
+    select: { id: true },
   });
 
   if (!existing) {
     return NextResponse.json({ message: "Province introuvable" }, { status: 404 });
   }
 
-  if ((existing._count?.unites ?? 0) > 0 || (existing._count?.affectations ?? 0) > 0) {
+  const linksCount = await prisma.typeOrgaUniteProvince.count({
+    where: { provinceId: id },
+  });
+
+  if (linksCount > 0) {
     return NextResponse.json(
       {
         message:
-          "Cette province est deja liee a des unites/affectations et ne peut pas etre supprimee.",
+          "Cette province est deja liee a des types/unites et ne peut pas etre supprimee.",
       },
       { status: 400 }
     );
