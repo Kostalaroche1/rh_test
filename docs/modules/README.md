@@ -10,6 +10,7 @@ Modules documentes :
 - [Conges](./conges.md)
 - [Paie](./paie.md)
 - [Horaires](./horaires.md)
+- [Planification](./planification.md)
 - [Carrieres](./carrieres.md)
 - [Notifications](./notifications.md)
 - [Rapports](./rapports.md)

@@ -6,6 +6,8 @@ const CRUD_RESOURCES = [
   "user",
   "agent",
   "province",
+  "type_planification",
+  "planification",
   "type_conge",
   "paie",
   "horaire_travail",
@@ -36,6 +38,8 @@ const EXTRA_PERMISSIONS = [
   "paie.publish",
   "affectation.assign",
   "horaire_agent.assign",
+  "planification.assign",
+  "planification.validate",
 ] as const;
 
 export const DEFAULT_PERMISSION_CODES = [

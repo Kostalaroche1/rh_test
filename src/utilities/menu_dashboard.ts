@@ -2,6 +2,7 @@ import {
   ClipboardCheck,
   Building2,
   CalendarDays,
+  CalendarRange,
   Command,
   FolderOpen,
   LayoutDashboard,
@@ -57,6 +58,11 @@ export const data = {
       title: "Conges",
       url: "/dashboard/conges",
       icon: CalendarDays,
+    },
+    {
+      title: "Planification",
+      url: "/dashboard/planification",
+      icon: CalendarRange,
     },
     {
       title: "Carriere & Decisions",

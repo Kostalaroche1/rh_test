@@ -128,6 +128,12 @@ Doublons supprimes du modele actif :
 - `horaire_agent.read/update/delete`
 - `horaire_agent.assign`
 
+### Planification
+- `type_planification.read/create/update/delete`
+- `planification.read/create/update/delete`
+- `planification.assign`
+- `planification.validate`
+
 ## 7. Regles de maintenance
 
 - ne jamais deduire les droits a partir du nom du role

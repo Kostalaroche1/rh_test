@@ -28,10 +28,13 @@ model Utilisateur {
   congesValides   DemandeConge[] @relation("CongeValidePar")
   congesTypeCrees TypeConge[]
 
-  presencesConfirmees Presence[]       @relation("ConfirmePresence")
-  presencesValidees   Presence[]       @relation("ValidePresence")
-  horaireTravail      HoraireTravail[] @relation("creerHoraire")
-  horaireAgent        HoraireAgent[]   @relation("creerHoraireAgent")
+  presencesConfirmees Presence [] @relation("ConfirmePresence")
+  presencesValidees Presence [] @relation("ValidePresence")
+  horaireTravail HoraireTravail [] @relation("creerHoraire")
+  horaireAgent HoraireAgent [] @relation("creerHoraireAgent")
+  planificationsCrees Planification[] @relation("PlanificationCreePar")
+  planificationsAssignees Planification[] @relation("PlanificationAssignePar")
+  planificationsValidees Planification[] @relation("PlanificationValidePar")
 }
 
 model Role {
@@ -88,6 +91,7 @@ model Agent {
   demandeConge DemandeConge[]
   presences    Presence[]
   horaireAgent HoraireAgent[]
+  planificationParticipants PlanificationParticipant[]
 }
 
 model CompteAgent {
@@ -245,7 +249,8 @@ model UniteOrganisationnelle {
   parent  UniteOrganisationnelle?  @relation("ArbreOrganisationnel", fields: [parentId], references: [id], onDelete: SetNull)
   enfants UniteOrganisationnelle[] @relation("ArbreOrganisationnel")
 
-  postes                 Poste[]
+  postes        Poste[]
+  planifications Planification[]
   typeOrgaUniteProvinces TypeOrgaUniteProvince[]
 
   @@index([parentId])
@@ -305,6 +310,7 @@ model Affectation {
   reaffectations        Affectation[]         @relation("AffectationChain")
 
   historique HistoriqueAffectation[]
+  planifications Planification[]
 
   @@index([typeOrgaUniteProvinceId])
   @@index([affectationOrigineId])
@@ -418,6 +424,123 @@ model DemandeConge {
   confirmParUtilisateur Utilisateur? @relation("CongeConfirmPar", fields: [confirmePar], references: [id])
   validePar             Int?
   valideParUtilisateur  Utilisateur? @relation("CongeValidePar", fields: [validePar], references: [id])
+  planifications Planification[]
+}
+
+enum StatutPlanification {
+  BROUILLON
+  PLANIFIE
+  EN_COURS
+  TERMINE
+  ANNULE
+  REPORTE
+}
+
+enum PrioritePlanification {
+  FAIBLE
+  NORMALE
+  ELEVEE
+  CRITIQUE
+}
+
+enum RoleParticipantPlanification {
+  BENEFICIAIRE
+  RESPONSABLE
+  SUPERVISEUR
+  INTERVENANT
+}
+
+enum CanalRappelPlanification {
+  APP
+  EMAIL
+  SMS
+}
+
+model TypePlanification {
+  id            Int            @id @default(autoincrement())
+  nom           String
+  code          String         @unique
+  description   String?
+  actif         Boolean        @default(true)
+  systeme       Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  planifications Planification[]
+
+  @@index([actif])
+}
+
+model Planification {
+  id                     Int                    @id @default(autoincrement())
+  titre                  String
+  description            String?
+  typePlanificationId    Int
+  dateDebut              DateTime
+  dateFin                DateTime?
+  statut                 StatutPlanification   @default(BROUILLON)
+  priorite               PrioritePlanification @default(NORMALE)
+  uniteOrganisationnelleId Int?
+  creeParId              Int
+  assigneParId           Int?
+  valideParId            Int?
+  dateValidation         DateTime?
+  demandeCongeId         Int?
+  affectationId          Int?
+  notes                  String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  typePlanification      TypePlanification       @relation(fields: [typePlanificationId], references: [id], onDelete: Restrict)
+  uniteOrganisationnelle UniteOrganisationnelle? @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: SetNull)
+  creePar                Utilisateur             @relation("PlanificationCreePar", fields: [creeParId], references: [id], onDelete: Restrict)
+  assignePar             Utilisateur?            @relation("PlanificationAssignePar", fields: [assigneParId], references: [id], onDelete: SetNull)
+  validePar              Utilisateur?            @relation("PlanificationValidePar", fields: [valideParId], references: [id], onDelete: SetNull)
+  demandeConge           DemandeConge?           @relation(fields: [demandeCongeId], references: [id], onDelete: SetNull)
+  affectation            Affectation?            @relation(fields: [affectationId], references: [id], onDelete: SetNull)
+
+  participants           PlanificationParticipant[]
+  rappels                RappelPlanification[]
+
+  @@index([typePlanificationId])
+  @@index([uniteOrganisationnelleId])
+  @@index([creeParId])
+  @@index([assigneParId])
+  @@index([valideParId])
+  @@index([demandeCongeId])
+  @@index([affectationId])
+  @@index([statut])
+  @@index([dateDebut, dateFin])
+}
+
+model PlanificationParticipant {
+  id               Int                           @id @default(autoincrement())
+  planificationId  Int
+  agentId          Int
+  roleDansPlan     RoleParticipantPlanification @default(BENEFICIAIRE)
+  obligatoire      Boolean                       @default(true)
+  createdAt        DateTime                      @default(now())
+
+  planification    Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
+  agent            Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([planificationId, agentId])
+  @@index([agentId])
+}
+
+model RappelPlanification {
+  id               Int                        @id @default(autoincrement())
+  planificationId  Int
+  dateRappel       DateTime
+  canal            CanalRappelPlanification   @default(APP)
+  message          String?
+  envoye           Boolean                    @default(false)
+  createdAt        DateTime                   @default(now())
+
+  planification    Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
+
+  @@index([planificationId])
+  @@index([dateRappel, envoye])
 }
 
 enum StatutPresence {

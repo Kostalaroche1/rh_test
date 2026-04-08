@@ -47,5 +47,6 @@ Ce fichier reste utile pour l'utilisation de base de l'application :
 
 - l'organisation est dynamique et basee sur `TypeUniteOrganisationnelle` + `UniteOrganisationnelle`
 - l'acces repose sur les permissions et les portees
+- la planification RH est un domaine transversal distinct des horaires de travail
 - le nom d'un role ne doit pas piloter l'autorisation
 - certains dossiers restent legacy et doivent etre refactores avec prudence
