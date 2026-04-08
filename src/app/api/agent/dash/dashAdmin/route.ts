@@ -120,10 +120,59 @@ export async function GET() {
       }),
     ]);
 
-    const [typesUnites, unites, fonctions, postes, affectations] = await Promise.all([
+    const [typesOrganisationnels, unites, fonctions, postes, affectations] = await Promise.all([
       hasAnyPermission(user, ["type_unite_organisationnelle.read"])
-        ? prisma.typeUniteOrganisationnelle.count()
-        : Promise.resolve(0),
+        ? prisma.typeUniteOrganisationnelle.findMany({
+            where:
+              scopedProvinceIds === null
+                ? undefined
+                : {
+                    typeOrgaUniteProvinces: {
+                      some: {
+                        provinceId: {
+                          in: scopedProvinceIds.length ? scopedProvinceIds : [-1],
+                        },
+                        actif: true,
+                      },
+                    },
+                  },
+            select: {
+              id: true,
+              code: true,
+              nom: true,
+              description: true,
+              parentId: true,
+              ordre: true,
+              actif: true,
+              systeme: true,
+              parent: {
+                select: { id: true, code: true, nom: true, parentId: true },
+              },
+              enfants: {
+                select: { id: true, code: true, nom: true, parentId: true },
+                orderBy: [{ ordre: "asc" }, { nom: "asc" }],
+              },
+              typeOrgaUniteProvinces: {
+                where:
+                  scopedProvinceIds === null
+                    ? undefined
+                    : {
+                        provinceId: {
+                          in: scopedProvinceIds.length ? scopedProvinceIds : [-1],
+                        },
+                      },
+                select: {
+                  id: true,
+                  provinceId: true,
+                  uniteOrganisationnelleId: true,
+                  actif: true,
+                },
+                orderBy: [{ provinceId: "asc" }, { id: "asc" }],
+              },
+            },
+            orderBy: [{ ordre: "asc" }, { nom: "asc" }],
+          })
+        : Promise.resolve([]),
       hasAnyPermission(user, ["unite_organisationnelle.read", "affectation.read"])
         ? prisma.uniteOrganisationnelle.count({
             where:
@@ -155,6 +204,8 @@ export async function GET() {
             : { agentId: { in: accessibleAgentIds.length ? accessibleAgentIds : [-1] } },
       }),
     ]);
+
+    const typesUnites = typesOrganisationnels.length;
 
     const organisationParProvince = hasAnyPermission(user, [
       "province.read",
@@ -190,12 +241,23 @@ export async function GET() {
                       }),
                 },
                 select: {
+                  id: true,
+                  typeUniteId: true,
+                  typeUnite: {
+                    select: {
+                      id: true,
+                      code: true,
+                      nom: true,
+                      parentId: true,
+                    },
+                  },
                   uniteOrganisationnelleId: true,
                   uniteOrganisationnelle: {
                     select: {
                       id: true,
                       code: true,
                       nom: true,
+                      parentId: true,
                       niveau: true,
                       _count: {
                         select: { postes: true },
@@ -215,6 +277,7 @@ export async function GET() {
                   id: number;
                   code: string;
                   nom: string;
+                  parentId: number | null;
                   niveau: number;
                   _count: { postes: number; affectations: number };
                 }
@@ -231,6 +294,7 @@ export async function GET() {
                     id: unit.id,
                     code: unit.code,
                     nom: unit.nom,
+                    parentId: unit.parentId,
                     niveau: unit.niveau,
                     _count: {
                       postes: unit._count.postes,
@@ -253,11 +317,37 @@ export async function GET() {
                   affectations: affectationsCount,
                 },
                 unites,
+                links: links.map((link) => ({
+                  id: link.id,
+                  typeUniteId: link.typeUniteId,
+                  typeUnite: link.typeUnite,
+                  provinceId: province.id,
+                  province: {
+                    id: province.id,
+                    code: province.code,
+                    nom: province.nom,
+                  },
+                  uniteOrganisationnelleId: link.uniteOrganisationnelleId ?? null,
+                  uniteOrganisationnelle: link.uniteOrganisationnelle
+                    ? {
+                        id: link.uniteOrganisationnelle.id,
+                        code: link.uniteOrganisationnelle.code,
+                        nom: link.uniteOrganisationnelle.nom,
+                        parentId: link.uniteOrganisationnelle.parentId,
+                        niveau: link.uniteOrganisationnelle.niveau,
+                      }
+                    : null,
+                  _count: {
+                    affectations: link._count.affectations,
+                  },
+                })),
               };
             })
           );
         })()
       : [];
+
+    const organisationMappings = organisationParProvince.flatMap((province: any) => province.links ?? []);
 
     let totalJoursConge = 0;
     for (const item of congesValides) {
@@ -278,9 +368,19 @@ export async function GET() {
         statut: true,
         affectations: {
           select: {
+            id: true,
+            dateDebut: true,
+            dateFin: true,
+            principale: true,
+            actif: true,
+            statutOrganisationnel: true,
             typeOrgaUniteProvince: {
               select: {
-                uniteOrganisationnelle: { select: { id: true, nom: true, code: true } },
+                typeUnite: { select: { id: true, nom: true, code: true, parentId: true } },
+                province: { select: { id: true, nom: true, code: true } },
+                uniteOrganisationnelle: {
+                  select: { id: true, nom: true, code: true, parentId: true, niveau: true },
+                },
               },
             },
             grade: { select: { id: true, libelle: true } },
@@ -317,7 +417,7 @@ export async function GET() {
         },
         actif: true,
         demandeConge: {
-          select: { id: true, statut: true },
+          select: { id: true, statut: true, dateDemande: true, dateDebut: true, dateFin: true },
         },
       },
     });
@@ -338,13 +438,23 @@ export async function GET() {
             confirm: congesConfirme,
             rejete: congesRejete,
           },
+          scope: {
+            hasGlobalProvinceAccess: scopedProvinceIds === null,
+            provinceIds: scopedProvinceIds === null ? null : scopedProvinceIds,
+            hasGlobalUnitAccess: scopedUnitIds === null,
+            unitIds: scopedUnitIds === null ? null : scopedUnitIds,
+          },
           organisation: {
             affectation: affectations,
             typesUnites,
+            stations: typesUnites,
+            types: typesOrganisationnels,
             unites,
+            directions: unites,
             fonctions,
             postes,
             provinces: organisationParProvince,
+            mappings: organisationMappings,
           },
         },
       },

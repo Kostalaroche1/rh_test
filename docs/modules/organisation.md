@@ -3,12 +3,16 @@
 ## But
 
 Ce module gere la structure dynamique de l'entreprise :
-- types d'unite
-- unites organisationnelles
+- types d'unite (libelles front: stations)
+- unites organisationnelles (libelles front: directions)
 - postes
 - fonctions
 - grades
 - affectations
+
+Regle metier:
+- un type sans parent est traite comme direction generale dans les vues dashboard
+- les niveaux descendants d'unites representent les sous-directions puis les bureaux
 
 ## Route montee principale
 - `/dashboard/organisation`
