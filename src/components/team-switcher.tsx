@@ -7,9 +7,49 @@ import { useAuth } from "@/app/contexts/auth/context";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { DropdownMenu, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import {
+  PROFILE_PHOTO_UPDATED_EVENT,
+  type ProfilePhotoUpdatedDetail,
+  resolveAgentPhotoSrc,
+} from "@/lib/client/profilePhoto";
+
+function extractInitials(label: string) {
+  const cleaned = String(label ?? "").trim();
+  if (!cleaned) return "AG";
+  const parts = cleaned.split(/\s+/).slice(0, 2);
+  return (
+    parts
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "AG"
+  );
+}
 
 export function TeamSwitcher() {
   const { auth }: any = useAuth();
+  const [avatarPath, setAvatarPath] = React.useState<string>(String(auth?.photo ?? ""));
+  const [avatarVersion, setAvatarVersion] = React.useState<number>(Date.now());
+
+  React.useEffect(() => {
+    const nextPath = String(auth?.photo ?? "").trim();
+    if (!nextPath) return;
+    setAvatarPath(nextPath);
+    setAvatarVersion(Date.now());
+  }, [auth?.photo]);
+
+  React.useEffect(() => {
+    const handleProfilePhotoUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<ProfilePhotoUpdatedDetail>;
+      const nextPath = String(customEvent.detail?.path ?? "").trim();
+      if (!nextPath) return;
+      setAvatarPath(nextPath);
+      setAvatarVersion(customEvent.detail?.at ?? Date.now());
+    };
+
+    window.addEventListener(PROFILE_PHOTO_UPDATED_EVENT, handleProfilePhotoUpdated);
+    return () => {
+      window.removeEventListener(PROFILE_PHOTO_UPDATED_EVENT, handleProfilePhotoUpdated);
+    };
+  }, []);
 
   const activeRoleNames = Array.isArray(auth?.role)
     ? auth.role
@@ -17,6 +57,14 @@ export function TeamSwitcher() {
         .map((item: any) => item?.role?.nom)
         .filter(Boolean)
     : [];
+
+  const displayName = React.useMemo(() => {
+    return `${auth?.prenom ?? ""} ${auth?.nom ?? ""}`.trim() || auth?.nom || "Utilisateur";
+  }, [auth?.nom, auth?.prenom]);
+
+  const avatarSrc = React.useMemo(() => {
+    return resolveAgentPhotoSrc(avatarPath, avatarVersion) || resolveAgentPhotoSrc(auth?.photo) || "/images/avatar/avatar.png";
+  }, [avatarPath, avatarVersion, auth?.photo]);
 
   return (
     <SidebarMenu>
@@ -29,8 +77,8 @@ export function TeamSwitcher() {
             >
               <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-9 items-center justify-center rounded-xl shadow-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src="/images/logo.png" alt={auth?.email || "user"} />
-                  <AvatarFallback className="rounded-lg">RT</AvatarFallback>
+                  <AvatarImage src={avatarSrc} alt={displayName} />
+                  <AvatarFallback className="rounded-lg">{extractInitials(displayName)}</AvatarFallback>
                 </Avatar>
               </div>
 

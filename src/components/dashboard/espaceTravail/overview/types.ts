@@ -97,9 +97,12 @@ export type AgentCongeItem = {
 
 export type AgentDashboardItem = {
   id: number;
+  matricule?: string | null;
   nom?: string;
   prenom?: string;
   genre?: string | null;
+  photo?: string | null;
+  datenais?: string | Date | null;
   actif?: boolean;
   affectations?: AffectationSummary[];
   presences?: AgentPresenceItem[];
@@ -187,6 +190,25 @@ export type OverviewAnalytics = {
   affectationsByStation: PieDatum[];
   affectationsByProvince: PieDatum[];
   affectationsBySex: PieDatum[];
+  presencesByProvince: PieDatum[];
+  presencesByStation: PieDatum[];
+  presencesByDirection: PieDatum[];
+  presencesBySousDirection: PieDatum[];
+  presencesByBureau: PieDatum[];
+  congesByProvince: PieDatum[];
+  congesByStation: PieDatum[];
+  congesByDirection: PieDatum[];
+  congesBySousDirection: PieDatum[];
+  congesByBureau: PieDatum[];
+  congesBySex: PieDatum[];
+  retraitesByProvince: PieDatum[];
+  retraitesByStation: PieDatum[];
+  retraitesByDirection: PieDatum[];
+  retraitesBySousDirection: PieDatum[];
+  retraitesByBureau: PieDatum[];
+  retraitesBySex: PieDatum[];
+  presenceCountByDirectionId: Map<number, number>;
+  congeCountByDirectionId: Map<number, number>;
   sexByDirection: GenderSplit[];
   sexByStation: GenderSplit[];
   sexByProvinceAndStation: GenderSplit[];

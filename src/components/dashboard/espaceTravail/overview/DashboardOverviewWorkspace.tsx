@@ -21,6 +21,7 @@ import {
   buildOverviewAnalytics,
   buildYearList,
   formatCount,
+  resolveAgentRattachement,
   toSafeNumber,
 } from "./helpers";
 import KpiCardsGrid from "./KpiCardsGrid";
@@ -30,6 +31,7 @@ import ProvinceDirectoryCard from "./ProvinceDirectoryCard";
 import CircularAnalyticsSection from "./CircularAnalyticsSection";
 import OrganisationHierarchyCard from "./OrganisationHierarchyCard";
 import QuickModulesSection from "./QuickModulesSection";
+import CurrentUserScopeCard from "./CurrentUserScopeCard";
 
 export default function DashboardOverviewWorkspace() {
   const { auth }: any = useAuth();
@@ -121,6 +123,31 @@ export default function DashboardOverviewWorkspace() {
   const analytics = useMemo(() => {
     return buildOverviewAnalytics(dashboard, selectedProvinceNumeric);
   }, [dashboard, selectedProvinceNumeric]);
+
+  const allAgents = useMemo(() => {
+    return Array.isArray(dashboard?.AgentsPresences) ? dashboard!.AgentsPresences! : [];
+  }, [dashboard]);
+
+  const connectedAgent = useMemo(() => {
+    const authMatricule = String(auth?.matricule ?? "").trim().toUpperCase();
+    if (!authMatricule) return null;
+
+    return (
+      allAgents.find(
+        (agent) => String(agent?.matricule ?? "").trim().toUpperCase() === authMatricule
+      ) ?? null
+    );
+  }, [allAgents, auth?.matricule]);
+
+  const connectedRattachement = useMemo(() => {
+    return resolveAgentRattachement(connectedAgent);
+  }, [connectedAgent]);
+
+  const [connectedPhotoPath, setConnectedPhotoPath] = useState("");
+
+  useEffect(() => {
+    setConnectedPhotoPath(String(connectedAgent?.photo ?? ""));
+  }, [connectedAgent?.photo]);
 
   const years = useMemo(() => buildYearList(), []);
 
@@ -294,6 +321,18 @@ export default function DashboardOverviewWorkspace() {
         </Badge>
       )}
 
+      <CurrentUserScopeCard
+        agentId={connectedAgent?.id ?? null}
+        photo={connectedPhotoPath || connectedAgent?.photo || null}
+        canUploadPhoto={Boolean(connectedAgent?.id)}
+        onPhotoUpdated={setConnectedPhotoPath}
+        userLabel={`${auth?.prenom ?? ""} ${auth?.nom ?? ""}`.trim() || "Utilisateur"}
+        province={connectedRattachement?.province ?? null}
+        station={connectedRattachement?.station ?? null}
+        direction={connectedRattachement?.direction ?? null}
+        niveauDirection={connectedRattachement?.niveauDirection ?? null}
+      />
+
       {canReadOverview && (
         <>
           <section className="grid gap-4 xl:grid-cols-[2fr_1fr]">
@@ -357,6 +396,8 @@ export default function DashboardOverviewWorkspace() {
               canReadProvince,
               canReadType,
               canReadAffectation,
+              canReadPresence,
+              canReadConges,
             }}
           />
 
@@ -364,6 +405,8 @@ export default function DashboardOverviewWorkspace() {
             <OrganisationHierarchyCard
               types={types}
               directionTreeByTypeId={analytics.directionTreeByTypeId}
+              presenceCountByDirectionId={analytics.presenceCountByDirectionId}
+              congeCountByDirectionId={analytics.congeCountByDirectionId}
             />
           )}
         </>

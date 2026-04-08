@@ -363,6 +363,8 @@ export async function GET() {
         id: true,
         matricule: true,
         genre: true,
+        photo: true,
+        datenais: true,
         prenom: true,
         nom: true,
         statut: true,

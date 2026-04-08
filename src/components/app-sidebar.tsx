@@ -19,6 +19,12 @@ import { ThemeSwitcher } from "./theme-switcher"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
    const {auth} : any = useAuth()
+   const sidebarUser = {
+    ...data.user,
+    name: `${auth?.prenom ?? ""} ${auth?.nom ?? ""}`.trim() || auth?.nom || data.user.name,
+    email: auth?.email || data.user.email,
+    avatar: auth?.photo || data.user.avatar,
+   }
   return (
     <Sidebar collapsible="icon" variant="floating" {...props}>
       <SidebarHeader className="pb-1">
@@ -30,7 +36,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter className="gap-3 pt-0">
         <ThemeSwitcher className="group-data-[collapsible=icon]:hidden" />
-        <NavUser user={data.user} />
+        <NavUser user={sidebarUser} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

@@ -16,7 +16,10 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useGet } from "@/hooks/useApi";
+import { compressProfileImage } from "@/lib/client/compressProfileImage";
+import { emitProfilePhotoUpdated, resolveAgentPhotoSrc } from "@/lib/client/profilePhoto";
 import { hasAnyPermission } from "@/security/permissions";
+import { toast } from "sonner";
 
 const formatDate = (value: string | Date | null | undefined) => {
   if (!value) return "--";
@@ -47,6 +50,9 @@ export default function DossierAgentDashboard() {
   const [agentPageSize, setAgentPageSize] = useState(9);
   const [selectedAgentProfile, setSelectedAgentProfile] = useState<any | null>(null);
   const [openAgentDossierModal, setOpenAgentDossierModal] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoByAgentId, setPhotoByAgentId] = useState<Record<number, string>>({});
+  const [photoVersionByAgentId, setPhotoVersionByAgentId] = useState<Record<number, number>>({});
 
   const { data: agents = [] } = useGet(["agents"], GetAgent);
   const selectedAgentId = Number(selectedAgentProfile?.id ?? 0);
@@ -78,6 +84,15 @@ export default function DossierAgentDashboard() {
       });
   }, [agents]);
 
+  const currentAgentId = useMemo(() => {
+    const matricule = String(auth?.matricule ?? "").trim().toUpperCase();
+    if (!matricule) return null;
+    const currentProfile = agentProfiles.find(
+      (profile) => String(profile.matricule ?? "").trim().toUpperCase() === matricule
+    );
+    return currentProfile?.id ?? null;
+  }, [agentProfiles, auth?.matricule]);
+
   const filteredAgentProfiles = useMemo(() => {
     const keyword = agentSearch.trim().toLowerCase();
     if (!keyword) return agentProfiles;
@@ -108,6 +123,64 @@ export default function DossierAgentDashboard() {
   const openAgentDossier = (profile: any) => {
     setSelectedAgentProfile(profile);
     setOpenAgentDossierModal(true);
+  };
+
+  const canUploadSelectedAgentPhoto = useMemo(() => {
+    const selectedId = Number(selectedAgentProfile?.id ?? selectedAgentDossier?.agent?.id ?? 0);
+    if (!selectedId) return false;
+    if (currentAgentId && selectedId === currentAgentId) return true;
+    return hasAnyPermission(auth, ["agent.update"]);
+  }, [auth, currentAgentId, selectedAgentDossier?.agent?.id, selectedAgentProfile?.id]);
+
+  const resolvePhotoForAgent = (agentId: number | null | undefined, fallback?: string | null) => {
+    const safeId = Number(agentId ?? 0);
+    const value =
+      safeId && photoByAgentId[safeId] ? photoByAgentId[safeId] : String(fallback ?? "");
+    const cacheToken = safeId ? photoVersionByAgentId[safeId] : undefined;
+    return resolveAgentPhotoSrc(value, cacheToken);
+  };
+
+  const handleProfilePhotoUpload = async (file: File) => {
+    const selectedId = Number(selectedAgentProfile?.id ?? selectedAgentDossier?.agent?.id ?? 0);
+    if (!selectedId) {
+      toast.error("Agent introuvable pour la mise a jour de la photo.");
+      return;
+    }
+
+    try {
+      setUploadingPhoto(true);
+      const compressedFile = await compressProfileImage(file);
+      const payload = new FormData();
+      payload.append("agentId", String(selectedId));
+      payload.append("photo", compressedFile);
+
+      const response = await fetch("/api/agent/photo", {
+        method: "POST",
+        body: payload,
+      });
+      const json = await response.json();
+      if (!response.ok) {
+        toast.error(json?.message ?? "Impossible d'enregistrer la photo.");
+        return;
+      }
+
+      const newPhoto = String(json?.data?.photo ?? "").trim();
+      if (newPhoto) {
+        setPhotoByAgentId((prev) => ({ ...prev, [selectedId]: newPhoto }));
+        setPhotoVersionByAgentId((prev) => ({ ...prev, [selectedId]: Date.now() }));
+        setSelectedAgentProfile((prev: any) =>
+          prev ? { ...prev, photo: newPhoto } : prev
+        );
+        emitProfilePhotoUpdated(newPhoto);
+      }
+
+      toast.success("Photo de profil mise a jour.");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erreur lors de l'upload de la photo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   if (!canReadAgentDossier) {
@@ -178,7 +251,10 @@ export default function DossierAgentDashboard() {
                 >
                   <div className="flex items-start gap-3">
                     <Avatar className="h-12 w-12 border">
-                      <AvatarImage src={profile.photo || undefined} alt={profile.fullName} />
+                      <AvatarImage
+                        src={resolvePhotoForAgent(profile.id, profile.photo)}
+                        alt={profile.fullName}
+                      />
                       <AvatarFallback>{getInitials(profile.prenom, profile.nom)}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
@@ -258,18 +334,51 @@ export default function DossierAgentDashboard() {
                         <div className="flex items-center gap-3 md:min-w-72">
                           <Avatar className="h-16 w-16 border">
                             <AvatarImage
-                              src={selectedAgentDossier.agent.photo || selectedAgentProfile?.photo || undefined}
+                              src={resolvePhotoForAgent(
+                                selectedAgentDossier.agent.id,
+                                selectedAgentDossier.agent.photo || selectedAgentProfile?.photo
+                              )}
                               alt={selectedAgentProfile?.fullName ?? "Agent"}
                             />
                             <AvatarFallback>
                               {getInitials(selectedAgentDossier.agent.prenom, selectedAgentDossier.agent.nom)}
                             </AvatarFallback>
                           </Avatar>
-                          <div>
+                          <div className="space-y-2">
                             <p className="text-lg font-semibold">
                               {selectedAgentDossier.agent.prenom} {selectedAgentDossier.agent.nom}
                             </p>
                             <p className="text-sm text-muted-foreground">{selectedAgentDossier.agent.matricule}</p>
+                            {canUploadSelectedAgentPhoto && (
+                              <div className="flex items-center gap-2">
+                                <label htmlFor="agent-photo-upload-input">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={uploadingPhoto}
+                                    className="cursor-pointer"
+                                    asChild
+                                  >
+                                    <span>{uploadingPhoto ? "Upload..." : "Changer la photo"}</span>
+                                  </Button>
+                                </label>
+                                <input
+                                  id="agent-photo-upload-input"
+                                  type="file"
+                                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                                  className="hidden"
+                                  onChange={async (event) => {
+                                    const file = event.target.files?.[0];
+                                    if (file) {
+                                      await handleProfilePhotoUpload(file);
+                                    }
+                                    event.currentTarget.value = "";
+                                  }}
+                                  disabled={uploadingPhoto}
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div className="grid flex-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">

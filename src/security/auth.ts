@@ -24,6 +24,7 @@ export type SessionUser = JwtPayload & {
   prenom?: string;
   matricule?: string;
   email?: string;
+  photo?: string;
   roleId?: number;
   role?: SessionRole[];
   permissions?: string[];

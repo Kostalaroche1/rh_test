@@ -6,8 +6,15 @@ Ce module fournit une vue globale RH dynamique, personnalisee par permissions et
 - indicateurs (agents, presences, conges, stations, directions, affectations)
 - tendances annuelles (line/area chart)
 - diagrammes circulaires (agents, sexe, affectations)
+- diagrammes circulaires presences et demandes de conge par:
+  - province
+  - station
+  - direction
+  - sous-direction
+  - bureau
 - arborescence organisationnelle (direction generale, sous-directions, bureaux)
 - notifications recentes
+- rattachement utilisateur connecte (province + station + direction/sous-direction)
 
 ## Route(s) montee(s)
 
@@ -34,9 +41,11 @@ Ce module fournit une vue globale RH dynamique, personnalisee par permissions et
 - `src/components/dashboard/espaceTravail/overview/GenderSplitPieCard.tsx`
 - `src/components/dashboard/espaceTravail/overview/CircularAnalyticsSection.tsx`
 - `src/components/dashboard/espaceTravail/overview/OrganisationHierarchyCard.tsx`
+- `src/components/dashboard/espaceTravail/overview/HierarchyListSection.tsx`
 - `src/components/dashboard/espaceTravail/overview/NotificationsCard.tsx`
 - `src/components/dashboard/espaceTravail/overview/ProvinceDirectoryCard.tsx`
 - `src/components/dashboard/espaceTravail/overview/QuickModulesSection.tsx`
+- `src/components/dashboard/espaceTravail/overview/CurrentUserScopeCard.tsx`
 - `src/app/api/agent/dash/dashAdmin/route.ts`
 
 ## Permissions cles
@@ -50,6 +59,8 @@ Chaque bloc est pilote par permissions metier, pas par nom de role:
 - `unite_organisationnelle.read`: direction, hierarchie direction
 - `province.read`: filtres/listes provinces, distributions par province
 - `affectation.read`: cartes et diagrams affectations
+- `presence.read`: diagrams circulaires presences
+- `demande_conge.read`: diagrams circulaires demandes de conge
 - `notification.read`: liste notifications recentes
 
 ## Personnalisation par portee
@@ -77,6 +88,11 @@ Chaque bloc est pilote par permissions metier, pas par nom de role:
 - Femmes/Hommes par station (pie + select)
 - Femmes/Hommes par couple province/station (pie + select)
 - Affectations par direction, station, province, sexe (pies)
+- Presences par province, station, direction, sous-direction, bureau (pies)
+- Demandes de conge par province, station, direction, sous-direction, bureau (pies)
+- Demandes de conge par sexe (pie)
+- Retraites (agents 60+) par province, station, direction, sous-direction, bureau (pies)
+- Retraites (agents 60+) par sexe (pie)
 - Presences par annee (line chart, couleur par annee)
 - Conges par annee (area chart, couleur par annee)
 
@@ -90,6 +106,8 @@ L'UI est decoupee en sous-composants reutilisables pour eviter un composant mono
 - `GenderSplitPieCard`: pie sexe avec select de groupe
 - `CircularAnalyticsSection`: orchestration des pies selon permissions
 - `OrganisationHierarchyCard`: direction generale + sous-directions + bureaux
+- `HierarchyListSection`: bloc liste repliable style "section + items + ratio"
+- `CurrentUserScopeCard`: rattachement utilisateur connecte
 - `NotificationsCard`: flux notifications recentes
 - `ProvinceDirectoryCard`: recherche liste provinces/directions
 - `QuickModulesSection`: acces rapide modules avec recherche

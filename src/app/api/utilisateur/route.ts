@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
 import prisma from "@/lib/prisma";
-import { modifierUtilisateur } from "@/app/application/utilisateur/modifierUtilisateur";
 import { requireAccess } from "@/security/authorization";
 import { getAuthenticatedUser } from "@/security/auth";
 import { getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
@@ -10,6 +9,15 @@ import { getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 type CreateUserPayload = {
   login?: string;
   motDePasse?: string;
+};
+
+type UpdateUserPayload = {
+  id?: unknown;
+  data?: {
+    login?: string;
+    motDePasse?: string;
+    actif?: boolean;
+  };
 };
 
 export async function GET() {
@@ -159,15 +167,57 @@ export async function PUT(req: Request) {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
-  const { id, data } = await req.json();
-  if (!id || !data) {
+  const payload = (await req.json()) as UpdateUserPayload;
+  const id = Number(payload?.id);
+  const data = payload?.data;
+
+  if (!Number.isInteger(id) || id <= 0 || !data || typeof data !== "object") {
     return NextResponse.json(
       { message: "id et data sont requis" },
       { status: 400 }
     );
   }
 
-  const user = await modifierUtilisateur(id, data);
+  if ("actif" in data && data.actif !== undefined && typeof data.actif !== "boolean") {
+    return NextResponse.json(
+      { message: "Le champ actif doit etre un booleen" },
+      { status: 400 }
+    );
+  }
+
+  const existing = await prisma.utilisateur.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      compteAgent: {
+        select: {
+          agentId: true,
+        },
+      },
+    },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ message: "Utilisateur introuvable" }, { status: 404 });
+  }
+
+  const user = await prisma.$transaction(async (tx) => {
+    const updatedUser = await tx.utilisateur.update({
+      where: { id },
+      data,
+    });
+
+    // Synchronise l'etat du profil agent avec l'etat du compte utilisateur.
+    if (typeof data.actif === "boolean" && existing.compteAgent?.agentId) {
+      await tx.agent.updateMany({
+        where: { id: existing.compteAgent.agentId },
+        data: { actif: data.actif },
+      });
+    }
+
+    return updatedUser;
+  });
+
   return NextResponse.json(user);
 }
 

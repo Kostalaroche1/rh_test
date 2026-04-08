@@ -17,7 +17,7 @@ export const data = {
   user: {
     name: "workspace",
     email: "workspace@example.com",
-    avatar: "/avatars/workspace.jpg",
+    avatar: "/images/avatar/avatar.png",
   },
   teams: [
     {

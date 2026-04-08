@@ -18,9 +18,13 @@ type AssignmentSnapshot = {
   typeLabel: string;
   directionId: number | null;
   directionLabel: string;
+  directionLevel: "DIRECTION" | "SOUS_DIRECTION" | "BUREAU";
+  directionLevelLabel: string;
   provinceId: number | null;
   provinceLabel: string;
 };
+
+const RETIREMENT_MIN_AGE = 60;
 
 export function toSafeNumber(value: unknown) {
   const numberValue = Number(value);
@@ -35,6 +39,15 @@ export function parseDateValue(value: unknown) {
   if (!value) return null;
   const date = new Date(value as string | Date);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getAgeInYears(dateOfBirth: Date, referenceDate = new Date()) {
+  let age = referenceDate.getFullYear() - dateOfBirth.getFullYear();
+  const monthDiff = referenceDate.getMonth() - dateOfBirth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && referenceDate.getDate() < dateOfBirth.getDate())) {
+    age -= 1;
+  }
+  return age;
 }
 
 export function normalizeGender(value: unknown): GenderBucket {
@@ -68,6 +81,16 @@ function isAffectationActive(affectation: AffectationSummary, now: Date) {
   return true;
 }
 
+function isAffectationCoveringDate(affectation: AffectationSummary, referenceDate: Date) {
+  const startDate = parseDateValue(affectation?.dateDebut);
+  const endDate = parseDateValue(affectation?.dateFin);
+
+  if (startDate && referenceDate < startDate) return false;
+  if (endDate && referenceDate > endDate) return false;
+
+  return true;
+}
+
 function sortAffectationsForCurrent(a: AffectationSummary, b: AffectationSummary) {
   const aPrimary = a?.principale ? 1 : 0;
   const bPrimary = b?.principale ? 1 : 0;
@@ -76,6 +99,34 @@ function sortAffectationsForCurrent(a: AffectationSummary, b: AffectationSummary
   const aStart = parseDateValue(a?.dateDebut)?.getTime() ?? 0;
   const bStart = parseDateValue(b?.dateDebut)?.getTime() ?? 0;
   return bStart - aStart;
+}
+
+function getDirectionLevel(niveau: unknown): "DIRECTION" | "SOUS_DIRECTION" | "BUREAU" {
+  const level = toSafeNumber(niveau);
+  if (level <= 0) return "DIRECTION";
+  if (level === 1) return "SOUS_DIRECTION";
+  return "BUREAU";
+}
+
+function getDirectionLevelLabel(level: "DIRECTION" | "SOUS_DIRECTION" | "BUREAU") {
+  if (level === "DIRECTION") return "Direction";
+  if (level === "SOUS_DIRECTION") return "Sous-direction";
+  return "Bureau";
+}
+
+function getCurrentAffectation(agent: AgentDashboardItem | null | undefined) {
+  const affectations = Array.isArray(agent?.affectations) ? agent!.affectations! : [];
+  const now = new Date();
+  const active = affectations.filter((item) => isAffectationActive(item, now));
+  const candidates = (active.length ? active : affectations).slice().sort(sortAffectationsForCurrent);
+  return candidates[0] ?? null;
+}
+
+function getAffectationForDate(agent: AgentDashboardItem, referenceDate: Date) {
+  const affectations = Array.isArray(agent?.affectations) ? agent.affectations : [];
+  const scoped = affectations.filter((item) => isAffectationCoveringDate(item, referenceDate));
+  const candidates = (scoped.length ? scoped : affectations).slice().sort(sortAffectationsForCurrent);
+  return candidates[0] ?? null;
 }
 
 function buildAssignmentSnapshot(
@@ -87,6 +138,7 @@ function buildAssignmentSnapshot(
   const type = affectation.typeOrgaUniteProvince.typeUnite;
   const direction = affectation.typeOrgaUniteProvince.uniteOrganisationnelle;
   const province = affectation.typeOrgaUniteProvince.province;
+  const directionLevel = getDirectionLevel(direction?.niveau);
 
   return {
     gender,
@@ -94,6 +146,8 @@ function buildAssignmentSnapshot(
     typeLabel: type ? `${type.code} - ${type.nom}` : "Sans station",
     directionId: direction?.id ?? null,
     directionLabel: direction ? `${direction.code} - ${direction.nom}` : "Sans direction",
+    directionLevel,
+    directionLevelLabel: getDirectionLevelLabel(directionLevel),
     provinceId: province?.id ?? null,
     provinceLabel: province ? `${province.code} - ${province.nom}` : "Sans province",
   };
@@ -177,6 +231,28 @@ function buildDirectionTree(nodes: Array<{ id: number; code: string; nom: string
   return roots;
 }
 
+function incrementNumericMap(map: Map<number, number>, key: number | null | undefined, increment = 1) {
+  if (!key || !Number.isFinite(key)) return;
+  map.set(key, (map.get(key) ?? 0) + increment);
+}
+
+export function resolveAgentRattachement(agent: AgentDashboardItem | null | undefined) {
+  const affectation = getCurrentAffectation(agent);
+  if (!affectation?.typeOrgaUniteProvince) {
+    return null;
+  }
+
+  const snapshot = buildAssignmentSnapshot(affectation, normalizeGender(agent?.genre));
+  if (!snapshot) return null;
+
+  return {
+    province: snapshot.provinceLabel,
+    station: snapshot.typeLabel,
+    direction: snapshot.directionLabel,
+    niveauDirection: snapshot.directionLevelLabel,
+  };
+}
+
 export function getTypeRoots(types: OrganisationType[]) {
   const ids = new Set(types.map((type) => type.id));
   return types
@@ -217,14 +293,16 @@ export function buildOverviewAnalytics(
   const now = new Date();
   const currentAssignments: AssignmentSnapshot[] = [];
   const activeAffectationAssignments: AssignmentSnapshot[] = [];
+  const presenceEventAssignments: AssignmentSnapshot[] = [];
+  const congeEventAssignments: AssignmentSnapshot[] = [];
+  const retirementAssignments: AssignmentSnapshot[] = [];
   const filteredAgents: AgentDashboardItem[] = [];
 
   for (const agent of agents) {
     const gender = normalizeGender(agent?.genre);
     const affectations = Array.isArray(agent?.affectations) ? agent!.affectations! : [];
     const activeAffectations = affectations.filter((item) => isAffectationActive(item, now));
-    const orderedCurrentCandidates = (activeAffectations.length ? activeAffectations : affectations).slice().sort(sortAffectationsForCurrent);
-    const currentAffectation = orderedCurrentCandidates[0] ?? null;
+    const currentAffectation = getCurrentAffectation(agent);
     const currentSnapshot = buildAssignmentSnapshot(currentAffectation, gender);
 
     const matchesSelectedProvince =
@@ -235,6 +313,14 @@ export function buildOverviewAnalytics(
       filteredAgents.push(agent);
       if (currentSnapshot) {
         currentAssignments.push(currentSnapshot);
+
+        const birthDate = parseDateValue(agent?.datenais);
+        if (birthDate) {
+          const age = getAgeInYears(birthDate, now);
+          if (age >= RETIREMENT_MIN_AGE) {
+            retirementAssignments.push(currentSnapshot);
+          }
+        }
       }
     }
 
@@ -243,6 +329,26 @@ export function buildOverviewAnalytics(
       if (!snapshot) continue;
       if (selectedProvinceId != null && snapshot.provinceId !== selectedProvinceId) continue;
       activeAffectationAssignments.push(snapshot);
+    }
+
+    for (const presence of agent.presences ?? []) {
+      const eventDate = parseDateValue(presence?.date);
+      if (!eventDate) continue;
+      const eventAffectation = getAffectationForDate(agent, eventDate);
+      const snapshot = buildAssignmentSnapshot(eventAffectation, gender);
+      if (!snapshot) continue;
+      if (selectedProvinceId != null && snapshot.provinceId !== selectedProvinceId) continue;
+      presenceEventAssignments.push(snapshot);
+    }
+
+    for (const demande of agent.demandeConge ?? []) {
+      const eventDate = parseDateValue(demande?.dateDemande ?? demande?.dateDebut ?? demande?.dateFin);
+      if (!eventDate) continue;
+      const eventAffectation = getAffectationForDate(agent, eventDate);
+      const snapshot = buildAssignmentSnapshot(eventAffectation, gender);
+      if (!snapshot) continue;
+      if (selectedProvinceId != null && snapshot.provinceId !== selectedProvinceId) continue;
+      congeEventAssignments.push(snapshot);
     }
   }
 
@@ -260,6 +366,25 @@ export function buildOverviewAnalytics(
   const affectationsByStationMap = new Map<string, { key: string; label: string; value: number }>();
   const affectationsByProvinceMap = new Map<string, { key: string; label: string; value: number }>();
   const affectationsBySexMap = new Map<string, { key: string; label: string; value: number }>();
+  const presencesByDirectionMap = new Map<string, { key: string; label: string; value: number }>();
+  const presencesBySousDirectionMap = new Map<string, { key: string; label: string; value: number }>();
+  const presencesByBureauMap = new Map<string, { key: string; label: string; value: number }>();
+  const presencesByStationMap = new Map<string, { key: string; label: string; value: number }>();
+  const presencesByProvinceMap = new Map<string, { key: string; label: string; value: number }>();
+  const congesByDirectionMap = new Map<string, { key: string; label: string; value: number }>();
+  const congesBySousDirectionMap = new Map<string, { key: string; label: string; value: number }>();
+  const congesByBureauMap = new Map<string, { key: string; label: string; value: number }>();
+  const congesByStationMap = new Map<string, { key: string; label: string; value: number }>();
+  const congesByProvinceMap = new Map<string, { key: string; label: string; value: number }>();
+  const congesBySexMap = new Map<string, { key: string; label: string; value: number }>();
+  const retraitesByDirectionMap = new Map<string, { key: string; label: string; value: number }>();
+  const retraitesBySousDirectionMap = new Map<string, { key: string; label: string; value: number }>();
+  const retraitesByBureauMap = new Map<string, { key: string; label: string; value: number }>();
+  const retraitesByStationMap = new Map<string, { key: string; label: string; value: number }>();
+  const retraitesByProvinceMap = new Map<string, { key: string; label: string; value: number }>();
+  const retraitesBySexMap = new Map<string, { key: string; label: string; value: number }>();
+  const presenceCountByDirectionId = new Map<number, number>();
+  const congeCountByDirectionId = new Map<number, number>();
 
   for (const item of activeAffectationAssignments) {
     incrementMap(affectationsByDirectionMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
@@ -268,6 +393,51 @@ export function buildOverviewAnalytics(
 
     const sexLabel = item.gender === "HOMME" ? "Hommes" : item.gender === "FEMME" ? "Femmes" : "Autre";
     incrementMap(affectationsBySexMap, `sex:${item.gender}`, sexLabel, 1);
+  }
+
+  for (const item of presenceEventAssignments) {
+    incrementMap(presencesByStationMap, `type:${item.typeId ?? "none"}`, item.typeLabel, 1);
+    incrementMap(presencesByProvinceMap, `prov:${item.provinceId ?? "none"}`, item.provinceLabel, 1);
+    incrementNumericMap(presenceCountByDirectionId, item.directionId, 1);
+
+    if (item.directionLevel === "DIRECTION") {
+      incrementMap(presencesByDirectionMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    } else if (item.directionLevel === "SOUS_DIRECTION") {
+      incrementMap(presencesBySousDirectionMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    } else {
+      incrementMap(presencesByBureauMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    }
+  }
+
+  for (const item of congeEventAssignments) {
+    incrementMap(congesByStationMap, `type:${item.typeId ?? "none"}`, item.typeLabel, 1);
+    incrementMap(congesByProvinceMap, `prov:${item.provinceId ?? "none"}`, item.provinceLabel, 1);
+    incrementNumericMap(congeCountByDirectionId, item.directionId, 1);
+    const sexLabel = item.gender === "HOMME" ? "Hommes" : item.gender === "FEMME" ? "Femmes" : "Autre";
+    incrementMap(congesBySexMap, `sex:${item.gender}`, sexLabel, 1);
+
+    if (item.directionLevel === "DIRECTION") {
+      incrementMap(congesByDirectionMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    } else if (item.directionLevel === "SOUS_DIRECTION") {
+      incrementMap(congesBySousDirectionMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    } else {
+      incrementMap(congesByBureauMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    }
+  }
+
+  for (const item of retirementAssignments) {
+    incrementMap(retraitesByStationMap, `type:${item.typeId ?? "none"}`, item.typeLabel, 1);
+    incrementMap(retraitesByProvinceMap, `prov:${item.provinceId ?? "none"}`, item.provinceLabel, 1);
+    const sexLabel = item.gender === "HOMME" ? "Hommes" : item.gender === "FEMME" ? "Femmes" : "Autre";
+    incrementMap(retraitesBySexMap, `sex:${item.gender}`, sexLabel, 1);
+
+    if (item.directionLevel === "DIRECTION") {
+      incrementMap(retraitesByDirectionMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    } else if (item.directionLevel === "SOUS_DIRECTION") {
+      incrementMap(retraitesBySousDirectionMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    } else {
+      incrementMap(retraitesByBureauMap, `dir:${item.directionId ?? "none"}`, item.directionLabel, 1);
+    }
   }
 
   const sexByDirection = buildGenderSplit(
@@ -346,6 +516,25 @@ export function buildOverviewAnalytics(
     affectationsByStation: mapToSortedPieData(affectationsByStationMap),
     affectationsByProvince: mapToSortedPieData(affectationsByProvinceMap),
     affectationsBySex: mapToSortedPieData(affectationsBySexMap, 3),
+    presencesByProvince: mapToSortedPieData(presencesByProvinceMap),
+    presencesByStation: mapToSortedPieData(presencesByStationMap),
+    presencesByDirection: mapToSortedPieData(presencesByDirectionMap),
+    presencesBySousDirection: mapToSortedPieData(presencesBySousDirectionMap),
+    presencesByBureau: mapToSortedPieData(presencesByBureauMap),
+    congesByProvince: mapToSortedPieData(congesByProvinceMap),
+    congesByStation: mapToSortedPieData(congesByStationMap),
+    congesByDirection: mapToSortedPieData(congesByDirectionMap),
+    congesBySousDirection: mapToSortedPieData(congesBySousDirectionMap),
+    congesByBureau: mapToSortedPieData(congesByBureauMap),
+    congesBySex: mapToSortedPieData(congesBySexMap, 3),
+    retraitesByProvince: mapToSortedPieData(retraitesByProvinceMap),
+    retraitesByStation: mapToSortedPieData(retraitesByStationMap),
+    retraitesByDirection: mapToSortedPieData(retraitesByDirectionMap),
+    retraitesBySousDirection: mapToSortedPieData(retraitesBySousDirectionMap),
+    retraitesByBureau: mapToSortedPieData(retraitesByBureauMap),
+    retraitesBySex: mapToSortedPieData(retraitesBySexMap, 3),
+    presenceCountByDirectionId,
+    congeCountByDirectionId,
     sexByDirection: sexByDirection.slice(0, 12),
     sexByStation: sexByStation.slice(0, 12),
     sexByProvinceAndStation: sexByProvinceAndStation.slice(0, 12),

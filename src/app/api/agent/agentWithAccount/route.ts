@@ -155,6 +155,7 @@ export async function POST(req: Request) {
         data: {
           login: email,
           motDePasse: mopasse,
+          actif: false,
         },
       })
 
