@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { CiblePlanification } from "@/generated/prisma";
 
 const KINSHASA_TIMEZONE = "Africa/Kinshasa";
 const DAY_LABELS = {
@@ -290,6 +291,74 @@ export async function getActiveCongeForAgent(agentId: number, date: Date) {
   });
 }
 
+async function getPrincipalOrganisationScopeForAgent(agentId: number) {
+  const affectation = await prisma.affectation.findFirst({
+    where: {
+      agentId,
+      actif: true,
+      principale: true,
+      statutOrganisationnel: "ACTIVE",
+    },
+    select: {
+      typeOrgaUniteProvince: {
+        select: {
+          provinceId: true,
+          uniteOrganisationnelleId: true,
+        },
+      },
+    },
+    orderBy: [{ dateDebut: "desc" }, { id: "desc" }],
+  });
+
+  return {
+    provinceId: affectation?.typeOrgaUniteProvince?.provinceId ?? null,
+    uniteOrganisationnelleId:
+      affectation?.typeOrgaUniteProvince?.uniteOrganisationnelleId ?? null,
+  };
+}
+
+async function getActiveHolidayForAgent(agentId: number, date: Date) {
+  const scope = await getPrincipalOrganisationScopeForAgent(agentId);
+  const targetFilters = [
+    { cible: CiblePlanification.TOUTE_ORGANISATION },
+    ...(scope.provinceId
+      ? [{ cible: CiblePlanification.PROVINCE, provinceId: scope.provinceId }]
+      : []),
+    ...(scope.uniteOrganisationnelleId
+      ? [
+          {
+            cible: CiblePlanification.UNITE,
+            uniteOrganisationnelleId: scope.uniteOrganisationnelleId,
+          },
+        ]
+      : []),
+  ];
+
+  return prisma.planification.findFirst({
+    where: {
+      typePlanification: { code: "JOUR_FERIE" },
+      statut: { in: ["PLANIFIE", "EN_COURS"] },
+      dateDebut: { lte: date },
+      AND: [
+        { OR: [{ dateFin: null }, { dateFin: { gte: date } }] },
+        { OR: targetFilters },
+      ],
+    },
+    include: {
+      typePlanification: {
+        select: { id: true, code: true, nom: true },
+      },
+      province: {
+        select: { id: true, code: true, nom: true },
+      },
+      uniteOrganisationnelle: {
+        select: { id: true, code: true, nom: true },
+      },
+    },
+    orderBy: [{ cible: "desc" }, { dateDebut: "desc" }, { id: "desc" }],
+  });
+}
+
 export async function getPresenceDayContextForUtilisateur(utilisateurId: number) {
   const agentId = await getAgentIdFromUtilisateurId(utilisateurId);
   if (!agentId) {
@@ -302,6 +371,7 @@ export async function getPresenceDayContextForUtilisateur(utilisateurId: number)
   }
 
   const conge = await getActiveCongeForAgent(agentId, horaireContext.todayDate);
+  const holiday = await getActiveHolidayForAgent(agentId, horaireContext.todayDate);
 
   if (conge) {
     return {
@@ -313,6 +383,17 @@ export async function getPresenceDayContextForUtilisateur(utilisateurId: number)
     };
   }
 
+  if (holiday) {
+    return {
+      ...horaireContext,
+      agentId,
+      state: "HOLIDAY" as const,
+      holiday,
+      conge: null,
+      schedule: horaireContext.activeSchedule ?? horaireContext.currentRangeSchedule ?? null,
+    };
+  }
+
   if (horaireContext.activeSchedule) {
     return {
       ...horaireContext,
@@ -320,6 +401,7 @@ export async function getPresenceDayContextForUtilisateur(utilisateurId: number)
       state: "WORKING" as const,
       schedule: horaireContext.activeSchedule,
       conge: null,
+      holiday: null,
     };
   }
 
@@ -330,6 +412,7 @@ export async function getPresenceDayContextForUtilisateur(utilisateurId: number)
       state: "OFF" as const,
       schedule: horaireContext.currentRangeSchedule,
       conge: null,
+      holiday: null,
     };
   }
 
@@ -339,5 +422,6 @@ export async function getPresenceDayContextForUtilisateur(utilisateurId: number)
     state: "NO_SCHEDULE" as const,
     schedule: horaireContext.nextSchedule,
     conge: null,
+    holiday: null,
   };
 }

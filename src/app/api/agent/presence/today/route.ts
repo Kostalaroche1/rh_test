@@ -100,6 +100,15 @@ export const GET = async () => {
         })
     }
 
+    if (dayContext.state === "HOLIDAY") {
+        getData = await syncPresenceStatusForDay({
+            presence: getData,
+            agentId: dayContext.agentId,
+            todayDay,
+            statut: "OFF",
+        })
+    }
+
     if (dayContext.state === "OFF") {
         getData = await syncPresenceStatusForDay({
             presence: getData,
@@ -136,10 +145,24 @@ export const GET = async () => {
         })
     }
 
+    if (dayContext.state === "HOLIDAY") {
+        const holiday = dayContext.holiday;
+        return NextResponse.json({
+            getData,
+            displayStatut: "JOUR_FERIE",
+            working: false,
+            canCheckIn: false,
+            canCheckOut: false,
+            schedule: null,
+            message: `Jour ferie aujourd'hui: ${holiday?.titre ?? "Jour ferie"}. Aucun pointage de presence n'est autorise.`,
+        })
+    }
+
     if (dayContext.state === "OFF") {
         const schedule = dayContext.schedule;
         return NextResponse.json({
             getData,
+            displayStatut: "OFF",
             working: false,
             canCheckIn: false,
             canCheckOut: false,
@@ -161,6 +184,7 @@ export const GET = async () => {
         const nextSchedule = dayContext.schedule;
         return NextResponse.json({
             getData,
+            displayStatut: "OFF",
             working: false,
             canCheckIn: false,
             canCheckOut: false,
@@ -185,6 +209,7 @@ export const GET = async () => {
 
     return NextResponse.json({
         getData,
+        displayStatut: getData?.statut ?? null,
         working: schedule.isWithinSchedule,
         canCheckIn:
             schedule.isWithinSchedule &&

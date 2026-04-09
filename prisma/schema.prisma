@@ -230,6 +230,7 @@ model Province {
   updatedAt   DateTime @updatedAt
 
   typeOrgaUniteProvinces TypeOrgaUniteProvince[]
+  planifications         Planification[]
 
   @@index([actif])
 }
@@ -443,6 +444,13 @@ enum PrioritePlanification {
   CRITIQUE
 }
 
+enum CiblePlanification {
+  INDIVIDUEL
+  UNITE
+  PROVINCE
+  TOUTE_ORGANISATION
+}
+
 enum RoleParticipantPlanification {
   BENEFICIAIRE
   RESPONSABLE
@@ -480,7 +488,9 @@ model Planification {
   dateFin                DateTime?
   statut                 StatutPlanification   @default(BROUILLON)
   priorite               PrioritePlanification @default(NORMALE)
+  cible                  CiblePlanification    @default(INDIVIDUEL)
   uniteOrganisationnelleId Int?
+  provinceId             Int?
   creeParId              Int
   assigneParId           Int?
   valideParId            Int?
@@ -493,6 +503,7 @@ model Planification {
 
   typePlanification      TypePlanification       @relation(fields: [typePlanificationId], references: [id], onDelete: Restrict)
   uniteOrganisationnelle UniteOrganisationnelle? @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: SetNull)
+  province               Province?               @relation(fields: [provinceId], references: [id], onDelete: SetNull)
   creePar                Utilisateur             @relation("PlanificationCreePar", fields: [creeParId], references: [id], onDelete: Restrict)
   assignePar             Utilisateur?            @relation("PlanificationAssignePar", fields: [assigneParId], references: [id], onDelete: SetNull)
   validePar              Utilisateur?            @relation("PlanificationValidePar", fields: [valideParId], references: [id], onDelete: SetNull)
@@ -503,7 +514,9 @@ model Planification {
   rappels                RappelPlanification[]
 
   @@index([typePlanificationId])
+  @@index([cible])
   @@index([uniteOrganisationnelleId])
+  @@index([provinceId])
   @@index([creeParId])
   @@index([assigneParId])
   @@index([valideParId])

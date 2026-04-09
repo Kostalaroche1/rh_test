@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import {
+  IconCopy,
   IconDotsVertical,
   IconPencil,
   IconPlus,
@@ -13,13 +14,14 @@ import {
   CreatePlanification,
   DeletePlanification,
   GetPlanifications,
-  type PlanificationParticipantItem,
   GetTypesPlanification,
   type PlanificationItem,
+  type PlanificationWriteInput,
   type TypePlanificationItem,
   UpdatePlanification,
 } from "@/app/action/planification/action";
 import { GetAgent } from "@/app/action/agent/getAgent/action";
+import { GetProvinces, type ProvinceItem } from "@/app/action/provinces/action";
 import { GetUnitesOrganisationnelles, type UniteOrganisationnelleItem } from "@/app/action/organisation-dynamique/action";
 import { GetAffectations, type Affectation } from "@/app/action/affectations/action";
 import { GetAllDemandeConge } from "@/app/action/conge/demandeconge/action";
@@ -78,6 +80,22 @@ type AgentLookup = {
   matricule?: string;
 };
 
+type AgentApiItem = {
+  id?: number;
+  matricule?: string;
+  nom?: string;
+  prenom?: string;
+  compteAgent?: {
+    agentId?: number;
+    agent?: {
+      id?: number;
+      matricule?: string;
+      nom?: string;
+      prenom?: string;
+    } | null;
+  } | null;
+};
+
 type DemandeCongeLookup = {
   id: number;
   statut?: string;
@@ -98,9 +116,12 @@ type FormState = {
   typePlanificationId: string;
   dateDebut: string;
   dateFin: string;
+  dateRappel: string;
   statut: PlanificationItem["statut"];
   priorite: PlanificationItem["priorite"];
+  cible: PlanificationItem["cible"];
   uniteOrganisationnelleId: string;
+  provinceId: string;
   demandeCongeId: string;
   affectationId: string;
   notes: string;
@@ -113,9 +134,12 @@ const emptyForm: FormState = {
   typePlanificationId: "",
   dateDebut: "",
   dateFin: "",
+  dateRappel: "",
   statut: "BROUILLON",
   priorite: "NORMALE",
+  cible: "INDIVIDUEL",
   uniteOrganisationnelleId: "",
+  provinceId: "",
   demandeCongeId: "",
   affectationId: "",
   notes: "",
@@ -137,6 +161,23 @@ const PLAN_PRIORITIES: Array<{ value: PlanificationItem["priorite"]; label: stri
   { value: "ELEVEE", label: "Elevee" },
   { value: "CRITIQUE", label: "Critique" },
 ];
+
+const PLAN_TARGETS: Array<{ value: PlanificationItem["cible"]; label: string }> = [
+  { value: "INDIVIDUEL", label: "Individuel" },
+  { value: "UNITE", label: "Unite" },
+  { value: "PROVINCE", label: "Province" },
+  { value: "TOUTE_ORGANISATION", label: "Toute l'organisation" },
+];
+
+const TYPE_TARGET_RULES: Record<
+  string,
+  Array<PlanificationItem["cible"]>
+> = {
+  CONGE: ["INDIVIDUEL"],
+  ENTRETIEN: ["INDIVIDUEL"],
+  AFFECTATION: ["INDIVIDUEL"],
+  JOUR_FERIE: ["UNITE", "PROVINCE", "TOUTE_ORGANISATION"],
+};
 
 function formatDate(value?: string | null) {
   if (!value) {
@@ -168,6 +209,36 @@ function getTodayInput() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function shiftInputDateByOneYear(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  const shifted = new Date(Date.UTC(year + 1, month - 1, day));
+  return shifted.toISOString().slice(0, 10);
+}
+
+function duplicateHolidayTitleForNextYear(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const currentYear = new Date().getFullYear();
+  const explicitYear = trimmed.match(/\b(20\d{2})\b/);
+  if (!explicitYear) {
+    return `${trimmed} ${currentYear + 1}`;
+  }
+
+  const nextYear = String(Number(explicitYear[1]) + 1);
+  return trimmed.replace(explicitYear[1], nextYear);
+}
+
 function normalizeDemandes(raw: any): DemandeCongeLookup[] {
   if (Array.isArray(raw?.getData)) {
     return raw.getData;
@@ -182,6 +253,44 @@ function normalizeDemandes(raw: any): DemandeCongeLookup[] {
   }
 
   return [];
+}
+
+function normalizeAgents(raw: unknown): AgentLookup[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const seen = new Set<number>();
+  const normalized: AgentLookup[] = [];
+
+  for (const item of raw as AgentApiItem[]) {
+    const nestedAgent = item?.compteAgent?.agent;
+    const agentId = Number(
+      nestedAgent?.id ?? item?.compteAgent?.agentId ?? item?.id
+    );
+
+    if (!Number.isFinite(agentId) || seen.has(agentId)) {
+      continue;
+    }
+
+    const matricule = nestedAgent?.matricule ?? item?.matricule;
+    const nom = nestedAgent?.nom ?? item?.nom;
+    const prenom = nestedAgent?.prenom ?? item?.prenom;
+
+    if (!matricule && !nom && !prenom) {
+      continue;
+    }
+
+    seen.add(agentId);
+    normalized.push({
+      id: agentId,
+      matricule,
+      nom,
+      prenom,
+    });
+  }
+
+  return normalized;
 }
 
 function getStatusBadgeVariant(status: PlanificationItem["statut"]) {
@@ -208,6 +317,19 @@ function getPriorityBadgeVariant(priority: PlanificationItem["priorite"]) {
   }
 }
 
+function getTargetLabel(target: PlanificationItem["cible"]) {
+  switch (target) {
+    case "UNITE":
+      return "Unite";
+    case "PROVINCE":
+      return "Province";
+    case "TOUTE_ORGANISATION":
+      return "Toute l'organisation";
+    default:
+      return "Individuel";
+  }
+}
+
 export default function TableauPlanifications() {
   const { auth }: any = useAuth();
   const [search, setSearch] = useState("");
@@ -223,9 +345,13 @@ export default function TableauPlanifications() {
     ["types-planification"],
     GetTypesPlanification
   );
-  const { data: agentsRaw = [] } = useGet<AgentLookup[]>(
+  const { data: agentsRaw = [] } = useGet<AgentApiItem[]>(
     ["agents-planification"],
     GetAgent
+  );
+  const { data: provincesRaw = [] } = useGet<ProvinceItem[]>(
+    ["provinces-planification"],
+    GetProvinces
   );
   const { data: unitesRaw = [] } = useGet<UniteOrganisationnelleItem[]>(
     ["organisation-unites-planification"],
@@ -242,7 +368,8 @@ export default function TableauPlanifications() {
 
   const planifications = Array.isArray(planificationsRaw) ? planificationsRaw : [];
   const types = Array.isArray(typesRaw) ? typesRaw : [];
-  const agents = Array.isArray(agentsRaw) ? agentsRaw : [];
+  const agents = useMemo(() => normalizeAgents(agentsRaw), [agentsRaw]);
+  const provinces = Array.isArray(provincesRaw) ? provincesRaw : [];
   const unites = Array.isArray(unitesRaw) ? unitesRaw : [];
   const affectations = Array.isArray(affectationsRaw) ? affectationsRaw : [];
   const demandes = normalizeDemandes(demandesRaw);
@@ -275,7 +402,6 @@ export default function TableauPlanifications() {
     "planification.assign",
     "planification.validate",
   ]);
-
   const filteredPlanifications = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) {
@@ -291,7 +417,7 @@ export default function TableauPlanifications() {
             .join(" ")
         : "";
 
-      return `${item.titre} ${item.typePlanification?.nom ?? ""} ${item.uniteOrganisationnelle?.nom ?? ""} ${item.statut} ${item.priorite} ${participants}`
+      return `${item.titre} ${item.typePlanification?.nom ?? ""} ${item.uniteOrganisationnelle?.nom ?? ""} ${item.province?.nom ?? ""} ${item.cible ?? ""} ${item.statut} ${item.priorite} ${participants}`
         .toLowerCase()
         .includes(query);
     });
@@ -301,6 +427,28 @@ export default function TableauPlanifications() {
     () => new Set(form.participantAgentIds),
     [form.participantAgentIds]
   );
+  const selectedType = useMemo(
+    () => types.find((type) => String(type.id) === form.typePlanificationId) ?? null,
+    [types, form.typePlanificationId]
+  );
+  const isHolidayType = selectedType?.code === "JOUR_FERIE";
+  const allowedTargets = useMemo(() => {
+    if (!selectedType?.code) {
+      return PLAN_TARGETS;
+    }
+
+    const allowed = TYPE_TARGET_RULES[selectedType.code];
+    if (!allowed) {
+      return PLAN_TARGETS;
+    }
+
+    return PLAN_TARGETS.filter((target) => allowed.includes(target.value));
+  }, [selectedType]);
+  const canLinkDemandeConge = selectedType?.code === "CONGE";
+  const canLinkAffectation = selectedType?.code === "AFFECTATION";
+  const showParticipants = form.cible === "INDIVIDUEL" && !isHolidayType;
+  const showUnitTarget = form.cible === "UNITE";
+  const showProvinceTarget = form.cible === "PROVINCE";
 
   const submitting = creating || updating;
   const isEditing = Boolean(form.id);
@@ -322,15 +470,46 @@ export default function TableauPlanifications() {
       typePlanificationId: item.typePlanificationId ? String(item.typePlanificationId) : "",
       dateDebut: formatDateInput(item.dateDebut),
       dateFin: formatDateInput(item.dateFin),
+      dateRappel:
+        Array.isArray(item.rappels) && item.rappels.length > 0
+          ? formatDateInput(item.rappels[0]?.dateRappel)
+          : "",
       statut: item.statut ?? "BROUILLON",
       priorite: item.priorite ?? "NORMALE",
+      cible: item.cible ?? "INDIVIDUEL",
       uniteOrganisationnelleId: item.uniteOrganisationnelleId ? String(item.uniteOrganisationnelleId) : "",
+      provinceId: item.provinceId ? String(item.provinceId) : "",
       demandeCongeId: item.demandeCongeId ? String(item.demandeCongeId) : "",
       affectationId: item.affectationId ? String(item.affectationId) : "",
       notes: item.notes ?? "",
       participantAgentIds: Array.isArray(item.participants)
         ? item.participants.map((participant: any) => String(participant.agentId))
         : [],
+    });
+    setDialogOpen(true);
+  }
+
+  function openDuplicateHoliday(item: any) {
+    const duplicatedStart = shiftInputDateByOneYear(formatDateInput(item.dateDebut));
+    const duplicatedEnd = shiftInputDateByOneYear(formatDateInput(item.dateFin));
+
+    setForm({
+      id: undefined,
+      titre: duplicateHolidayTitleForNextYear(item.titre ?? ""),
+      description: item.description ?? "",
+      typePlanificationId: item.typePlanificationId ? String(item.typePlanificationId) : "",
+      dateDebut: duplicatedStart,
+      dateFin: duplicatedEnd,
+      dateRappel: duplicatedStart,
+      statut: "BROUILLON",
+      priorite: item.priorite ?? "NORMALE",
+      cible: item.cible ?? "TOUTE_ORGANISATION",
+      uniteOrganisationnelleId: item.uniteOrganisationnelleId ? String(item.uniteOrganisationnelleId) : "",
+      provinceId: item.provinceId ? String(item.provinceId) : "",
+      demandeCongeId: "",
+      affectationId: "",
+      notes: item.notes ?? "",
+      participantAgentIds: [],
     });
     setDialogOpen(true);
   }
@@ -364,13 +543,12 @@ export default function TableauPlanifications() {
       return;
     }
 
-    const participants: PlanificationParticipantItem[] = form.participantAgentIds.map((agentId) => ({
-      agentId: Number(agentId),
-      roleDansPlan: "BENEFICIAIRE",
-      obligatoire: true,
-    }));
+    if (form.dateRappel && form.dateRappel > form.dateDebut) {
+      toast.error("La date de rappel doit etre anterieure ou egale a la date de debut.");
+      return;
+    }
 
-    const payload: Partial<PlanificationItem> = {
+    const payload: PlanificationWriteInput = {
       titre: form.titre.trim(),
       description: form.description.trim() || null,
       typePlanificationId: Number(form.typePlanificationId),
@@ -378,12 +556,29 @@ export default function TableauPlanifications() {
       dateFin: form.dateFin || null,
       statut: form.statut,
       priorite: form.priorite,
+      cible: form.cible,
       uniteOrganisationnelleId: form.uniteOrganisationnelleId ? Number(form.uniteOrganisationnelleId) : null,
+      provinceId: form.provinceId ? Number(form.provinceId) : null,
       demandeCongeId: form.demandeCongeId ? Number(form.demandeCongeId) : null,
       affectationId: form.affectationId ? Number(form.affectationId) : null,
       notes: form.notes.trim() || null,
-      participants,
-      rappels: [],
+      participants: showParticipants
+        ? form.participantAgentIds.map((agentId) => ({
+            agentId: Number(agentId),
+            roleDansPlan: "BENEFICIAIRE" as const,
+            obligatoire: true,
+          }))
+        : [],
+      rappels: form.dateRappel
+        ? [
+            {
+              dateRappel: form.dateRappel,
+              canal: "APP" as const,
+              message: null,
+              envoye: false,
+            },
+          ]
+        : [],
     };
 
     try {
@@ -461,6 +656,7 @@ export default function TableauPlanifications() {
             <TableHead>Titre</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Periode</TableHead>
+            <TableHead>Cible</TableHead>
             <TableHead>Unite</TableHead>
             <TableHead>Participants</TableHead>
             <TableHead>Statut</TableHead>
@@ -483,6 +679,14 @@ export default function TableauPlanifications() {
                 <TableCell>{item.typePlanification?.nom ?? "--"}</TableCell>
                 <TableCell>
                   {formatDate(item.dateDebut)} - {formatDate(item.dateFin)}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <span>{getTargetLabel(item.cible)}</span>
+                    {item.province?.nom ? (
+                      <span className="text-xs text-muted-foreground">{item.province.nom}</span>
+                    ) : null}
+                  </div>
                 </TableCell>
                 <TableCell>{item.uniteOrganisationnelle?.nom ?? "--"}</TableCell>
                 <TableCell>
@@ -512,6 +716,12 @@ export default function TableauPlanifications() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {item.typePlanification?.code === "JOUR_FERIE" && (
+                          <DropdownMenuItem onClick={() => openDuplicateHoliday(item)}>
+                            <IconCopy className="mr-2 h-4 w-4" />
+                            Dupliquer pour l'annee suivante
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => openEdit(item)}>
                           <IconPencil className="mr-2 h-4 w-4" />
                           Modifier
@@ -532,7 +742,7 @@ export default function TableauPlanifications() {
 
           {!isPending && filteredPlanifications.length === 0 && (
             <TableRow>
-              <TableCell colSpan={canManage ? 8 : 7} className="text-center text-muted-foreground">
+              <TableCell colSpan={canManage ? 9 : 8} className="text-center text-muted-foreground">
                 Aucune planification trouvee.
               </TableCell>
             </TableRow>
@@ -540,7 +750,7 @@ export default function TableauPlanifications() {
 
           {isPending && (
             <TableRow>
-              <TableCell colSpan={canManage ? 8 : 7} className="text-center text-muted-foreground">
+              <TableCell colSpan={canManage ? 9 : 8} className="text-center text-muted-foreground">
                 Chargement...
               </TableCell>
             </TableRow>
@@ -557,13 +767,13 @@ export default function TableauPlanifications() {
           }
         }}
       >
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isEditing ? "Modifier une planification" : "Creer une planification"}
             </DialogTitle>
             <DialogDescription>
-              Cette premiere version couvre le coeur du besoin RH: type, periode, participants et liens metier.
+              Definissez le type, la portee et les liens metier de la planification RH.
             </DialogDescription>
           </DialogHeader>
 
@@ -583,7 +793,30 @@ export default function TableauPlanifications() {
                 <Label>Type de planification</Label>
                 <Select
                   value={form.typePlanificationId}
-                  onValueChange={(value) => setForm((current) => ({ ...current, typePlanificationId: value }))}
+                  onValueChange={(value) =>
+                    setForm((current) => {
+                      const nextType = types.find((type) => String(type.id) === value);
+                      const nextIsHoliday = nextType?.code === "JOUR_FERIE";
+                      const nextAllowedTargets = nextType?.code
+                        ? TYPE_TARGET_RULES[nextType.code] ?? PLAN_TARGETS.map((target) => target.value)
+                        : PLAN_TARGETS.map((target) => target.value);
+                      const nextTarget = nextAllowedTargets.includes(current.cible)
+                        ? current.cible
+                        : nextAllowedTargets[0] ?? "INDIVIDUEL";
+
+                      return {
+                        ...current,
+                        typePlanificationId: value,
+                        cible: nextTarget,
+                        participantAgentIds:
+                          nextTarget === "INDIVIDUEL" && !nextIsHoliday
+                            ? current.participantAgentIds
+                            : [],
+                        demandeCongeId: nextType?.code === "CONGE" ? current.demandeCongeId : "",
+                        affectationId: nextType?.code === "AFFECTATION" ? current.affectationId : "",
+                      };
+                    })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selectionner un type" />
@@ -631,9 +864,55 @@ export default function TableauPlanifications() {
                   onChange={(event) => setForm((current) => ({ ...current, dateFin: event.target.value }))}
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="date-rappel-planification">Date de rappel</Label>
+                <Input
+                  id="date-rappel-planification"
+                  type="date"
+                  max={form.dateDebut || undefined}
+                  value={form.dateRappel}
+                  onChange={(event) => setForm((current) => ({ ...current, dateRappel: event.target.value }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Optionnel. Un rappel applicatif sera declenche a cette date.
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Cible</Label>
+                <Select
+                  value={form.cible}
+                  onValueChange={(value: PlanificationItem["cible"]) =>
+                    setForm((current) => ({
+                      ...current,
+                      cible: value,
+                      uniteOrganisationnelleId: value === "UNITE" ? current.uniteOrganisationnelleId : "",
+                      provinceId: value === "PROVINCE" ? current.provinceId : "",
+                      participantAgentIds: value === "INDIVIDUEL" ? current.participantAgentIds : [],
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allowedTargets.map((target) => (
+                      <SelectItem key={target.value} value={target.value}>
+                        {target.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedType?.code && TYPE_TARGET_RULES[selectedType.code] ? (
+                  <p className="text-xs text-muted-foreground">
+                    La cible disponible depend du type {selectedType.code.toLowerCase()}.
+                  </p>
+                ) : null}
+              </div>
+
               <div className="space-y-2">
                 <Label>Statut</Label>
                 <Select
@@ -682,6 +961,7 @@ export default function TableauPlanifications() {
                 <Label>Unite organisationnelle</Label>
                 <Select
                   value={form.uniteOrganisationnelleId || "__none__"}
+                  disabled={!showUnitTarget}
                   onValueChange={(value) =>
                     setForm((current) => ({
                       ...current,
@@ -690,7 +970,7 @@ export default function TableauPlanifications() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Optionnel" />
+                    <SelectValue placeholder={showUnitTarget ? "Selectionner une unite" : "Disponible pour cible Unite"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Aucune</SelectItem>
@@ -704,9 +984,36 @@ export default function TableauPlanifications() {
               </div>
 
               <div className="space-y-2">
+                <Label>Province</Label>
+                <Select
+                  value={form.provinceId || "__none__"}
+                  disabled={!showProvinceTarget}
+                  onValueChange={(value) =>
+                    setForm((current) => ({
+                      ...current,
+                      provinceId: value === "__none__" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={showProvinceTarget ? "Selectionner une province" : "Disponible pour cible Province"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Aucune</SelectItem>
+                    {provinces.map((province) => (
+                      <SelectItem key={province.id} value={String(province.id)}>
+                        {province.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label>Demande de conge liee</Label>
                 <Select
                   value={form.demandeCongeId || "__none__"}
+                  disabled={!canLinkDemandeConge}
                   onValueChange={(value) =>
                     setForm((current) => ({
                       ...current,
@@ -715,7 +1022,7 @@ export default function TableauPlanifications() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Optionnel" />
+                    <SelectValue placeholder={canLinkDemandeConge ? "Optionnel" : "Disponible seulement pour CONGE"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Aucune</SelectItem>
@@ -733,6 +1040,7 @@ export default function TableauPlanifications() {
                 <Label>Affectation liee</Label>
                 <Select
                   value={form.affectationId || "__none__"}
+                  disabled={!canLinkAffectation}
                   onValueChange={(value) =>
                     setForm((current) => ({
                       ...current,
@@ -741,7 +1049,7 @@ export default function TableauPlanifications() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Optionnel" />
+                    <SelectValue placeholder={canLinkAffectation ? "Optionnel" : "Disponible seulement pour AFFECTATION"} />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Aucune</SelectItem>
@@ -765,32 +1073,68 @@ export default function TableauPlanifications() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Participants</Label>
-              <div className="max-h-52 overflow-y-auto rounded-md border p-3">
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                  {agents.map((agent) => {
-                    const agentId = String(agent.id);
-                    return (
-                      <label
-                        key={agent.id}
-                        className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedParticipants.has(agentId)}
-                          onChange={(event) => toggleParticipant(agentId, event.target.checked)}
-                        />
-                        <span>
-                          {agent.matricule ? `${agent.matricule} - ` : ""}
-                          {agent.nom} {agent.prenom}
-                        </span>
-                      </label>
-                    );
-                  })}
+            {showParticipants ? (
+              <div className="space-y-2">
+                <Label>Participants</Label>
+                <div className="max-h-52 overflow-y-auto rounded-md border p-3">
+                  {agents.length === 0 ? (
+                    <div className="rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                      Aucun agent disponible pour la selection.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      {agents.map((agent) => {
+                        const agentId = String(agent.id);
+                        const isSelected = selectedParticipants.has(agentId);
+                        const agentLabel = [agent.nom, agent.prenom].filter(Boolean).join(" ").trim();
+
+                        return (
+                          <label
+                            key={agent.id}
+                            className={[
+                              "flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3 text-sm transition-colors",
+                              isSelected
+                                ? "border-primary bg-primary/5"
+                                : "border-border bg-background hover:bg-muted/40",
+                            ].join(" ")}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 shrink-0 accent-primary"
+                              checked={isSelected}
+                              onChange={(event) => toggleParticipant(agentId, event.target.checked)}
+                            />
+                            <div className="min-w-0">
+                              <div className="font-medium text-foreground">
+                                {agentLabel || `Agent #${agent.id}`}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {agent.matricule || "Matricule non renseigne"}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Cochez un ou plusieurs agents concernes par cette planification.
+                </p>
               </div>
-            </div>
+            ) : (
+              <div className="rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                {isHolidayType
+                  ? "Le type Jour ferie est collectif. Utilisez une cible Unite, Province ou Toute l'organisation."
+                  : selectedType?.code === "CONGE"
+                  ? "Le type Conge suit une logique individuelle et attend des agents participants."
+                  : selectedType?.code === "ENTRETIEN"
+                  ? "Le type Entretien suit une logique individuelle et attend des agents participants."
+                  : selectedType?.code === "AFFECTATION"
+                  ? "Le type Affectation suit une logique individuelle et peut etre relie a une affectation existante."
+                  : "Les participants individuels ne sont utilises que pour une planification ciblee sur des agents."}
+              </div>
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>

@@ -133,6 +133,11 @@ const DEFAULT_PLANIFICATION_TYPES = [
     nom: "Paie",
     description: "Echeances de cloture et publication de paie.",
   },
+  {
+    code: "JOUR_FERIE",
+    nom: "Jour ferie",
+    description: "Jours feries collectifs, fermetures exceptionnelles et evenements calendaires non travaillés.",
+  },
 ];
 
 const ACTION_LABELS = {

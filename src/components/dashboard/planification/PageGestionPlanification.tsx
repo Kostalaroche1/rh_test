@@ -7,6 +7,8 @@ import { useAuth } from "@/app/contexts/auth/context";
 import { hasAnyPermission } from "@/security/permissions";
 import TableauTypesPlanification from "@/components/dashboard/planification/TableauTypesPlanification";
 import TableauPlanifications from "@/components/dashboard/planification/TableauPlanifications";
+import CalendrierPlanifications from "@/components/dashboard/planification/CalendrierPlanifications";
+import RapportPlanifications from "@/components/dashboard/planification/RapportPlanifications";
 
 export default function PageGestionPlanification() {
   const { auth }: any = useAuth();
@@ -29,6 +31,8 @@ export default function PageGestionPlanification() {
   const visibleTabs = [
     canReadTypes ? { value: "types", label: "Types" } : null,
     canReadPlanifications ? { value: "planifications", label: "Planifications" } : null,
+    canReadPlanifications ? { value: "calendrier", label: "Calendrier" } : null,
+    canReadPlanifications ? { value: "rapport", label: "Rapport" } : null,
   ].filter(Boolean) as Array<{ value: string; label: string }>;
 
   if (!visibleTabs.length) {
@@ -70,6 +74,18 @@ export default function PageGestionPlanification() {
         {canReadPlanifications && (
           <TabsContent value="planifications">
             <TableauPlanifications />
+          </TabsContent>
+        )}
+
+        {canReadPlanifications && (
+          <TabsContent value="calendrier">
+            <CalendrierPlanifications />
+          </TabsContent>
+        )}
+
+        {canReadPlanifications && (
+          <TabsContent value="rapport">
+            <RapportPlanifications />
           </TabsContent>
         )}
       </Tabs>

@@ -12,6 +12,12 @@ export interface PlanificationParticipantItem {
   agentId: number;
   roleDansPlan?: "BENEFICIAIRE" | "RESPONSABLE" | "SUPERVISEUR" | "INTERVENANT";
   obligatoire?: boolean;
+  agent?: {
+    id: number;
+    matricule?: string | null;
+    nom?: string | null;
+    prenom?: string | null;
+  };
 }
 
 export interface RappelPlanificationItem {
@@ -20,6 +26,31 @@ export interface RappelPlanificationItem {
   canal?: "APP" | "EMAIL" | "SMS";
   message?: string | null;
   envoye?: boolean;
+}
+
+export interface PlanificationWriteInput {
+  titre: string;
+  description?: string | null;
+  typePlanificationId: number;
+  dateDebut: string;
+  dateFin?: string | null;
+  statut: "BROUILLON" | "PLANIFIE" | "EN_COURS" | "TERMINE" | "ANNULE" | "REPORTE";
+  priorite: "FAIBLE" | "NORMALE" | "ELEVEE" | "CRITIQUE";
+  cible: "INDIVIDUEL" | "UNITE" | "PROVINCE" | "TOUTE_ORGANISATION";
+  uniteOrganisationnelleId?: number | null;
+  provinceId?: number | null;
+  assigneParId?: number | null;
+  valideParId?: number | null;
+  dateValidation?: string | null;
+  demandeCongeId?: number | null;
+  affectationId?: number | null;
+  notes?: string | null;
+  participants?: PlanificationParticipantItem[];
+  rappels?: RappelPlanificationItem[];
+}
+
+export interface PlanificationUpdateInput extends PlanificationWriteInput {
+  id: number;
 }
 
 export interface PlanificationItem {
@@ -31,7 +62,9 @@ export interface PlanificationItem {
   dateFin?: string | null;
   statut: "BROUILLON" | "PLANIFIE" | "EN_COURS" | "TERMINE" | "ANNULE" | "REPORTE";
   priorite: "FAIBLE" | "NORMALE" | "ELEVEE" | "CRITIQUE";
+  cible: "INDIVIDUEL" | "UNITE" | "PROVINCE" | "TOUTE_ORGANISATION";
   uniteOrganisationnelleId?: number | null;
+  provinceId?: number | null;
   creeParId: number;
   assigneParId?: number | null;
   valideParId?: number | null;
@@ -39,6 +72,17 @@ export interface PlanificationItem {
   demandeCongeId?: number | null;
   affectationId?: number | null;
   notes?: string | null;
+  typePlanification?: TypePlanificationItem | null;
+  uniteOrganisationnelle?: {
+    id: number;
+    nom: string;
+    code?: string | null;
+  } | null;
+  province?: {
+    id: number;
+    nom: string;
+    code?: string | null;
+  } | null;
   participants?: PlanificationParticipantItem[];
   rappels?: RappelPlanificationItem[];
 }
@@ -88,7 +132,7 @@ export async function GetPlanifications(): Promise<PlanificationItem[]> {
   return Array.isArray(json?.data) ? json.data : [];
 }
 
-export async function CreatePlanification(data: Partial<PlanificationItem>) {
+export async function CreatePlanification(data: PlanificationWriteInput) {
   const response = await fetch("../api/planifications", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -97,7 +141,7 @@ export async function CreatePlanification(data: Partial<PlanificationItem>) {
   return response.json();
 }
 
-export async function UpdatePlanification(data: Partial<PlanificationItem> & { id: number }) {
+export async function UpdatePlanification(data: PlanificationUpdateInput) {
   const response = await fetch("../api/planifications", {
     method: "PUT",
     headers: { "content-type": "application/json" },
