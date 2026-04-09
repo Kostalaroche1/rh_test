@@ -14,8 +14,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-
 model Utilisateur {
   id           Int      @id @default(autoincrement())
   login        String   @unique
@@ -23,32 +21,35 @@ model Utilisateur {
   actif        Boolean  @default(true)
   dateCreation DateTime @default(now())
 
- roles        UtilisateurRole[]
-  compteAgent  CompteAgent?
+  roles       UtilisateurRole[]
+  compteAgent CompteAgent?
 
-  congesCrees         DemandeConge[] @relation("CongeConfirmPar")
-  congesValides       DemandeConge[] @relation("CongeValidePar")
-  congesTypeCrees  TypeConge[]
+  congesCrees     DemandeConge[] @relation("CongeConfirmPar")
+  congesValides   DemandeConge[] @relation("CongeValidePar")
+  congesTypeCrees TypeConge[]
 
   presencesConfirmees Presence [] @relation("ConfirmePresence")
   presencesValidees Presence [] @relation("ValidePresence")
   horaireTravail HoraireTravail [] @relation("creerHoraire")
   horaireAgent HoraireAgent [] @relation("creerHoraireAgent")
+  planificationsCrees Planification[] @relation("PlanificationCreePar")
+  planificationsAssignees Planification[] @relation("PlanificationAssignePar")
+  planificationsValidees Planification[] @relation("PlanificationValidePar")
 }
 
 model Role {
-  id          Int     @id @default(autoincrement())
-  key         String?
-  code        String? @unique
-  nom         String  @unique
-  description String?
-  actif       Boolean @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
-  notification Notification[]
-  utilisateurs UtilisateurRole[]
+  id             Int               @id @default(autoincrement())
+  key            String?
+  code           String?           @unique
+  nom            String            @unique
+  description    String?
+  actif          Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @default(now()) @updatedAt
+  notification   Notification[]
+  utilisateurs   UtilisateurRole[]
   rolePermission RolePermission[]
-  reglesPortee ReglePorteeRole[]
+  reglesPortee   ReglePorteeRole[]
 
   @@index([actif])
 }
@@ -72,25 +73,25 @@ enum genre {
 }
 
 model Agent {
-  id         Int      @id @default(autoincrement())
-  matricule  String   @unique
+  id         Int       @id @default(autoincrement())
+  matricule  String    @unique
   nom        String
   prenom     String
-  genre      String?  
-  photo      String?  @default("")
-  datenais   DateTime? 
+  genre      String?
+  photo      String?   @default("")
+  datenais   DateTime?
   statut     String
   dateEntree DateTime
-  actif      Boolean  @default(true)
+  actif      Boolean   @default(true)
 
-  compte     CompteAgent?
-  historique HistoriqueAgent[]
+  compte       CompteAgent?
+  historique   HistoriqueAgent[]
   affectations Affectation[]
-  paie Paie[]
+  paie         Paie[]
   demandeConge DemandeConge[]
-  presences     Presence[]
+  presences    Presence[]
   horaireAgent HoraireAgent[]
-
+  planificationParticipants PlanificationParticipant[]
 }
 
 model CompteAgent {
@@ -100,9 +101,9 @@ model CompteAgent {
   dateLiaison   DateTime @default(now())
   liePar        Int
 
-  agent       Agent       @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  utilisateur Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
-  Rapport Rapport[]
+  agent        Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  utilisateur  Utilisateur    @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  Rapport      Rapport[]
   Notification Notification[]
 }
 
@@ -118,54 +119,54 @@ model HistoriqueAgent {
 }
 
 model Poste {
-  id          Int      @id @default(autoincrement())
-  code        String       @unique
-  libelle     String
-  description String?
+  id                       Int      @id @default(autoincrement())
+  code                     String   @unique
+  libelle                  String
+  description              String?
   uniteOrganisationnelleId Int
-  actif       Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  actif                    Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @default(now()) @updatedAt
 
   uniteOrganisationnelle UniteOrganisationnelle @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: Restrict)
 
-  fonctions     Fonction[]
-  affectations  Affectation[]
+  fonctions    Fonction[]
+  affectations Affectation[]
 
   @@index([uniteOrganisationnelleId])
   @@index([actif])
 }
 
 model Fonction {
-  id          Int      @id @default(autoincrement())
-  code        String       @unique
-  libelle     String
+  id      Int    @id @default(autoincrement())
+  code    String @unique
+  libelle String
 
-  posteId     Int?
-  poste       Poste?       @relation(fields: [posteId], references: [id])
+  posteId Int?
+  poste   Poste? @relation(fields: [posteId], references: [id])
 
   affectations Affectation[]
 }
 
 model Grade {
- id          Int      @id @default(autoincrement())
-  code            String       @unique
-  libelle         String
-  indiceSalarial  Int
+  id             Int    @id @default(autoincrement())
+  code           String @unique
+  libelle        String
+  indiceSalarial Int
 
-  affectations    Affectation[]
+  affectations Affectation[]
 }
 
 enum TypeAffectation {
-  PROMOTION        // Changement de grade supérieur
-  MUTATION         // Changement de service ou lieu
-  NOMINATION       // Nomination à un poste
-  AFFECTATION      // Nouvelle affectation simple
-  INTERIM          // Affectation temporaire
-  REINTEGRATION    // Retour après suspension/congé
-  DETACHEMENT      // Détachement vers une autre structure
-  MONTEE_GRADE     // Montée en grade
-  RETROGRADATION   // Baisse de grade
+  PROMOTION // Changement de grade supérieur
+  MUTATION // Changement de service ou lieu
+  NOMINATION // Nomination à un poste
+  AFFECTATION // Nouvelle affectation simple
+  INTERIM // Affectation temporaire
+  REINTEGRATION // Retour après suspension/congé
+  DETACHEMENT // Détachement vers une autre structure
+  MONTEE_GRADE // Montée en grade
+  RETROGRADATION // Baisse de grade
 }
 
 enum TypeContrat {
@@ -188,6 +189,7 @@ enum PorteeDonnees {
   SOI_MEME
   UNITE
   UNITE_ET_DESCENDANTS
+  PROVINCE
   TOUTE_ORGANISATION
 }
 
@@ -202,112 +204,156 @@ model TypeUniteOrganisationnelle {
   nom         String
   code        String   @unique
   description String?
+  parentId    Int?
   ordre       Int      @default(0)
   actif       Boolean  @default(true)
   systeme     Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  unites      UniteOrganisationnelle[]
+  parent                 TypeUniteOrganisationnelle?  @relation("ArbreTypeUniteOrganisationnelle", fields: [parentId], references: [id], onDelete: SetNull)
+  enfants                TypeUniteOrganisationnelle[] @relation("ArbreTypeUniteOrganisationnelle")
+  typeOrgaUniteProvinces TypeOrgaUniteProvince[]
 
+  @@index([parentId])
   @@index([actif])
   @@index([ordre])
 }
 
-model UniteOrganisationnelle {
-  id            Int      @id @default(autoincrement())
-  nom           String
-  code          String   @unique
-  description   String?
-  typeUniteId   Int
-  parentId      Int?
-  chemin        String?
-  niveau        Int      @default(0)
-  actif         Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model Province {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  nom         String   @unique
+  description String?
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  typeUnite     TypeUniteOrganisationnelle @relation(fields: [typeUniteId], references: [id])
-  parent        UniteOrganisationnelle?    @relation("ArbreOrganisationnel", fields: [parentId], references: [id], onDelete: SetNull)
-  enfants       UniteOrganisationnelle[]   @relation("ArbreOrganisationnel")
+  typeOrgaUniteProvinces TypeOrgaUniteProvince[]
+  planifications         Planification[]
+
+  @@index([actif])
+}
+
+model UniteOrganisationnelle {
+  id          Int      @id @default(autoincrement())
+  nom         String
+  code        String   @unique
+  description String?
+  parentId    Int?
+  chemin      String?
+  niveau      Int      @default(0)
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent  UniteOrganisationnelle?  @relation("ArbreOrganisationnel", fields: [parentId], references: [id], onDelete: SetNull)
+  enfants UniteOrganisationnelle[] @relation("ArbreOrganisationnel")
 
   postes        Poste[]
-  affectations  Affectation[]
+  planifications Planification[]
+  typeOrgaUniteProvinces TypeOrgaUniteProvince[]
 
-  @@index([typeUniteId])
   @@index([parentId])
   @@index([actif])
   @@index([chemin])
 }
 
-model Affectation {
-  id                Int            @id @default(autoincrement())
-  agentId           Int
-  posteId           Int
-  fonctionId        Int?
-  gradeId           Int
-  uniteOrganisationnelleId Int
-  dateDebut         DateTime
-  dateFin           DateTime?
-  statut            StatutConge?     @default(EN_ATTENTE)
-  statutOrganisationnel StatutAffectationOrganisationnelle @default(ACTIVE)
-  motif             String?
-  typeContrat       TypeContrat?
-  statutContrat     StatutContrat?
-  type              TypeAffectation? @default(AFFECTATION)
-  principale        Boolean @default(true)
-  actif             Boolean @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @default(now()) @updatedAt
+model TypeOrgaUniteProvince {
+  id                       Int      @id @default(autoincrement())
+  typeUniteId              Int
+  uniteOrganisationnelleId Int?
+  provinceId               Int
+  actif                    Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  agent             Agent                @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  poste             Poste                @relation(fields: [posteId], references: [id], onDelete: Cascade)
-  fonction          Fonction?            @relation(fields: [fonctionId], references: [id], onDelete: Cascade)
-  grade             Grade                @relation(fields: [gradeId], references: [id], onDelete: Cascade)
-  uniteOrganisationnelle UniteOrganisationnelle @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: Restrict)
+  typeUnite              TypeUniteOrganisationnelle @relation(fields: [typeUniteId], references: [id], onDelete: Restrict)
+  uniteOrganisationnelle UniteOrganisationnelle?    @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: SetNull)
+  province               Province                   @relation(fields: [provinceId], references: [id], onDelete: Restrict)
+  affectations           Affectation[]
 
-  historique        HistoriqueAffectation[]
-
+  @@unique([typeUniteId, uniteOrganisationnelleId, provinceId])
+  @@index([typeUniteId])
   @@index([uniteOrganisationnelleId])
+  @@index([provinceId])
+  @@index([actif])
+  @@map("TYP_ORGA_UNI_PROV")
+}
+
+model Affectation {
+  id                      Int                                @id @default(autoincrement())
+  agentId                 Int
+  posteId                 Int
+  fonctionId              Int?
+  gradeId                 Int
+  typeOrgaUniteProvinceId Int
+  affectationOrigineId    Int?
+  dateDebut               DateTime
+  dateFin                 DateTime?
+  statut                  StatutConge?                       @default(EN_ATTENTE)
+  statutOrganisationnel   StatutAffectationOrganisationnelle @default(ACTIVE)
+  motif                   String?
+  typeContrat             TypeContrat?
+  statutContrat           StatutContrat?
+  type                    TypeAffectation?                   @default(AFFECTATION)
+  principale              Boolean                            @default(true)
+  actif                   Boolean                            @default(true)
+  createdAt               DateTime                           @default(now())
+  updatedAt               DateTime                           @default(now()) @updatedAt
+
+  agent                 Agent                 @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  poste                 Poste                 @relation(fields: [posteId], references: [id], onDelete: Cascade)
+  fonction              Fonction?             @relation(fields: [fonctionId], references: [id], onDelete: Cascade)
+  grade                 Grade                 @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  typeOrgaUniteProvince TypeOrgaUniteProvince @relation(fields: [typeOrgaUniteProvinceId], references: [id], onDelete: Restrict)
+  affectationOrigine    Affectation?          @relation("AffectationChain", fields: [affectationOrigineId], references: [id], onDelete: SetNull)
+  reaffectations        Affectation[]         @relation("AffectationChain")
+
+  historique HistoriqueAffectation[]
+  planifications Planification[]
+
+  @@index([typeOrgaUniteProvinceId])
+  @@index([affectationOrigineId])
   @@index([actif, principale])
   @@index([dateDebut, dateFin])
 }
 
 model HistoriqueAffectation {
-  id          Int      @id @default(autoincrement())
-  affectationId     Int
-  dateChangement    DateTime   @default(now())
-  ancienPoste       String?
-  nouveauPoste      String?
-  ancienGrade       String?
-  nouveauGrade      String?
-  motif             String
+  id             Int      @id @default(autoincrement())
+  affectationId  Int
+  dateChangement DateTime @default(now())
+  ancienPoste    String?
+  nouveauPoste   String?
+  ancienGrade    String?
+  nouveauGrade   String?
+  motif          String
 
-  affectation       Affectation @relation(fields: [affectationId], references: [id], onDelete: Cascade)
+  affectation Affectation @relation(fields: [affectationId], references: [id], onDelete: Cascade)
 }
 
 model Paie {
-  id                Int      @id @default(autoincrement())
-  agentId           Int
-  periode           String
-  datePaiement      DateTime?
-  salaireBase       Decimal
-  brut              Decimal
-  net               Decimal
-  etat              String
+  id           Int       @id @default(autoincrement())
+  agentId      Int
+  periode      String
+  datePaiement DateTime?
+  salaireBase  Decimal
+  brut         Decimal
+  net          Decimal
+  etat         String
 
-  agent             Agent        @relation(fields: [agentId], references: [id])
+  agent Agent @relation(fields: [agentId], references: [id])
 
-  primes            Prime[]
+  primes Prime[]
 }
 
 model Prime {
-  id                Int       @id @default(autoincrement())
-  paieId            Int
-  type              String
-  montant           Decimal
-  tag               String    @default("-")
-  paie              Paie      @relation(fields: [paieId], references: [id], onDelete: Cascade)
+  id      Int     @id @default(autoincrement())
+  paieId  Int
+  type    String
+  montant Decimal
+  tag     String  @default("-")
+  paie    Paie    @relation(fields: [paieId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
@@ -323,37 +369,37 @@ model Notification {
   expedider String   @default("NON")
   icon      String
 
-  role      Role?         @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  compte    CompteAgent? @relation(fields: [compteId], references: [id], onDelete: Cascade)
+  role   Role?        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  compte CompteAgent? @relation(fields: [compteId], references: [id], onDelete: Cascade)
 }
 
 model Rapport {
-  id                  Int      @id @default(autoincrement())
-  compteId            Int
-  type                String
-  Libelle             String?
-  periodeDebut        DateTime
-  periodeFin          DateTime
-  dateGeneration      DateTime     @default(now())
-  fichierPath         String?
+  id             Int      @id @default(autoincrement())
+  compteId       Int
+  type           String
+  Libelle        String?
+  periodeDebut   DateTime
+  periodeFin     DateTime
+  dateGeneration DateTime @default(now())
+  fichierPath    String?
 
-  compte              CompteAgent @relation(fields: [compteId], references: [id])
+  compte CompteAgent @relation(fields: [compteId], references: [id])
 }
 
 model TypeConge {
-  id       Int    @id @default(autoincrement())
-  code     String @unique
-  libelle  String
-  dureeMax Int
-  allocationConge Float @default(0)
-  actif     Boolean  @default(true)
-  
-  createurId     Int
-  createur       Utilisateur    @relation(fields: [createurId], references: [id])
-  demande DemandeConge[]
+  id              Int     @id @default(autoincrement())
+  code            String  @unique
+  libelle         String
+  dureeMax        Int
+  allocationConge Float   @default(0)
+  actif           Boolean @default(true)
+
+  createurId Int
+  createur   Utilisateur    @relation(fields: [createurId], references: [id])
+  demande    DemandeConge[]
 }
 
-enum StatutConge{
+enum StatutConge {
   EN_ATTENTE
   CONFIRME
   VALIDE
@@ -361,38 +407,166 @@ enum StatutConge{
 }
 
 model DemandeConge {
-  id        Int      @id @default(autoincrement())
-  agentId   Int
-  typeCongeId Int
-  dateDemande DateTime
-  dateDebut DateTime?
-  dateFin   DateTime?
-  motif     String?
-  statut    StatutConge @default(EN_ATTENTE)
-  statusAllocation Boolean @default(true)
-
+  id               Int         @id @default(autoincrement())
+  agentId          Int
+  typeCongeId      Int
+  dateDemande      DateTime
+  dateDebut        DateTime?
+  dateFin          DateTime?
+  motif            String?
+  statut           StatutConge @default(EN_ATTENTE)
+  statusAllocation Boolean     @default(true)
 
   dateValidation DateTime?
-  agent Agent @relation(fields: [agentId], references: [id])
-  typeConge TypeConge @relation(fields: [typeCongeId], references: [id])
+  agent          Agent     @relation(fields: [agentId], references: [id])
+  typeConge      TypeConge @relation(fields: [typeCongeId], references: [id])
 
-  confirmePar   Int?
-  confirmParUtilisateur   Utilisateur? @relation("CongeConfirmPar", fields: [confirmePar], references: [id])
-  validePar Int?
-  valideParUtilisateur Utilisateur? @relation("CongeValidePar", fields: [validePar], references: [id])
+  confirmePar           Int?
+  confirmParUtilisateur Utilisateur? @relation("CongeConfirmPar", fields: [confirmePar], references: [id])
+  validePar             Int?
+  valideParUtilisateur  Utilisateur? @relation("CongeValidePar", fields: [validePar], references: [id])
+  planifications Planification[]
+}
+
+enum StatutPlanification {
+  BROUILLON
+  PLANIFIE
+  EN_COURS
+  TERMINE
+  ANNULE
+  REPORTE
+}
+
+enum PrioritePlanification {
+  FAIBLE
+  NORMALE
+  ELEVEE
+  CRITIQUE
+}
+
+enum CiblePlanification {
+  INDIVIDUEL
+  UNITE
+  PROVINCE
+  TOUTE_ORGANISATION
+}
+
+enum RoleParticipantPlanification {
+  BENEFICIAIRE
+  RESPONSABLE
+  SUPERVISEUR
+  INTERVENANT
+}
+
+enum CanalRappelPlanification {
+  APP
+  EMAIL
+  SMS
+}
+
+model TypePlanification {
+  id            Int            @id @default(autoincrement())
+  nom           String
+  code          String         @unique
+  description   String?
+  actif         Boolean        @default(true)
+  systeme       Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  planifications Planification[]
+
+  @@index([actif])
+}
+
+model Planification {
+  id                     Int                    @id @default(autoincrement())
+  titre                  String
+  description            String?
+  typePlanificationId    Int
+  dateDebut              DateTime
+  dateFin                DateTime?
+  statut                 StatutPlanification   @default(BROUILLON)
+  priorite               PrioritePlanification @default(NORMALE)
+  cible                  CiblePlanification    @default(INDIVIDUEL)
+  uniteOrganisationnelleId Int?
+  provinceId             Int?
+  creeParId              Int
+  assigneParId           Int?
+  valideParId            Int?
+  dateValidation         DateTime?
+  demandeCongeId         Int?
+  affectationId          Int?
+  notes                  String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+
+  typePlanification      TypePlanification       @relation(fields: [typePlanificationId], references: [id], onDelete: Restrict)
+  uniteOrganisationnelle UniteOrganisationnelle? @relation(fields: [uniteOrganisationnelleId], references: [id], onDelete: SetNull)
+  province               Province?               @relation(fields: [provinceId], references: [id], onDelete: SetNull)
+  creePar                Utilisateur             @relation("PlanificationCreePar", fields: [creeParId], references: [id], onDelete: Restrict)
+  assignePar             Utilisateur?            @relation("PlanificationAssignePar", fields: [assigneParId], references: [id], onDelete: SetNull)
+  validePar              Utilisateur?            @relation("PlanificationValidePar", fields: [valideParId], references: [id], onDelete: SetNull)
+  demandeConge           DemandeConge?           @relation(fields: [demandeCongeId], references: [id], onDelete: SetNull)
+  affectation            Affectation?            @relation(fields: [affectationId], references: [id], onDelete: SetNull)
+
+  participants           PlanificationParticipant[]
+  rappels                RappelPlanification[]
+
+  @@index([typePlanificationId])
+  @@index([cible])
+  @@index([uniteOrganisationnelleId])
+  @@index([provinceId])
+  @@index([creeParId])
+  @@index([assigneParId])
+  @@index([valideParId])
+  @@index([demandeCongeId])
+  @@index([affectationId])
+  @@index([statut])
+  @@index([dateDebut, dateFin])
+}
+
+model PlanificationParticipant {
+  id               Int                           @id @default(autoincrement())
+  planificationId  Int
+  agentId          Int
+  roleDansPlan     RoleParticipantPlanification @default(BENEFICIAIRE)
+  obligatoire      Boolean                       @default(true)
+  createdAt        DateTime                      @default(now())
+
+  planification    Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
+  agent            Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([planificationId, agentId])
+  @@index([agentId])
+}
+
+model RappelPlanification {
+  id               Int                        @id @default(autoincrement())
+  planificationId  Int
+  dateRappel       DateTime
+  canal            CanalRappelPlanification   @default(APP)
+  message          String?
+  envoye           Boolean                    @default(false)
+  createdAt        DateTime                   @default(now())
+
+  planification    Planification @relation(fields: [planificationId], references: [id], onDelete: Cascade)
+
+  @@index([planificationId])
+  @@index([dateRappel, envoye])
 }
 
 enum StatutPresence {
   BROUILLON
   CONFIRME
   VALIDE
-  CONGE         
-  MISSION       
+  CONGE
+  MISSION
   MALADIE
   ABSENT
   PRESENCE
   RETARD
-  OFF 
+  OFF
 }
 
 enum StatutWorkflowPresence {
@@ -400,97 +574,96 @@ enum StatutWorkflowPresence {
   CONFIRME
   VALIDE
 }
+
 model Presence {
-  id              Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  agentId         Int
-  agent           Agent     @relation(fields: [agentId], references: [id])
-  
+  agentId Int
+  agent   Agent @relation(fields: [agentId], references: [id])
 
-  date            DateTime  @db.Date
+  date DateTime @db.Date
 
-  heureArrivee    DateTime?
-  heureDepart     DateTime?
+  heureArrivee DateTime?
+  heureDepart  DateTime?
 
-  statut          StatutPresence @default(PRESENCE)
-  statutWorkflow  StatutWorkflowPresence @default(BROUILLON)
+  statut         StatutPresence         @default(PRESENCE)
+  statutWorkflow StatutWorkflowPresence @default(BROUILLON)
 
-  confirmeParId   Int?
-  confirmePar     Utilisateur? @relation("ConfirmePresence", fields: [confirmeParId], references: [id])
+  confirmeParId Int?
+  confirmePar   Utilisateur? @relation("ConfirmePresence", fields: [confirmeParId], references: [id])
 
-  valideParId     Int?
-  validePar       Utilisateur? @relation("ValidePresence", fields: [valideParId], references: [id])
+  valideParId Int?
+  validePar   Utilisateur? @relation("ValidePresence", fields: [valideParId], references: [id])
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([agentId, date]) // One presence per agent per day
 }
 
-model HoraireTravail{
-  id Int @id @default(autoincrement())
+model HoraireTravail {
+  id         Int      @id @default(autoincrement())
   nomHoraire String
   heureDebut DateTime @db.Time
-  heureFin DateTime   @db.Time
+  heureFin   DateTime @db.Time
 
   horaireAgent HoraireAgent[]
-  creerParId Int
-  creerPar Utilisateur @relation("creerHoraire",fields:[creerParId],references:[id])
-
+  creerParId   Int
+  creerPar     Utilisateur    @relation("creerHoraire", fields: [creerParId], references: [id])
 }
 
 model HoraireAgent {
   id Int @id @default(autoincrement())
 
   agentId Int
-  agent Agent @relation(fields: [agentId], references: [id])
+  agent   Agent @relation(fields: [agentId], references: [id])
 
   horaireId Int
-  horaire HoraireTravail @relation(fields: [horaireId], references: [id])
+  horaire   HoraireTravail @relation(fields: [horaireId], references: [id])
 
-  dateDebut DateTime @db.Date
+  dateDebut DateTime  @db.Date
   dateFin   DateTime? @db.Date
 
   creerParId Int
-  creerPar Utilisateur @relation("creerHoraireAgent",fields:[creerParId],references:[id])
+  creerPar   Utilisateur @relation("creerHoraireAgent", fields: [creerParId], references: [id])
 
-  lundi     Boolean @default(false)
-  mardi     Boolean @default(false)
-  mercredi  Boolean @default(false)
-  jeudi     Boolean @default(false)
-  vendredi  Boolean @default(false)
-  samedi    Boolean @default(false)
-  dimanche  Boolean @default(false)
+  lundi    Boolean @default(false)
+  mardi    Boolean @default(false)
+  mercredi Boolean @default(false)
+  jeudi    Boolean @default(false)
+  vendredi Boolean @default(false)
+  samedi   Boolean @default(false)
+  dimanche Boolean @default(false)
 
   createdAt DateTime @default(now())
 
   @@index([agentId])
 }
 
-model Permisions{
+model Permisions {
   id Int @id @default(autoincrement())
 
-  code String @unique
-  libelle String?
+  code        String   @unique
+  libelle     String?
   description String?
-  module String?
-  actif Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  module      String?
+  actif       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 
   rolePermission RolePermission[]
-  reglesPortee ReglePorteeRole[]
+  reglesPortee   ReglePorteeRole[]
 
   @@index([module])
   @@index([actif])
 }
 
-model RolePermission{
-  permissionId Int 
-  permission Permisions @relation(fields:[permissionId], references:[id])
-  
-  roleId Int
-  role Role @relation(fields:[roleId], references:[id])
+model RolePermission {
+  permissionId Int
+  permission   Permisions @relation(fields: [permissionId], references: [id])
+
+  roleId    Int
+  role      Role     @relation(fields: [roleId], references: [id])
   createdAt DateTime @default(now())
 
   @@id([roleId, permissionId])
@@ -498,15 +671,15 @@ model RolePermission{
 }
 
 model ReglePorteeRole {
-  id           Int            @id @default(autoincrement())
+  id           Int           @id @default(autoincrement())
   roleId       Int
   permissionId Int
   portee       PorteeDonnees
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  role         Role           @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permisions     @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permisions @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId])
   @@index([permissionId])

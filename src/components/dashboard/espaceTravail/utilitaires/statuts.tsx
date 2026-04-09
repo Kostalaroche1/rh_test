@@ -50,6 +50,8 @@ export function obtenirCouleurBadgeStatut(status: string) {
       return "bg-rose-100 text-rose-800 border-rose-300";
     case "CONGE":
       return "bg-indigo-100 text-indigo-800 border-indigo-300";
+    case "JOUR_FERIE":
+      return "bg-violet-100 text-violet-800 border-violet-300";
     case "MISSION":
       return "bg-cyan-100 text-cyan-800 border-cyan-300";
     case "MALADIE":

@@ -59,7 +59,7 @@ export default function GestionCarriere() {
 
   async function submitDecision(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!formData.agentId || !formData.dateFin) {
+    if (!formData.id || !formData.dateFin) {
       toast.warning("Veuillez renseigner la date de fin et l'affectation concernee.");
       return;
     }
@@ -72,7 +72,7 @@ export default function GestionCarriere() {
   }
 
   async function rejectDecision() {
-    if (!formData.agentId) {
+    if (!formData.id) {
       toast.warning("Veuillez selectionner une affectation.");
       return;
     }
@@ -215,8 +215,34 @@ export default function GestionCarriere() {
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Actions</Button></DropdownMenuTrigger>
                                     <DropdownMenuContent>
-                                      <DropdownMenuItem onClick={() => { setFormData((prev) => ({ ...prev, statut: "VALIDE", agentId: Number(carriere.id) })); setOpenDialog(true); }}>Approuver</DropdownMenuItem>
-                                      <DropdownMenuItem onClick={() => { setFormData((prev) => ({ ...prev, statut: "REJETE", agentId: Number(carriere.id) })); rejectDecision(); }}>Rejeter</DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          setFormData((prev) => ({
+                                            ...prev,
+                                            statut: "VALIDE",
+                                            id: Number(carriere.id),
+                                            agentId: Number(carriere.agentId ?? 0),
+                                          }));
+                                          setOpenDialog(true);
+                                        }}
+                                      >
+                                        Approuver
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={async () => {
+                                          const payload = {
+                                            ...formData,
+                                            id: Number(carriere.id),
+                                            agentId: Number(carriere.agentId ?? 0),
+                                            statut: "REJETE",
+                                          };
+                                          const response = await validateCarriere(payload);
+                                          toast.info(response?.status === 200 ? "Decision rejetee avec succes" : "Echec de rejet");
+                                          await refetchCarrieres();
+                                        }}
+                                      >
+                                        Rejeter
+                                      </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 </TableCell>

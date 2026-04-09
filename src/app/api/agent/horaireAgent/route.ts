@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
+import {
+  canAccessAgentForPermissions,
+  getAccessibleAgentIdsForPermissions,
+} from "@/server/access/scope";
 
 function toDateOnly(value: string) {
   const raw = String(value ?? "").trim();
@@ -38,8 +42,22 @@ export async function GET() {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
+  const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(auth.userId, [
+    "horaire_agent.read",
+    "agent.read",
+    "affectation.read",
+  ]);
+
   const [horaireAgents, agents, horaires] = await Promise.all([
     prisma.horaireAgent.findMany({
+      where:
+        accessibleAgentIds === null
+          ? undefined
+          : {
+              agentId: {
+                in: accessibleAgentIds.length ? accessibleAgentIds : [-1],
+              },
+            },
       include: {
         agent: {
           select: { id: true, nom: true, prenom: true, matricule: true },
@@ -54,6 +72,14 @@ export async function GET() {
       orderBy: { id: "desc" },
     }),
     prisma.agent.findMany({
+      where:
+        accessibleAgentIds === null
+          ? undefined
+          : {
+              id: {
+                in: accessibleAgentIds.length ? accessibleAgentIds : [-1],
+              },
+            },
       select: { id: true, nom: true, prenom: true, matricule: true },
       orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     }),
@@ -95,6 +121,13 @@ export async function POST(req: Request) {
       { message: "agentId, horaireId et dateDebut sont requis" },
       { status: 400 }
     );
+  }
+
+  const allowed = await canAccessAgentForPermissions(auth.userId, agentId, [
+    "horaire_agent.assign",
+  ]);
+  if (!allowed) {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
   if (dateDebut < todayStart) {
@@ -167,6 +200,29 @@ export async function PUT(req: Request) {
     );
   }
 
+  const existing = await prisma.horaireAgent.findUnique({
+    where: { id },
+    select: { id: true, agentId: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ message: "Affectation horaire introuvable" }, { status: 404 });
+  }
+
+  const canAccessExisting = await canAccessAgentForPermissions(
+    auth.userId,
+    existing.agentId,
+    ["horaire_agent.update", "horaire_agent.assign"]
+  );
+  const canAccessTarget = await canAccessAgentForPermissions(auth.userId, agentId, [
+    "horaire_agent.update",
+    "horaire_agent.assign",
+  ]);
+
+  if (!canAccessExisting || !canAccessTarget) {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
+  }
+
   if (dateDebut < todayStart) {
     return NextResponse.json(
       { message: "dateDebut doit etre aujourd'hui ou dans le futur" },
@@ -227,6 +283,25 @@ export async function DELETE(req: Request) {
   const id = Number(payload.id);
   if (!id) {
     return NextResponse.json({ message: "id requis" }, { status: 400 });
+  }
+
+  const existing = await prisma.horaireAgent.findUnique({
+    where: { id },
+    select: { id: true, agentId: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ message: "Affectation horaire introuvable" }, { status: 404 });
+  }
+
+  const allowed = await canAccessAgentForPermissions(
+    auth.userId,
+    existing.agentId,
+    ["horaire_agent.delete"]
+  );
+
+  if (!allowed) {
+    return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
   await prisma.horaireAgent.delete({ where: { id } });

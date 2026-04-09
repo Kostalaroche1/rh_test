@@ -2,14 +2,22 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
 import prisma from "@/lib/prisma";
-import { modifierUtilisateur } from "@/app/application/utilisateur/modifierUtilisateur";
-import { listerUtilisateurs } from "@/app/application/utilisateur/listerUtilisateurs";
 import { requireAccess } from "@/security/authorization";
 import { getAuthenticatedUser } from "@/security/auth";
+import { getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
 type CreateUserPayload = {
   login?: string;
   motDePasse?: string;
+};
+
+type UpdateUserPayload = {
+  id?: unknown;
+  data?: {
+    login?: string;
+    motDePasse?: string;
+    actif?: boolean;
+  };
 };
 
 export async function GET() {
@@ -26,7 +34,50 @@ export async function GET() {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
-  const users = await listerUtilisateurs();
+  const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(auth.userId, [
+    "user.read",
+    "agent.read",
+  ]);
+
+  const users = await prisma.utilisateur.findMany({
+    where:
+      accessibleAgentIds === null
+        ? undefined
+        : {
+            OR: [
+              {
+                compteAgent: {
+                  is: {
+                    agentId: {
+                      in: accessibleAgentIds.length ? accessibleAgentIds : [-1],
+                    },
+                  },
+                },
+              },
+              { id: auth.userId },
+            ],
+          },
+    include: {
+      roles: { include: { role: true } },
+      compteAgent: {
+        select: {
+          id: true,
+          utilisateur: true,
+          agent: {
+            select: {
+              matricule: true,
+              id: true,
+              nom: true,
+              prenom: true,
+              statut: true,
+              genre: true,
+              actif: true,
+            },
+          },
+        },
+      },
+    },
+  });
   return NextResponse.json(users);
 }
 
@@ -116,15 +167,57 @@ export async function PUT(req: Request) {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
-  const { id, data } = await req.json();
-  if (!id || !data) {
+  const payload = (await req.json()) as UpdateUserPayload;
+  const id = Number(payload?.id);
+  const data = payload?.data;
+
+  if (!Number.isInteger(id) || id <= 0 || !data || typeof data !== "object") {
     return NextResponse.json(
       { message: "id et data sont requis" },
       { status: 400 }
     );
   }
 
-  const user = await modifierUtilisateur(id, data);
+  if ("actif" in data && data.actif !== undefined && typeof data.actif !== "boolean") {
+    return NextResponse.json(
+      { message: "Le champ actif doit etre un booleen" },
+      { status: 400 }
+    );
+  }
+
+  const existing = await prisma.utilisateur.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      compteAgent: {
+        select: {
+          agentId: true,
+        },
+      },
+    },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ message: "Utilisateur introuvable" }, { status: 404 });
+  }
+
+  const user = await prisma.$transaction(async (tx) => {
+    const updatedUser = await tx.utilisateur.update({
+      where: { id },
+      data,
+    });
+
+    // Synchronise l'etat du profil agent avec l'etat du compte utilisateur.
+    if (typeof data.actif === "boolean" && existing.compteAgent?.agentId) {
+      await tx.agent.updateMany({
+        where: { id: existing.compteAgent.agentId },
+        data: { actif: data.actif },
+      });
+    }
+
+    return updatedUser;
+  });
+
   return NextResponse.json(user);
 }
 

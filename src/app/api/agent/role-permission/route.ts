@@ -110,6 +110,7 @@ export async function PUT(req: Request) {
       PorteeDonnees.SOI_MEME,
       PorteeDonnees.UNITE,
       PorteeDonnees.UNITE_ET_DESCENDANTS,
+      PorteeDonnees.PROVINCE,
       PorteeDonnees.TOUTE_ORGANISATION,
     ]);
 

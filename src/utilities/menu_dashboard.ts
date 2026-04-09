@@ -2,7 +2,9 @@ import {
   ClipboardCheck,
   Building2,
   CalendarDays,
+  CalendarRange,
   Command,
+  FolderOpen,
   LayoutDashboard,
   LifeBuoy,
   Send,
@@ -16,7 +18,7 @@ export const data = {
   user: {
     name: "workspace",
     email: "workspace@example.com",
-    avatar: "/avatars/workspace.jpg",
+    avatar: "/images/avatar/avatar.png",
   },
   teams: [
     {
@@ -43,6 +45,11 @@ export const data = {
       icon: Building2,
     },
     {
+      title: "Dossier agent",
+      url: "/dashboard/dossier-agent",
+      icon: FolderOpen,
+    },
+    {
       title: "Presences & Absences",
       url: "/dashboard/presenceAbsence",
       icon: ClipboardCheck,
@@ -51,6 +58,11 @@ export const data = {
       title: "Conges",
       url: "/dashboard/conges",
       icon: CalendarDays,
+    },
+    {
+      title: "Planification",
+      url: "/dashboard/planification",
+      icon: CalendarRange,
     },
     {
       title: "Carriere & Decisions",

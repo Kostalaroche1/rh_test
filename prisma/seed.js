@@ -9,6 +9,9 @@ const CRUD_RESOURCES = [
   "permission",
   "user",
   "agent",
+  "province",
+  "type_planification",
+  "planification",
   "type_conge",
   "paie",
   "horaire_travail",
@@ -38,6 +41,8 @@ const EXTRA_PERMISSIONS = [
   "paie.publish",
   "affectation.assign",
   "horaire_agent.assign",
+  "planification.assign",
+  "planification.validate",
 ];
 
 const LEGACY_PERMISSION_PREFIXES = ["direction.", "departement.", "site."];
@@ -47,6 +52,9 @@ const RESOURCE_LABELS = {
   permission: "permissions",
   user: "utilisateurs",
   agent: "agents",
+  province: "provinces",
+  type_planification: "types de planification",
+  planification: "planifications",
   presence: "presences",
   demande_conge: "demandes de conge",
   type_conge: "types de conge",
@@ -70,6 +78,9 @@ const MODULE_LABELS = {
   regle_portee_role: "Roles & Permissions",
   user: "Utilisateurs",
   agent: "Agents",
+  province: "Organisation",
+  type_planification: "Planification",
+  planification: "Planification",
   presence: "Presences",
   demande_conge: "Conges",
   type_conge: "Conges",
@@ -85,6 +96,49 @@ const MODULE_LABELS = {
   notification: "Notifications & Rapports",
   rapport: "Notifications & Rapports",
 };
+
+const DEFAULT_PLANIFICATION_TYPES = [
+  {
+    code: "CONGE",
+    nom: "Conge",
+    description: "Planification des absences et periodes de conge.",
+  },
+  {
+    code: "FORMATION",
+    nom: "Formation",
+    description: "Sessions de formation et renforcement des capacites.",
+  },
+  {
+    code: "ENTRETIEN",
+    nom: "Entretien",
+    description: "Entretiens RH, disciplinaires ou de suivi.",
+  },
+  {
+    code: "EVALUATION",
+    nom: "Evaluation",
+    description: "Campagnes et rendez-vous d'evaluation.",
+  },
+  {
+    code: "AFFECTATION",
+    nom: "Affectation",
+    description: "Preparation des mouvements, nominations et changements de poste.",
+  },
+  {
+    code: "MISSION",
+    nom: "Mission",
+    description: "Missions temporaires et deplacements planifies.",
+  },
+  {
+    code: "PAIE",
+    nom: "Paie",
+    description: "Echeances de cloture et publication de paie.",
+  },
+  {
+    code: "JOUR_FERIE",
+    nom: "Jour ferie",
+    description: "Jours feries collectifs, fermetures exceptionnelles et evenements calendaires non travaillés.",
+  },
+];
 
 const ACTION_LABELS = {
   read: "Lire",
@@ -130,6 +184,35 @@ const DEPRECATED_WORKFLOW_PERMISSIONS = [
   "affectation.create",
   "horaire_agent.create",
   "presence.signal_absence",
+];
+
+const PROVINCES_RDC = [
+  { code: "KIN", nom: "Kinshasa" },
+  { code: "KON", nom: "Kongo Central" },
+  { code: "KWI", nom: "Kwilu" },
+  { code: "KWG", nom: "Kwango" },
+  { code: "MAI", nom: "Mai-Ndombe" },
+  { code: "KAS", nom: "Kasaï" },
+  { code: "KSC", nom: "Kasaï Central" },
+  { code: "KSO", nom: "Kasaï Oriental" },
+  { code: "LOM", nom: "Lomami" },
+  { code: "SAN", nom: "Sankuru" },
+  { code: "MAN", nom: "Maniema" },
+  { code: "SKD", nom: "Sud-Kivu" },
+  { code: "NKV", nom: "Nord-Kivu" },
+  { code: "TAN", nom: "Tanganyika" },
+  { code: "HTL", nom: "Haut-Lomami" },
+  { code: "LUA", nom: "Lualaba" },
+  { code: "HTK", nom: "Haut-Katanga" },
+  { code: "ITU", nom: "Ituri" },
+  { code: "HUE", nom: "Haut-Uele" },
+  { code: "TSH", nom: "Tshopo" },
+  { code: "BAS", nom: "Bas-Uele" },
+  { code: "NOR", nom: "Nord-Ubangi" },
+  { code: "SUD", nom: "Sud-Ubangi" },
+  { code: "MON", nom: "Mongala" },
+  { code: "EQU", nom: "Equateur" },
+  { code: "TSU", nom: "Tshuapa" },
 ];
 
 function normalizeText(value) {
@@ -321,8 +404,48 @@ async function ensureRoleCodes() {
   }
 }
 
+async function seedProvinces() {
+  for (const province of PROVINCES_RDC) {
+    await prisma.province.upsert({
+      where: { code: province.code },
+      update: {
+        nom: province.nom,
+        actif: true,
+      },
+      create: {
+        code: province.code,
+        nom: province.nom,
+        actif: true,
+      },
+    });
+  }
+}
+
+async function seedPlanificationTypes() {
+  for (const type of DEFAULT_PLANIFICATION_TYPES) {
+    await prisma.typePlanification.upsert({
+      where: { code: type.code },
+      update: {
+        nom: type.nom,
+        description: type.description,
+        actif: true,
+        systeme: true,
+      },
+      create: {
+        code: type.code,
+        nom: type.nom,
+        description: type.description,
+        actif: true,
+        systeme: true,
+      },
+    });
+  }
+}
+
 async function main() {
   await seedPermissions();
+  await seedProvinces();
+  await seedPlanificationTypes();
   const migratedLegacyLeavePermissions = await migrateLegacyLeavePermissions();
   const removedLegacyPermissions = await removeLegacyPermissions();
   const removedDeprecatedWorkflowPermissions = await removeDeprecatedWorkflowPermissions();
@@ -330,6 +453,8 @@ async function main() {
 
   console.log("Seed complete", {
     permissions: DEFAULT_PERMISSION_CODES.length,
+    provinces: PROVINCES_RDC.length,
+    typesPlanification: DEFAULT_PLANIFICATION_TYPES.length,
     migratedLegacyLeavePermissions,
     removedLegacyPermissions,
     removedDeprecatedWorkflowPermissions,

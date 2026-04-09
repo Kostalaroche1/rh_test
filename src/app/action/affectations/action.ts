@@ -5,7 +5,11 @@ export interface Affectation {
   posteId: string
   fonctionId?: string | null
   gradeId: string
-  uniteOrganisationnelleId: string
+  typeOrgaUniteProvinceId?: string
+  uniteOrganisationnelleId?: string
+  provinceId?: string
+  typeUniteId?: string
+  affectationOrigineId?: string | null
   dateDebut: string
   dateFin?: string | null
   motif?: string

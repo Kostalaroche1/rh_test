@@ -28,6 +28,7 @@ type TodayPresenceResponse = {
   canCheckIn?: boolean
   canCheckOut?: boolean
   getData?: Presence | null
+  displayStatut?: string | null
   message?: string
   schedule?: {
     nomHoraire?: string
@@ -50,6 +51,7 @@ export default function AgentDashPresence() {
   const [canCheckOut, setCanCheckOut] = useState(false)
   const [todayMessage, setTodayMessage] = useState("")
   const [todaySchedule, setTodaySchedule] = useState<TodayPresenceResponse["schedule"]>(null)
+  const [todayDisplayStatut, setTodayDisplayStatut] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
 
@@ -59,6 +61,7 @@ export default function AgentDashPresence() {
     setCanCheckIn(Boolean(data?.canCheckIn))
     setCanCheckOut(Boolean(data?.canCheckOut))
     setTodayPresence(data?.getData ?? null)
+    setTodayDisplayStatut(data?.displayStatut ?? null)
     setTodayMessage(data?.message ?? "")
     setTodaySchedule(data?.schedule ?? null)
   }
@@ -198,7 +201,14 @@ export default function AgentDashPresence() {
           {todayPresence ? (
             <>
               <div className="flex items-center justify-between">
-                <Badge variant="outline">{computePresenceStatus(todayPresence)}</Badge>
+                <Badge
+                  variant="outline"
+                  className={obtenirCouleurBadgeStatut(
+                    todayDisplayStatut || computePresenceStatus(todayPresence)
+                  )}
+                >
+                  {todayDisplayStatut || computePresenceStatus(todayPresence)}
+                </Badge>
                 <div className="text-sm text-muted-foreground">{formatDate(todayPresence.date)}</div>
               </div>
 

@@ -468,7 +468,7 @@ export function DataTable({
     canReadAgents ? { value: "agents", label: "Agents" } : null,
     canReadHoraireAgent ? { value: "horaireagent", label: "Horaire Agent" } : null,
     canReadRoles ? { value: "roles", label: "Roles" } : null,
-    canReadPermissions ? { value: "permissions", label: "Permissions" } : null,
+    // canReadPermissions ? { value: "permissions", label: "Permissions" } : null,
     canReadHoraireTravail ? { value: "horairetravail", label: "Horaire Travail" } : null,
   ].filter(Boolean) as { value: string; label: string }[]
   const tableColumns = React.useMemo(
@@ -745,11 +745,11 @@ export function DataTable({
         </Table>
 
       </TabsContent>}
-      {!isPending && data && canReadPermissions && (
+      {/* {!isPending && data && canReadPermissions && (
         <TabsContent value="permissions">
           <MatricePermissions />
         </TabsContent>
-      )}
+      )} */}
       {!isPending && data && canReadHoraireTravail && (
         <TabsContent value="horairetravail">
           <TableauHorairesTravail />

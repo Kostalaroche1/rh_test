@@ -47,6 +47,8 @@ const DEMO_USERS = [
     dateNaissance: "1988-03-12",
     affectation: {
       uniteCode: "DEP-RH-ADM",
+      provinceCode: "KIN",
+      typeUniteCode: "RTNC-KIN",
       posteCode: "PST-RH-RESP",
       fonctionCode: "FCT-RH-ADMIN",
       gradeCode: "GRD-A1",
@@ -64,6 +66,8 @@ const DEMO_USERS = [
     dateNaissance: "1990-07-19",
     affectation: {
       uniteCode: "DEP-RH-PAIE",
+      provinceCode: "KIN",
+      typeUniteCode: "RTNC-KIN",
       posteCode: "PST-RH-PAIE",
       fonctionCode: "FCT-RH-PAIE",
       gradeCode: "GRD-B1",
@@ -81,6 +85,8 @@ const DEMO_USERS = [
     dateNaissance: "1985-11-04",
     affectation: {
       uniteCode: "DEP-PROD-TV",
+      provinceCode: "KIN",
+      typeUniteCode: "RTNC-KIN",
       posteCode: "PST-PROD-CHEF",
       fonctionCode: "FCT-PROD-PLAN",
       gradeCode: "GRD-A1",
@@ -98,6 +104,8 @@ const DEMO_USERS = [
     dateNaissance: "1997-09-27",
     affectation: {
       uniteCode: "DEP-IT-SYS",
+      provinceCode: "KIN",
+      typeUniteCode: "RTNC-KIN",
       posteCode: "PST-IT-TECH",
       fonctionCode: "FCT-IT-MAINT",
       gradeCode: "GRD-C1",
@@ -151,7 +159,57 @@ async function findOrgEntities(tx, affectation) {
     );
   }
 
-  return { unite, poste, fonction, grade };
+  if (fonction.posteId && fonction.posteId !== poste.id) {
+    throw new Error(
+      `Incoherence organisationnelle: la fonction ${fonction.code} n'appartient pas au poste ${poste.code}`
+    );
+  }
+
+  let provinceId = null;
+  if (affectation.provinceCode) {
+    const province = await tx.province.findUnique({
+      where: { code: affectation.provinceCode },
+      select: { id: true },
+    });
+    if (!province) {
+      throw new Error(`Province introuvable: ${affectation.provinceCode}`);
+    }
+    provinceId = province.id;
+  }
+
+  let typeUniteId = null;
+  if (affectation.typeUniteCode) {
+    const typeUnite = await tx.typeUniteOrganisationnelle.findUnique({
+      where: { code: affectation.typeUniteCode },
+      select: { id: true },
+    });
+    if (!typeUnite) {
+      throw new Error(`Type d'unite introuvable: ${affectation.typeUniteCode}`);
+    }
+    typeUniteId = typeUnite.id;
+  }
+
+  const orgLink = await tx.typeOrgaUniteProvince.findFirst({
+    where: {
+      uniteOrganisationnelleId: unite.id,
+      actif: true,
+      ...(provinceId ? { provinceId } : {}),
+      ...(typeUniteId ? { typeUniteId } : {}),
+    },
+    include: {
+      province: { select: { id: true, code: true, nom: true } },
+      typeUnite: { select: { id: true, code: true, nom: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+
+  if (!orgLink) {
+    throw new Error(
+      `Lien type/unite/province introuvable pour l'unite ${unite.code}. Lancez d'abord: node test/seed_organisation_demo.mjs`
+    );
+  }
+
+  return { unite, poste, fonction, grade, orgLink };
 }
 
 async function upsertAccountBundle(tx, payload) {
@@ -312,14 +370,17 @@ async function main() {
             posteId: org.poste.id,
             fonctionId: org.fonction.id,
             gradeId: org.grade.id,
-            uniteOrganisationnelleId: org.unite.id,
+            typeOrgaUniteProvinceId: org.orgLink.id,
             dateDebut: new Date("2024-01-01"),
             dateFin: null,
             statut: "EN_ATTENTE",
+            statutOrganisationnel: "ACTIVE",
             motif: "SEED_DEMO",
             typeContrat: "CDI",
             statutContrat: "ACTIF",
             type: "AFFECTATION",
+            principale: true,
+            actif: true,
           },
         });
       } else {
@@ -329,14 +390,17 @@ async function main() {
             posteId: org.poste.id,
             fonctionId: org.fonction.id,
             gradeId: org.grade.id,
-            uniteOrganisationnelleId: org.unite.id,
+            typeOrgaUniteProvinceId: org.orgLink.id,
             dateDebut: new Date("2024-01-01"),
             dateFin: null,
             statut: "EN_ATTENTE",
+            statutOrganisationnel: "ACTIVE",
             motif: "SEED_DEMO",
             typeContrat: "CDI",
             statutContrat: "ACTIF",
             type: "AFFECTATION",
+            principale: true,
+            actif: true,
           },
         });
       }

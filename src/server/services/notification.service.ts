@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import type { SessionUser } from "@/security/auth";
+import { CiblePlanification } from "@/generated/prisma";
 
 type BaseNotificationPayload = {
   titre: string;
@@ -67,6 +68,99 @@ async function resolveCompteIdsForRoleIds(roleIds: number[]) {
 async function resolveCompteIdsForRoleKeys(keys: string[]) {
   const roleIds = await resolveRoleIds(keys);
   return resolveCompteIdsForRoleIds(roleIds);
+}
+
+async function resolveCompteIdsForAgentIds(agentIds: number[]) {
+  if (!agentIds.length) return [];
+
+  const comptes = await prisma.compteAgent.findMany({
+    where: {
+      agentId: { in: agentIds },
+      utilisateur: { actif: true },
+    },
+    select: { id: true },
+  });
+
+  return [...new Set(comptes.map((compte) => compte.id))];
+}
+
+async function resolveCompteIdsForUnit(unitId: number) {
+  const affectations = await prisma.affectation.findMany({
+    where: {
+      actif: true,
+      principale: true,
+      agent: {
+        compte: {
+          isNot: null,
+        },
+      },
+      typeOrgaUniteProvince: {
+        uniteOrganisationnelleId: unitId,
+      },
+    },
+    select: {
+      agent: {
+        select: {
+          compte: {
+            select: { id: true },
+          },
+        },
+      },
+    },
+  });
+
+  return [
+    ...new Set(
+      affectations
+        .map((item) => item.agent.compte?.id ?? null)
+        .filter((value): value is number => Number.isFinite(value))
+    ),
+  ];
+}
+
+async function resolveCompteIdsForProvince(provinceId: number) {
+  const affectations = await prisma.affectation.findMany({
+    where: {
+      actif: true,
+      principale: true,
+      agent: {
+        compte: {
+          isNot: null,
+        },
+      },
+      typeOrgaUniteProvince: {
+        provinceId,
+      },
+    },
+    select: {
+      agent: {
+        select: {
+          compte: {
+            select: { id: true },
+          },
+        },
+      },
+    },
+  });
+
+  return [
+    ...new Set(
+      affectations
+        .map((item) => item.agent.compte?.id ?? null)
+        .filter((value): value is number => Number.isFinite(value))
+    ),
+  ];
+}
+
+async function resolveAllActiveCompteIds() {
+  const comptes = await prisma.compteAgent.findMany({
+    where: {
+      utilisateur: { actif: true },
+    },
+    select: { id: true },
+  });
+
+  return [...new Set(comptes.map((compte) => compte.id))];
 }
 
 export async function createNotification(
@@ -187,4 +281,116 @@ export async function notifyAffectationExpiry(options: {
       })
     ),
   ]);
+}
+
+function formatPlanificationPeriod(dateDebut: Date, dateFin?: Date | null) {
+  const start = dateDebut.toLocaleDateString("fr-FR");
+  if (!dateFin) return start;
+
+  const end = dateFin.toLocaleDateString("fr-FR");
+  return start === end ? start : `${start} au ${end}`;
+}
+
+function formatPlanificationTarget(options: {
+  cible: CiblePlanification;
+  uniteNom?: string | null;
+  provinceNom?: string | null;
+}) {
+  switch (options.cible) {
+    case CiblePlanification.UNITE:
+      return options.uniteNom
+        ? `pour l'unite ${options.uniteNom}`
+        : "pour une unite";
+    case CiblePlanification.PROVINCE:
+      return options.provinceNom
+        ? `pour la province ${options.provinceNom}`
+        : "pour une province";
+    case CiblePlanification.TOUTE_ORGANISATION:
+      return "pour toute l'organisation";
+    default:
+      return "pour les participants concernes";
+  }
+}
+
+export async function notifyPlanificationChange(options: {
+  event: "create" | "update";
+  planificationId: number;
+  typeCode: string;
+  titre: string;
+  dateDebut: Date;
+  dateFin?: Date | null;
+  cible: CiblePlanification;
+  uniteOrganisationnelleId?: number | null;
+  provinceId?: number | null;
+  uniteNom?: string | null;
+  provinceNom?: string | null;
+  participantAgentIds?: number[];
+}) {
+  const participantAgentIds = options.participantAgentIds ?? [];
+  const impactedCompteIds = new Set<number>();
+
+  if (
+    options.cible === CiblePlanification.INDIVIDUEL &&
+    participantAgentIds.length > 0
+  ) {
+    const ids = await resolveCompteIdsForAgentIds(participantAgentIds);
+    ids.forEach((id) => impactedCompteIds.add(id));
+  } else if (
+    options.cible === CiblePlanification.UNITE &&
+    options.uniteOrganisationnelleId
+  ) {
+    const ids = await resolveCompteIdsForUnit(options.uniteOrganisationnelleId);
+    ids.forEach((id) => impactedCompteIds.add(id));
+  } else if (
+    options.cible === CiblePlanification.PROVINCE &&
+    options.provinceId
+  ) {
+    const ids = await resolveCompteIdsForProvince(options.provinceId);
+    ids.forEach((id) => impactedCompteIds.add(id));
+  } else if (options.cible === CiblePlanification.TOUTE_ORGANISATION) {
+    const ids = await resolveAllActiveCompteIds();
+    ids.forEach((id) => impactedCompteIds.add(id));
+  }
+
+  const monitoringCompteIds = await resolveCompteIdsForRoleKeys([
+    "admin",
+    "rh",
+    "notification.read",
+  ]);
+  monitoringCompteIds.forEach((id) => impactedCompteIds.add(id));
+
+  if (!impactedCompteIds.size) {
+    return;
+  }
+
+  const isHoliday = options.typeCode === "JOUR_FERIE";
+  const titre =
+    options.event === "create"
+      ? isHoliday
+        ? "Nouveau jour ferie"
+        : "Nouvelle planification RH"
+      : isHoliday
+      ? "Jour ferie mis a jour"
+      : "Planification RH mise a jour";
+  const period = formatPlanificationPeriod(options.dateDebut, options.dateFin);
+  const target = formatPlanificationTarget({
+    cible: options.cible,
+    uniteNom: options.uniteNom,
+    provinceNom: options.provinceNom,
+  });
+  const message = `${options.titre} est ${options.event === "create" ? "planifie" : "mis a jour"} ${target} sur la periode du ${period}.`;
+
+  await Promise.all(
+    [...impactedCompteIds].map((compteId) =>
+      createUniqueNotification({
+        compteId,
+        titre,
+        message,
+        type: isHoliday ? "JOUR_FERIE" : "PLANIFICATION",
+        url: "/dashboard/planification",
+        icon: isHoliday ? "calendar-off" : "calendar-clock",
+        dedupeHours: 12,
+      })
+    )
+  );
 }

@@ -118,6 +118,7 @@ export async function POST(req: Request) {
     prenom: user.compteAgent?.agent?.prenom ?? "",
     matricule: user.compteAgent?.agent?.matricule ?? "",
     email: user.login,
+    photo: user.compteAgent?.agent?.photo ?? "",
     role: sessionRoles,
     roleId: lastRole?.role?.id ?? null,
     permissions,

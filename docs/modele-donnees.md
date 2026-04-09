@@ -167,7 +167,63 @@ Modele d'horaire standard.
 ### `HoraireAgent`
 Affectation d'un horaire a un agent.
 
-## 7. Notifications et rapports
+## 7. Planification RH
+
+### `TypePlanification`
+Categorie de planification RH.
+
+Exemples :
+- conge
+- formation
+- evaluation
+- mission
+- paie
+
+### `Planification`
+Element principal de planification RH.
+
+Il represente :
+- un evenement RH futur
+- une action planifiee
+- une echeance a suivre
+
+Champs importants :
+- `titre`
+- `description`
+- `typePlanificationId`
+- `dateDebut`
+- `dateFin`
+- `statut`
+- `priorite`
+- `uniteOrganisationnelleId`
+- `creeParId`
+- `assigneParId`
+- `valideParId`
+- `demandeCongeId`
+- `affectationId`
+
+Important :
+- `Planification` ne remplace pas `HoraireTravail` ni `HoraireAgent`
+- les horaires definissent le rythme normal de travail
+- la planification definit les evenements ou actions RH autour de ce rythme
+
+### `PlanificationParticipant`
+Lie une planification aux agents concernes.
+
+Permet de gerer :
+- un beneficiaire
+- un responsable
+- un superviseur
+- plusieurs participants sur une meme planification
+
+### `RappelPlanification`
+Rappels associes a une planification.
+
+Permet :
+- rappel dans l'application
+- rappels futurs par email ou SMS si besoin
+
+## 8. Notifications et rapports
 
 ### `Notification`
 Notification en application.
@@ -177,7 +233,7 @@ Le champ `roleId` reste surtout pour compatibilite avec l'ancien modele.
 Metadonnees des rapports generes.
 Le module reporting n'est pas encore mature.
 
-## 8. Classification des modeles
+## 9. Classification des modeles
 
 ### Blocs metier directs
 - `Role`
@@ -196,6 +252,8 @@ Le module reporting n'est pas encore mature.
 - `Paie`
 - `HoraireTravail`
 - `HoraireAgent`
+- `TypePlanification`
+- `Planification`
 - `Notification`
 - `Rapport`
 
@@ -205,13 +263,15 @@ Le module reporting n'est pas encore mature.
 - `HistoriqueAgent`
 - `HistoriqueAffectation`
 - `ReglePorteeRole`
+- `PlanificationParticipant`
+- `RappelPlanification`
 
 ### Modeles techniques
 - `UtilisateurRole`
 - `RolePermission`
 - enums
 
-## 9. Role de `seed.js`
+## 10. Role de `seed.js`
 
 `prisma/seed.js` sert a maintenir les metadonnees systeme :
 - synchroniser le catalogue de permissions

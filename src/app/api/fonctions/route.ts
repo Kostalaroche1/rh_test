@@ -44,7 +44,13 @@ export async function GET() {
         : {
             id: { in: accessibleIds.length ? accessibleIds : [-1] },
           },
-    include: { poste: true },
+    include: {
+      poste: {
+        include: {
+          uniteOrganisationnelle: true,
+        },
+      },
+    },
   })
   return NextResponse.json({data : data})
 }

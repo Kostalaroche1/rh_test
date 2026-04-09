@@ -28,10 +28,24 @@ export async function GET(_: NextRequest, { params }: Params) {
       include: {
         affectations: {
           include: {
-            poste: true,
+            poste: {
+              include: {
+                uniteOrganisationnelle: true,
+              },
+            },
             fonction: true,
             grade: true,
-            uniteOrganisationnelle: true,
+            typeOrgaUniteProvince: {
+              include: {
+                typeUnite: true,
+                province: true,
+                uniteOrganisationnelle: {
+                  include: {
+                    parent: true,
+                  },
+                },
+              },
+            },
           },
           orderBy: { dateDebut: "desc" },
         },
@@ -55,10 +69,11 @@ export async function GET(_: NextRequest, { params }: Params) {
 
     const timeline = [
       ...agent.affectations.flatMap((a) => [
+        // Chronologie principale du parcours d'affectation.
         {
           type: "AFFECTATION_DEBUT",
           date: a.dateDebut,
-          label: `Debut d'affectation: ${a.poste?.libelle ?? "-"} / ${a.uniteOrganisationnelle?.nom ?? "-"}`,
+          label: `Debut d'affectation: ${a.poste?.libelle ?? "-"} / ${a.typeOrgaUniteProvince?.uniteOrganisationnelle?.nom ?? "-"}`,
           payload: a,
         },
         ...(a.dateFin

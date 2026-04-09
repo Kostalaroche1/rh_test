@@ -10,10 +10,12 @@ Modules documentes :
 - [Conges](./conges.md)
 - [Paie](./paie.md)
 - [Horaires](./horaires.md)
+- [Planification](./planification.md)
 - [Carrieres](./carrieres.md)
 - [Notifications](./notifications.md)
 - [Rapports](./rapports.md)
 - [Authentification](./authentification.md)
+- [Tableau de bord enrichi](./tableau-bord.md)
 
 Utilisation recommandee :
 - lire la fiche module avant de modifier l'UI, l'API ou les permissions du bloc

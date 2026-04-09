@@ -130,6 +130,28 @@ export async function PUT(req: Request) {
   const uniteOrganisationnelleId = body.uniteOrganisationnelleId
     ? Number(body.uniteOrganisationnelleId)
     : undefined
+
+  if (Number.isFinite(uniteOrganisationnelleId)) {
+    const scopedUnitId = uniteOrganisationnelleId as number
+    const canAccessUnit = await canAccessUnitForPermissions(auth.userId, scopedUnitId, [
+      "unite_organisationnelle.read",
+      "poste.update",
+    ])
+
+    if (!canAccessUnit) {
+      return NextResponse.json({ message: "Acces refuse" }, { status: 403 })
+    }
+
+    const unit = await prisma.uniteOrganisationnelle.findUnique({
+      where: { id: scopedUnitId },
+      select: { id: true },
+    })
+
+    if (!unit) {
+      return NextResponse.json({ message: "Unite introuvable" }, { status: 404 })
+    }
+  }
+
   const data = await prisma.poste.update({
     where: { id: body.id },
     data: {

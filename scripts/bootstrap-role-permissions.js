@@ -6,6 +6,7 @@ const SCOPE = {
   SELF: "SOI_MEME",
   UNIT: "UNITE",
   UNIT_TREE: "UNITE_ET_DESCENDANTS",
+  PROVINCE: "PROVINCE",
   ORG: "TOUTE_ORGANISATION",
 };
 
@@ -15,6 +16,7 @@ const CRUD_RESOURCES = [
   "permission",
   "user",
   "agent",
+  "province",
   "type_conge",
   "paie",
   "horaire_travail",
@@ -28,6 +30,7 @@ const CRUD_RESOURCES = [
   "regle_portee_role",
 ];
 const EXTRA_PERMISSIONS = [
+  "agent_dossier.read",
   "presence.read",
   "presence.update",
   "presence.delete",
@@ -69,7 +72,9 @@ const AGENT_PERMISSION_CODES = [
 ];
 
 const CHEF_SERVICE_PERMISSION_CODES = [
+  "province.read",
   "agent.read",
+  "agent_dossier.read",
   "user.read",
   "presence.sign",
   "presence.read",
@@ -87,10 +92,12 @@ const CHEF_SERVICE_PERMISSION_CODES = [
 ];
 
 const RH_PERMISSION_CODES = [
+  "province.read",
   "user.read",
   "user.create",
   "user.update",
   "agent.read",
+  "agent_dossier.read",
   "agent.create",
   "agent.update",
   "type_conge.read",
