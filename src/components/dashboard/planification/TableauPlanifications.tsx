@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   IconCopy,
   IconDotsVertical,
@@ -149,8 +149,6 @@ const emptyForm: FormState = {
 const PLAN_STATUSES: Array<{ value: PlanificationItem["statut"]; label: string }> = [
   { value: "BROUILLON", label: "Brouillon" },
   { value: "PLANIFIE", label: "Planifie" },
-  { value: "EN_COURS", label: "En cours" },
-  { value: "TERMINE", label: "Termine" },
   { value: "ANNULE", label: "Annule" },
   { value: "REPORTE", label: "Reporte" },
 ];
@@ -161,6 +159,13 @@ const PLAN_PRIORITIES: Array<{ value: PlanificationItem["priorite"]; label: stri
   { value: "ELEVEE", label: "Elevee" },
   { value: "CRITIQUE", label: "Critique" },
 ];
+
+const PRIORITY_ORDER: Record<PlanificationItem["priorite"], number> = {
+  CRITIQUE: 0,
+  ELEVEE: 1,
+  NORMALE: 2,
+  FAIBLE: 3,
+};
 
 const PLAN_TARGETS: Array<{ value: PlanificationItem["cible"]; label: string }> = [
   { value: "INDIVIDUEL", label: "Individuel" },
@@ -317,6 +322,17 @@ function getPriorityBadgeVariant(priority: PlanificationItem["priorite"]) {
   }
 }
 
+function getPriorityRowTone(priority: PlanificationItem["priorite"]) {
+  switch (priority) {
+    case "CRITIQUE":
+      return "border-l-4 border-l-red-500";
+    case "ELEVEE":
+      return "border-l-4 border-l-amber-500";
+    default:
+      return "";
+  }
+}
+
 function getTargetLabel(target: PlanificationItem["cible"]) {
   switch (target) {
     case "UNITE":
@@ -333,6 +349,8 @@ function getTargetLabel(target: PlanificationItem["cible"]) {
 export default function TableauPlanifications() {
   const { auth }: any = useAuth();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PlanificationItem | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -408,20 +426,41 @@ export default function TableauPlanifications() {
       return planifications;
     }
 
-    return planifications.filter((item: any) => {
-      const participants = Array.isArray(item.participants)
-        ? item.participants
-            .map((participant: any) =>
-              `${participant.agent?.matricule ?? ""} ${participant.agent?.nom ?? ""} ${participant.agent?.prenom ?? ""}`
-            )
-            .join(" ")
-        : "";
+    return planifications
+      .filter((item: any) => {
+        const participants = Array.isArray(item.participants)
+          ? item.participants
+              .map((participant: any) =>
+                `${participant.agent?.matricule ?? ""} ${participant.agent?.nom ?? ""} ${participant.agent?.prenom ?? ""}`
+              )
+              .join(" ")
+          : "";
 
-      return `${item.titre} ${item.typePlanification?.nom ?? ""} ${item.uniteOrganisationnelle?.nom ?? ""} ${item.province?.nom ?? ""} ${item.cible ?? ""} ${item.statut} ${item.priorite} ${participants}`
-        .toLowerCase()
-        .includes(query);
-    });
+        return `${item.titre} ${item.typePlanification?.nom ?? ""} ${item.uniteOrganisationnelle?.nom ?? ""} ${item.province?.nom ?? ""} ${item.cible ?? ""} ${item.statut} ${item.priorite} ${participants}`
+          .toLowerCase()
+          .includes(query);
+      })
+      .sort((left, right) => {
+        const priorityDelta =
+          PRIORITY_ORDER[left.priorite] - PRIORITY_ORDER[right.priorite];
+        if (priorityDelta !== 0) {
+          return priorityDelta;
+        }
+
+        return (
+          new Date(left.dateDebut).getTime() - new Date(right.dateDebut).getTime()
+        );
+      });
   }, [planifications, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredPlanifications.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedPlanifications = useMemo(() => {
+    return filteredPlanifications.slice(
+      (currentPage - 1) * pageSize,
+      currentPage * pageSize
+    );
+  }, [currentPage, filteredPlanifications, pageSize]);
 
   const selectedParticipants = useMemo(
     () => new Set(form.participantAgentIds),
@@ -453,9 +492,20 @@ export default function TableauPlanifications() {
   const submitting = creating || updating;
   const isEditing = Boolean(form.id);
 
+  function handlePageSizeChange(value: string) {
+    setPageSize(Number(value));
+    setPage(1);
+  }
+
   function resetForm() {
     setForm(emptyForm);
   }
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   function openCreate() {
     resetForm();
@@ -666,8 +716,8 @@ export default function TableauPlanifications() {
         </TableHeader>
         <TableBody>
           {!isPending &&
-            filteredPlanifications.map((item: any) => (
-              <TableRow key={item.id}>
+            paginatedPlanifications.map((item: any) => (
+              <TableRow key={item.id} className={getPriorityRowTone(item.priorite)}>
                 <TableCell className="font-medium">
                   <div className="flex flex-col gap-1">
                     <span>{item.titre}</span>
@@ -705,7 +755,16 @@ export default function TableauPlanifications() {
                   <Badge variant={getStatusBadgeVariant(item.statut)}>{item.statut}</Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={getPriorityBadgeVariant(item.priorite)}>{item.priorite}</Badge>
+                  <div className="flex flex-col gap-1">
+                    <Badge variant={getPriorityBadgeVariant(item.priorite)}>{item.priorite}</Badge>
+                    {(item.priorite === "CRITIQUE" || item.priorite === "ELEVEE") && (
+                      <span className="text-xs text-muted-foreground">
+                        {item.priorite === "CRITIQUE"
+                          ? "A traiter en premier"
+                          : "A suivre de pres"}
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
                 {canManage && (
                   <TableCell className="text-right">
@@ -757,6 +816,72 @@ export default function TableauPlanifications() {
           )}
         </TableBody>
       </Table>
+
+      {!isPending && filteredPlanifications.length > 0 && (
+        <div className="flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Lignes par page</span>
+            <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="h-8 w-[90px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[5, 10, 20].map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>
+              {filteredPlanifications.length} element
+              {filteredPlanifications.length > 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(1)}
+              disabled={currentPage === 1}
+            >
+              Premier
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              Precedent
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              Suivant
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(totalPages)}
+              disabled={currentPage >= totalPages}
+            >
+              Dernier
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Dialog
         open={dialogOpen}
@@ -924,14 +1049,17 @@ export default function TableauPlanifications() {
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    {PLAN_STATUSES.map((status) => (
-                      <SelectItem key={status.value} value={status.value}>
-                        {status.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SelectContent>
+                  {PLAN_STATUSES.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                En cours et Termine sont calcules automatiquement a partir des dates.
+              </p>
               </div>
 
               <div className="space-y-2">

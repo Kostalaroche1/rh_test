@@ -1,15 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { LayoutDashboard, Settings2 } from "lucide-react";
+import { CalendarClock, LayoutDashboard, Settings2 } from "lucide-react";
 
 import { useAuth } from "@/app/contexts/auth/context";
 import { useNotification } from "@/app/contexts/notification/context";
 import { GetDashAgentAdmin } from "@/app/action/agent/dash/action";
+import { GetPlanifications, type PlanificationItem } from "@/app/action/planification/action";
 import { useGet } from "@/hooks/useApi";
 import { canManageAccessControl, hasAnyPermission } from "@/security/permissions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +40,10 @@ export default function DashboardOverviewWorkspace() {
   const { auth }: any = useAuth();
   const { notifications = [], markAsRead }: any = useNotification();
   const { data: dashboardRaw, isPending: isPendingDashboard } = useGet(["DashAgentAdmin"], GetDashAgentAdmin);
+  const { data: planificationsRaw = [] } = useGet<PlanificationItem[]>(
+    ["workspace-planifications"],
+    GetPlanifications
+  );
 
   const dashboard = useMemo<DashAdminPayload | null>(() => {
     if (!dashboardRaw || typeof dashboardRaw !== "object") return null;
@@ -51,6 +58,7 @@ export default function DashboardOverviewWorkspace() {
   const canReadProvince = hasAnyPermission(auth, ["province.read"]);
   const canReadAffectation = hasAnyPermission(auth, ["affectation.read"]);
   const canReadNotifications = hasAnyPermission(auth, ["notification.read"]);
+  const canReadPlanifications = hasAnyPermission(auth, ["planification.read"]);
   const canReadOverview =
     canReadAgents ||
     canReadPresence ||
@@ -263,6 +271,36 @@ export default function DashboardOverviewWorkspace() {
     return notifications.slice(0, 8);
   }, [canReadNotifications, notifications]);
 
+  const upcomingPlanifications = useMemo(() => {
+    const items = Array.isArray(planificationsRaw) ? planificationsRaw : [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const limit = new Date(today);
+    limit.setDate(limit.getDate() + 14);
+
+    const priorityOrder: Record<PlanificationItem["priorite"], number> = {
+      CRITIQUE: 0,
+      ELEVEE: 1,
+      NORMALE: 2,
+      FAIBLE: 3,
+    };
+
+    return items
+      .filter((item) => {
+        const dateDebut = new Date(item.dateDebut);
+        if (Number.isNaN(dateDebut.getTime())) return false;
+        return dateDebut >= today && dateDebut <= limit;
+      })
+      .sort((left, right) => {
+        const priorityDelta =
+          priorityOrder[left.priorite] - priorityOrder[right.priorite];
+        if (priorityDelta !== 0) return priorityDelta;
+        return new Date(left.dateDebut).getTime() - new Date(right.dateDebut).getTime();
+      })
+      .slice(0, 5);
+  }, [planificationsRaw]);
+
   const activeRoleNames = Array.isArray(auth?.role)
     ? auth.role
         .filter((item: any) => item?.role?.actif ?? true)
@@ -410,6 +448,65 @@ export default function DashboardOverviewWorkspace() {
             />
           )}
         </>
+      )}
+
+      {canReadPlanifications && (
+        <Card className="border border-border bg-card shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div className="space-y-1">
+              <CardTitle className="text-lg">Planifications prioritaires a venir</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Les priorites critiques et elevees remontent en premier sur les 14 prochains jours.
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-muted p-2">
+              <CalendarClock className="h-5 w-5" />
+            </div>
+          </CardHeader>
+          <div className="space-y-3 px-6 pb-6">
+            {upcomingPlanifications.length > 0 ? (
+              upcomingPlanifications.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-2 rounded-lg border border-border px-4 py-3 md:flex-row md:items-center md:justify-between"
+                >
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-medium">{item.titre}</p>
+                      <Badge
+                        variant={
+                          item.priorite === "CRITIQUE"
+                            ? "destructive"
+                            : item.priorite === "ELEVEE"
+                            ? "secondary"
+                            : "outline"
+                        }
+                      >
+                        {item.priorite}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(item.dateDebut).toLocaleDateString("fr-FR")}
+                      {item.dateFin
+                        ? ` -> ${new Date(item.dateFin).toLocaleDateString("fr-FR")}`
+                        : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.typePlanification?.nom ?? "Planification"}
+                    </p>
+                  </div>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href="/dashboard/planification">Voir</Link>
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                Aucune planification a venir sur les 14 prochains jours.
+              </div>
+            )}
+          </div>
+        </Card>
       )}
 
       <QuickModulesSection

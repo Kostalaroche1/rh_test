@@ -77,6 +77,32 @@ function getPlanBadgeVariant(item: PlanificationItem) {
   return "outline" as const;
 }
 
+function getPriorityLabel(priority: PlanificationItem["priorite"]) {
+  switch (priority) {
+    case "CRITIQUE":
+      return "Critique";
+    case "ELEVEE":
+      return "Elevee";
+    case "FAIBLE":
+      return "Faible";
+    default:
+      return "Normale";
+  }
+}
+
+function getPriorityOrder(priority: PlanificationItem["priorite"]) {
+  switch (priority) {
+    case "CRITIQUE":
+      return 0;
+    case "ELEVEE":
+      return 1;
+    case "NORMALE":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
 type CalendarCell = {
   date: Date;
   inCurrentMonth: boolean;
@@ -138,10 +164,17 @@ export default function CalendrierPlanifications() {
       cells.push({
         date: new Date(cursor),
         inCurrentMonth: cursor.getMonth() === currentMonth.getMonth(),
-        items: items.sort(
-          (left, right) =>
+        items: items.sort((left, right) => {
+          const priorityDelta =
+            getPriorityOrder(left.priorite) - getPriorityOrder(right.priorite);
+          if (priorityDelta !== 0) {
+            return priorityDelta;
+          }
+
+          return (
             new Date(left.dateDebut).getTime() - new Date(right.dateDebut).getTime()
-        ),
+          );
+        }),
       });
 
       cursor.setDate(cursor.getDate() + 1);
@@ -247,6 +280,11 @@ export default function CalendrierPlanifications() {
                           <Badge variant={getPlanBadgeVariant(item)} className="text-[10px]">
                             {item.typePlanification?.code ?? "PLAN"}
                           </Badge>
+                          {(item.priorite === "CRITIQUE" || item.priorite === "ELEVEE") && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {getPriorityLabel(item.priorite)}
+                            </Badge>
+                          )}
                         </div>
                         <p className="line-clamp-2 text-xs font-medium">{item.titre}</p>
                         <p className="text-[11px] text-muted-foreground">

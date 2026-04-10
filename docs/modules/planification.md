@@ -59,6 +59,28 @@ La logique est la suivante :
 
 ## Regles de formulaire importantes
 
+## Regles de statut
+
+Les statuts manuels sont :
+- `BROUILLON`
+- `PLANIFIE`
+- `ANNULE`
+- `REPORTE`
+
+Les statuts automatiques sont :
+- `EN_COURS`
+- `TERMINE`
+
+Logique :
+- tant qu'une planification n'est pas encore validee ou prete, on la laisse en `BROUILLON`
+- quand elle est decidee et prete, un utilisateur autorise la passe en `PLANIFIE`
+- a partir de la date de debut, le systeme l'affiche automatiquement en `EN_COURS`
+- apres la date de fin, le systeme l'affiche automatiquement en `TERMINE`
+
+Important :
+- `ANNULE` et `REPORTE` restent prioritaires et ne sont pas remplaces automatiquement
+- si une ancienne donnee a ete enregistree en `EN_COURS` ou `TERMINE`, l'API la normalise maintenant selon les dates
+
 ### Planification individuelle
 
 Quand la cible est `INDIVIDUEL` :

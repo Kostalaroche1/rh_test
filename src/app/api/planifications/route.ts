@@ -23,6 +23,73 @@ type ScopePermission =
   | "planification.update"
   | "planification.delete";
 
+type ManualPlanificationStatus =
+  | "BROUILLON"
+  | "PLANIFIE"
+  | "ANNULE"
+  | "REPORTE";
+
+function normalizeStoredStatus(value: unknown): ManualPlanificationStatus {
+  switch (value) {
+    case "BROUILLON":
+    case "ANNULE":
+    case "REPORTE":
+      return value;
+    default:
+      return "PLANIFIE";
+  }
+}
+
+function getEffectivePlanificationStatus(params: {
+  statut: string;
+  dateDebut: Date | string;
+  dateFin?: Date | string | null;
+}) {
+  const { statut, dateDebut, dateFin } = params;
+
+  if (statut === "BROUILLON" || statut === "ANNULE" || statut === "REPORTE") {
+    return statut;
+  }
+
+  const start = new Date(dateDebut);
+  if (Number.isNaN(start.getTime())) {
+    return statut;
+  }
+
+  const end = dateFin ? new Date(dateFin) : new Date(start);
+  if (Number.isNaN(end.getTime())) {
+    end.setTime(start.getTime());
+  }
+
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  const now = new Date();
+
+  if (now < start) {
+    return "PLANIFIE";
+  }
+
+  if (now <= end) {
+    return "EN_COURS";
+  }
+
+  return "TERMINE";
+}
+
+function withEffectivePlanificationStatus<T extends { statut: string; dateDebut: Date | string; dateFin?: Date | string | null }>(
+  item: T
+) {
+  return {
+    ...item,
+    statut: getEffectivePlanificationStatus({
+      statut: item.statut,
+      dateDebut: item.dateDebut,
+      dateFin: item.dateFin ?? null,
+    }),
+  };
+}
+
 const TYPE_TARGET_RULES: Partial<
   Record<string, CiblePlanification[]>
 > = {
@@ -502,7 +569,10 @@ export async function GET() {
     orderBy: [{ dateDebut: "asc" }, { titre: "asc" }],
   });
 
-  return NextResponse.json({ data }, { status: 200 });
+  return NextResponse.json(
+    { data: data.map((item) => withEffectivePlanificationStatus(item)) },
+    { status: 200 }
+  );
 }
 
 export async function POST(req: Request) {
@@ -549,7 +619,7 @@ export async function POST(req: Request) {
       typePlanificationId: Number(body.typePlanificationId),
       dateDebut: new Date(body.dateDebut),
       dateFin: body.dateFin ? new Date(body.dateFin) : null,
-      statut: body.statut ?? "BROUILLON",
+      statut: normalizeStoredStatus(body.statut),
       priorite: body.priorite ?? "NORMALE",
       cible,
       uniteOrganisationnelleId:
@@ -622,7 +692,10 @@ export async function POST(req: Request) {
     console.error("Planification notification failed on create:", error);
   }
 
-  return NextResponse.json({ data }, { status: 201 });
+  return NextResponse.json(
+    { data: withEffectivePlanificationStatus(data) },
+    { status: 201 }
+  );
 }
 
 export async function PUT(req: Request) {
@@ -698,7 +771,7 @@ export async function PUT(req: Request) {
       typePlanificationId: Number(body.typePlanificationId),
       dateDebut: new Date(body.dateDebut),
       dateFin: body.dateFin ? new Date(body.dateFin) : null,
-      statut: body.statut ?? "BROUILLON",
+      statut: normalizeStoredStatus(body.statut),
       priorite: body.priorite ?? "NORMALE",
       cible,
       uniteOrganisationnelleId:
@@ -774,7 +847,10 @@ export async function PUT(req: Request) {
     console.error("Planification notification failed on update:", error);
   }
 
-  return NextResponse.json({ data }, { status: 200 });
+  return NextResponse.json(
+    { data: withEffectivePlanificationStatus(data) },
+    { status: 200 }
+  );
 }
 
 export async function DELETE(req: Request) {

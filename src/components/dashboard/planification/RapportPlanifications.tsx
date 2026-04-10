@@ -1,13 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { GetPlanifications, type PlanificationItem } from "@/app/action/planification/action";
 import { useGet } from "@/hooks/useApi";
 import { useAuth } from "@/app/contexts/auth/context";
 import { hasAnyPermission } from "@/security/permissions";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -35,8 +43,21 @@ type CountRow = {
   count: number;
 };
 
+function getPriorityBadgeVariant(priority: PlanificationItem["priorite"]) {
+  switch (priority) {
+    case "CRITIQUE":
+      return "destructive";
+    case "ELEVEE":
+      return "secondary";
+    default:
+      return "outline";
+  }
+}
+
 export default function RapportPlanifications() {
   const { auth }: any = useAuth();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const canRead = hasAnyPermission(auth, [
     "planification.read",
     "planification.create",
@@ -101,14 +122,55 @@ export default function RapportPlanifications() {
       .sort((left, right) => right.count - left.count);
   }, [planifications]);
 
+  const byPriority = useMemo<CountRow[]>(() => {
+    const labels: Record<PlanificationItem["priorite"], string> = {
+      CRITIQUE: "Critique",
+      ELEVEE: "Elevee",
+      NORMALE: "Normale",
+      FAIBLE: "Faible",
+    };
+
+    const counts = new Map<string, number>();
+    for (const item of planifications) {
+      const label = labels[item.priorite];
+      counts.set(label, (counts.get(label) ?? 0) + 1);
+    }
+
+    const order = ["Critique", "Elevee", "Normale", "Faible"];
+
+    return [...counts.entries()]
+      .map(([label, count]) => ({ label, count }))
+      .sort((left, right) => order.indexOf(left.label) - order.indexOf(right.label));
+  }, [planifications]);
+
   const recentItems = useMemo(() => {
     return [...planifications]
       .sort(
         (left, right) =>
           new Date(left.dateDebut).getTime() - new Date(right.dateDebut).getTime()
       )
-      .slice(0, 8);
+      .slice(0, 50);
   }, [planifications]);
+
+  const totalPages = Math.max(1, Math.ceil(recentItems.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedRecentItems = useMemo(() => {
+    return recentItems.slice(
+      (currentPage - 1) * pageSize,
+      currentPage * pageSize
+    );
+  }, [currentPage, pageSize, recentItems]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  function handlePageSizeChange(value: string) {
+    setPageSize(Number(value));
+    setPage(1);
+  }
 
   if (!canRead) {
     return (
@@ -149,7 +211,7 @@ export default function RapportPlanifications() {
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Repartition par type</CardTitle>
@@ -189,6 +251,36 @@ export default function RapportPlanifications() {
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Repartition par priorite</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isPending ? (
+              <p className="text-sm text-muted-foreground">Chargement...</p>
+            ) : byPriority.length > 0 ? (
+              byPriority.map((row) => (
+                <div key={row.label} className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <span className="text-sm">{row.label}</span>
+                  <Badge
+                    variant={
+                      row.label === "Critique"
+                        ? "destructive"
+                        : row.label === "Elevee"
+                        ? "secondary"
+                        : "outline"
+                    }
+                  >
+                    {row.count}
+                  </Badge>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">Aucune planification disponible.</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -205,17 +297,18 @@ export default function RapportPlanifications() {
                 <TableHead>Date fin</TableHead>
                 <TableHead>Cible</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Priorite</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isPending ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     Chargement...
                   </TableCell>
                 </TableRow>
               ) : recentItems.length > 0 ? (
-                recentItems.map((item) => (
+                paginatedRecentItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.titre}</TableCell>
                     <TableCell>{item.typePlanification?.nom ?? "--"}</TableCell>
@@ -225,11 +318,16 @@ export default function RapportPlanifications() {
                     <TableCell>
                       <Badge variant="outline">{item.statut}</Badge>
                     </TableCell>
+                    <TableCell>
+                      <Badge variant={getPriorityBadgeVariant(item.priorite)}>
+                        {item.priorite}
+                      </Badge>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     Aucune planification disponible.
                   </TableCell>
                 </TableRow>
@@ -238,6 +336,71 @@ export default function RapportPlanifications() {
           </Table>
         </CardContent>
       </Card>
+
+      {!isPending && recentItems.length > 0 && (
+        <div className="flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Lignes par page</span>
+            <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="h-8 w-[90px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[5, 10, 20].map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>
+              {recentItems.length} element{recentItems.length > 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(1)}
+              disabled={currentPage === 1}
+            >
+              Premier
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              Precedent
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              Suivant
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(totalPages)}
+              disabled={currentPage >= totalPages}
+            >
+              Dernier
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

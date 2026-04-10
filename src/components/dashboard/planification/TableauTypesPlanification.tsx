@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { IconDotsVertical, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { toast } from "sonner";
 
@@ -44,6 +44,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -68,6 +75,8 @@ const emptyForm: FormState = {
 export default function TableauTypesPlanification() {
   const { auth }: any = useAuth();
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<TypePlanificationItem | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -103,6 +112,15 @@ export default function TableauTypesPlanification() {
     );
   }, [search, types]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredTypes.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedTypes = useMemo(() => {
+    return filteredTypes.slice(
+      (currentPage - 1) * pageSize,
+      currentPage * pageSize
+    );
+  }, [currentPage, filteredTypes, pageSize]);
+
   const canRead = hasAnyPermission(auth, [
     "type_planification.read",
     "type_planification.create",
@@ -118,9 +136,20 @@ export default function TableauTypesPlanification() {
   const submitting = creating || updating;
   const isEditing = Boolean(form.id);
 
+  function handlePageSizeChange(value: string) {
+    setPageSize(Number(value));
+    setPage(1);
+  }
+
   function resetForm() {
     setForm(emptyForm);
   }
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   function openCreate() {
     resetForm();
@@ -233,7 +262,7 @@ export default function TableauTypesPlanification() {
         </TableHeader>
         <TableBody>
           {!isPending &&
-            filteredTypes.map((item) => (
+            paginatedTypes.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-medium">{item.nom}</TableCell>
                 <TableCell>{item.code}</TableCell>
@@ -291,6 +320,71 @@ export default function TableauTypesPlanification() {
           )}
         </TableBody>
       </Table>
+
+      {!isPending && filteredTypes.length > 0 && (
+        <div className="flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Lignes par page</span>
+            <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+              <SelectTrigger className="h-8 w-[90px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[5, 10, 20].map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span>
+              {filteredTypes.length} element{filteredTypes.length > 1 ? "s" : ""}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(1)}
+              disabled={currentPage === 1}
+            >
+              Premier
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              Precedent
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {currentPage} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              Suivant
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(totalPages)}
+              disabled={currentPage >= totalPages}
+            >
+              Dernier
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Dialog
         open={dialogOpen}
