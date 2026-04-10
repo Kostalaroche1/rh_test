@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -12,6 +14,7 @@ import RapportPlanifications from "@/components/dashboard/planification/RapportP
 
 export default function PageGestionPlanification() {
   const { auth }: any = useAuth();
+  const searchParams = useSearchParams();
 
   const canReadTypes = hasAnyPermission(auth, [
     "type_planification.read",
@@ -35,6 +38,30 @@ export default function PageGestionPlanification() {
     canReadPlanifications ? { value: "rapport", label: "Rapport" } : null,
   ].filter(Boolean) as Array<{ value: string; label: string }>;
 
+  const requestedTab = searchParams.get("tab");
+  const defaultTab = useMemo(() => {
+    if (
+      requestedTab &&
+      visibleTabs.some((tab) => tab.value === requestedTab)
+    ) {
+      return requestedTab;
+    }
+
+    if (
+      searchParams.get("openPlanificationId") &&
+      visibleTabs.some((tab) => tab.value === "planifications")
+    ) {
+      return "planifications";
+    }
+
+    return visibleTabs[0]?.value ?? "planifications";
+  }, [requestedTab, searchParams, visibleTabs]);
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
+
   if (!visibleTabs.length) {
     return (
       <Card>
@@ -56,7 +83,7 @@ export default function PageGestionPlanification() {
 
       <Separator />
 
-      <Tabs defaultValue={visibleTabs[0].value} className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="mb-4">
           {visibleTabs.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value}>

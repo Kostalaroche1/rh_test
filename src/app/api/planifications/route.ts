@@ -6,6 +6,7 @@ import {
   CanalRappelPlanification,
   CiblePlanification,
   RoleParticipantPlanification,
+  StatutPlanification,
 } from "@/generated/prisma";
 import {
   canAccessAgentForPermissions,
@@ -376,6 +377,52 @@ async function validatePlanificationPayload(params: {
     };
   }
 
+  if (typePlanification.code === "CONGE" && participants.length > 1) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        {
+          message:
+            "Une planification de conge ne peut concerner qu'un seul agent.",
+        },
+        { status: 400 }
+      ),
+    };
+  }
+
+  if (typePlanification.code === "CONGE" && demandeCongeId) {
+    const demandeConge = await prisma.demandeConge.findUnique({
+      where: { id: demandeCongeId },
+      select: { id: true, agentId: true },
+    });
+
+    if (!demandeConge) {
+      return {
+        ok: false as const,
+        response: NextResponse.json(
+          { message: "Demande de conge liee introuvable." },
+          { status: 400 }
+        ),
+      };
+    }
+
+    if (
+      participants.length === 1 &&
+      participants[0].agentId !== demandeConge.agentId
+    ) {
+      return {
+        ok: false as const,
+        response: NextResponse.json(
+          {
+            message:
+              "Le participant doit correspondre a l'agent de la demande de conge liee.",
+          },
+          { status: 400 }
+        ),
+      };
+    }
+  }
+
   const canAccessTarget = await validateTargetAccess(
     utilisateurId,
     cible,
@@ -456,6 +503,118 @@ async function ensureNoDuplicateHolidayPlanification(params: {
         {
           message:
             "Un jour ferie existe deja pour la meme periode et la meme cible. Modifiez l'entree existante ou changez les dates.",
+        },
+        { status: 409 }
+      ),
+    };
+  }
+
+  return { ok: true as const };
+}
+
+async function ensureNoDuplicateLeavePlanification(params: {
+  planificationId?: number;
+  typeCode: string;
+  demandeCongeId: number | null;
+}) {
+  const { planificationId, typeCode, demandeCongeId } = params;
+
+  if (typeCode !== "CONGE" || !demandeCongeId) {
+    return { ok: true as const };
+  }
+
+  const existing = await prisma.planification.findFirst({
+    where: {
+      demandeCongeId,
+      statut: {
+        not: StatutPlanification.ANNULE,
+      },
+      ...(planificationId ? { id: { not: planificationId } } : {}),
+    },
+    select: {
+      id: true,
+      titre: true,
+    },
+  });
+
+  if (existing) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        {
+          message:
+            "Cette demande de conge est deja liee a une planification active.",
+        },
+        { status: 409 }
+      ),
+    };
+  }
+
+  return { ok: true as const };
+}
+
+async function ensureNoConflictingCongePlanification(params: {
+  planificationId?: number;
+  typeCode: string;
+  dateDebut: string;
+  dateFin: string | null;
+  participants: Array<{ agentId: number }>;
+}) {
+  const { planificationId, typeCode, dateDebut, dateFin, participants } = params;
+
+  if (typeCode !== "CONGE" || participants.length === 0) {
+    return { ok: true as const };
+  }
+
+  const start = new Date(dateDebut);
+  const end = new Date(dateFin ?? dateDebut);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return { ok: true as const };
+  }
+
+  const conflict = await prisma.planification.findFirst({
+    where: {
+      cible: CiblePlanification.INDIVIDUEL,
+      statut: {
+        notIn: [StatutPlanification.ANNULE, StatutPlanification.REPORTE],
+      },
+      participants: {
+        some: {
+          agentId: {
+            in: participants.map((participant) => participant.agentId),
+          },
+        },
+      },
+      ...(planificationId ? { id: { not: planificationId } } : {}),
+      AND: [
+        {
+          OR: [
+            { dateFin: null },
+            { dateFin: { gte: start } },
+          ],
+        },
+        {
+          dateDebut: {
+            lte: end,
+          },
+        },
+      ],
+    },
+    select: {
+      id: true,
+      titre: true,
+      dateDebut: true,
+      dateFin: true,
+    },
+  });
+
+  if (conflict) {
+    return {
+      ok: false as const,
+      response: NextResponse.json(
+        {
+          message:
+            "Un agent concerne dispose deja d'une autre planification active sur cette periode.",
         },
         { status: 409 }
       ),
@@ -611,6 +770,18 @@ export async function POST(req: Request) {
     provinceId,
   });
   if (!duplicateGuard.ok) return duplicateGuard.response;
+  const duplicateLeaveGuard = await ensureNoDuplicateLeavePlanification({
+    typeCode: payloadValidation.typePlanification.code,
+    demandeCongeId,
+  });
+  if (!duplicateLeaveGuard.ok) return duplicateLeaveGuard.response;
+  const conflictGuard = await ensureNoConflictingCongePlanification({
+    typeCode: payloadValidation.typePlanification.code,
+    dateDebut: body.dateDebut,
+    dateFin: body.dateFin ?? null,
+    participants,
+  });
+  if (!conflictGuard.ok) return conflictGuard.response;
 
   const data = await prisma.planification.create({
     data: {
@@ -762,6 +933,20 @@ export async function PUT(req: Request) {
     provinceId,
   });
   if (!duplicateGuard.ok) return duplicateGuard.response;
+  const duplicateLeaveGuard = await ensureNoDuplicateLeavePlanification({
+    planificationId: id,
+    typeCode: payloadValidation.typePlanification.code,
+    demandeCongeId: body.demandeCongeId ? Number(body.demandeCongeId) : null,
+  });
+  if (!duplicateLeaveGuard.ok) return duplicateLeaveGuard.response;
+  const conflictGuard = await ensureNoConflictingCongePlanification({
+    planificationId: id,
+    typeCode: payloadValidation.typePlanification.code,
+    dateDebut: body.dateDebut,
+    dateFin: body.dateFin ?? null,
+    participants,
+  });
+  if (!conflictGuard.ok) return conflictGuard.response;
 
   const data = await prisma.planification.update({
     where: { id },

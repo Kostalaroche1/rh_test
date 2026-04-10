@@ -37,6 +37,16 @@ export async function GET() {
     include: {
       typeConge: true,
       agent: true,
+      planifications: {
+        select: {
+          id: true,
+          titre: true,
+          statut: true,
+          dateDebut: true,
+          dateFin: true,
+        },
+        orderBy: [{ dateDebut: "desc" }, { id: "desc" }],
+      },
     },
     orderBy: [{ dateDemande: "desc" }, { id: "desc" }],
   });

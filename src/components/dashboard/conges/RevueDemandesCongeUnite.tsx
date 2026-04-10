@@ -2,6 +2,7 @@
 
 // gabriel code
 
+import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,8 +18,44 @@ import { formatInputDate } from "@/components/dashboard/conges/SelectionTypeCong
 import { toast } from "sonner"
 import { useAuth } from "@/app/contexts/auth/context"
 import { hasAnyPermission } from "@/security/permissions"
+import ApercuPlanificationLiee from "@/components/dashboard/conges/ApercuPlanificationLiee"
 
 const PAGE_SIZE = 14
+
+function getPlanificationBadge(demande: DemandeConge, canReadPlanification: boolean) {
+  const activePlanifications = Array.isArray(demande.planifications)
+    ? demande.planifications.filter((planification) => planification?.statut !== "ANNULE")
+    : []
+  const linkedPlanification = activePlanifications[0]
+
+  if (activePlanifications.length === 0) {
+    return (
+      <Badge variant="outline" className="whitespace-nowrap">
+        Non planifie
+      </Badge>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="space-y-1">
+        <Badge variant="outline" className="whitespace-nowrap">
+          {linkedPlanification?.statut || "Planifie"}
+        </Badge>
+        <p className="text-xs text-muted-foreground">
+          {linkedPlanification?.titre || `${activePlanifications.length} planification(s)`}
+        </p>
+      </div>
+      {canReadPlanification ? (
+        <ApercuPlanificationLiee planification={linkedPlanification} />
+      ) : null}
+    </div>
+  )
+}
+
+function canCreatePlanificationForDemande(demande: DemandeConge) {
+  return ["CONFIRME", "VALIDE"].includes(demande.statut)
+}
 
 export default function ChefServiceDemandeConge() {
   const { auth }: any = useAuth()
@@ -30,6 +67,15 @@ export default function ChefServiceDemandeConge() {
   const [page, setPage] = useState(1)
   const canReadDemandes = hasAnyPermission(auth, ["demande_conge.read", "demande_conge.confirm", "demande_conge.validate"])
   const canConfirmDemandes = hasAnyPermission(auth, ["demande_conge.confirm"])
+  const canCreatePlanification = hasAnyPermission(auth, ["planification.create"])
+  const canReadPlanification = hasAnyPermission(auth, [
+    "planification.read",
+    "planification.create",
+    "planification.update",
+    "planification.delete",
+    "planification.assign",
+    "planification.validate",
+  ])
 
   const getDemande = async () => {
     const data = await GetAllDemandeConge()
@@ -128,6 +174,7 @@ export default function ChefServiceDemandeConge() {
                 <TableHead>Date debut</TableHead>
                 <TableHead>Date fin</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Planification</TableHead>
                 {canConfirmDemandes && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
@@ -142,6 +189,24 @@ export default function ChefServiceDemandeConge() {
                     <Badge className={obtenirCouleurBadgeStatut(demandeconge.statut)}>
                       {demandeconge.statut || null}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {Array.isArray(demandeconge.planifications) && demandeconge.planifications.some((planification) => planification?.statut !== "ANNULE") ? (
+                      getPlanificationBadge(demandeconge, canReadPlanification)
+                    ) : (
+                      <div className="space-y-2">
+                        <Badge variant="outline" className="whitespace-nowrap">
+                          Non planifie
+                        </Badge>
+                        {canCreatePlanification && canCreatePlanificationForDemande(demandeconge) ? (
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/dashboard/planification?prefillDemandeCongeId=${demandeconge.id}`}>
+                              Creer planification
+                            </Link>
+                          </Button>
+                        ) : null}
+                      </div>
+                    )}
                   </TableCell>
                   {canConfirmDemandes && (
                     <TableCell className="flex justify-end">
@@ -173,7 +238,7 @@ export default function ChefServiceDemandeConge() {
               ))}
               {paginatedDemandes.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={canConfirmDemandes ? 6 : 5} className="py-4 text-center text-muted-foreground">
+                  <TableCell colSpan={canConfirmDemandes ? 7 : 6} className="py-4 text-center text-muted-foreground">
                     Aucun resultat
                   </TableCell>
                 </TableRow>

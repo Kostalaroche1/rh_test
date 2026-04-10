@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronsLeft,
+  IconChevronsRight,
+} from "@tabler/icons-react";
 
 import { GetPlanifications, type PlanificationItem } from "@/app/action/planification/action";
 import { useGet } from "@/hooks/useApi";
@@ -358,45 +364,45 @@ export default function RapportPlanifications() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1">
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPage(1)}
               disabled={currentPage === 1}
             >
-              Premier
+              <IconChevronsLeft className="h-4 w-4" />
             </Button>
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
             >
-              Precedent
+              <IconChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {currentPage} / {totalPages}
+            <span className="px-2 text-sm text-muted-foreground">
+              Page {currentPage} sur {totalPages}
             </span>
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={currentPage >= totalPages}
             >
-              Suivant
+              <IconChevronRight className="h-4 w-4" />
             </Button>
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPage(totalPages)}
               disabled={currentPage >= totalPages}
             >
-              Dernier
+              <IconChevronsRight className="h-4 w-4" />
             </Button>
           </div>
         </div>

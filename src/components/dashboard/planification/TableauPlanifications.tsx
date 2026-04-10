@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronsLeft,
+  IconChevronsRight,
   IconCopy,
   IconDotsVertical,
   IconPencil,
   IconPlus,
   IconTrash,
 } from "@tabler/icons-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
 import {
@@ -99,6 +104,9 @@ type AgentApiItem = {
 type DemandeCongeLookup = {
   id: number;
   statut?: string;
+  agentId?: number;
+  dateDebut?: string | null;
+  dateFin?: string | null;
   agent?: {
     nom?: string;
     prenom?: string;
@@ -107,6 +115,30 @@ type DemandeCongeLookup = {
   typeConge?: {
     libelle?: string;
   };
+  planifications?: Array<{
+    id: number;
+    titre?: string | null;
+    statut?: string | null;
+    dateDebut?: string | null;
+    dateFin?: string | null;
+  }>;
+};
+
+type ParticipantPreviewState = {
+  titre: string;
+  participants: Array<{
+    id: number;
+    matricule?: string | null;
+    nom?: string | null;
+    prenom?: string | null;
+  }>;
+};
+
+type ListFilters = {
+  type: string;
+  statut: string;
+  priorite: string;
+  cible: string;
 };
 
 type FormState = {
@@ -144,6 +176,13 @@ const emptyForm: FormState = {
   affectationId: "",
   notes: "",
   participantAgentIds: [],
+};
+
+const defaultFilters: ListFilters = {
+  type: "ALL",
+  statut: "ALL",
+  priorite: "ALL",
+  cible: "ALL",
 };
 
 const PLAN_STATUSES: Array<{ value: PlanificationItem["statut"]; label: string }> = [
@@ -346,12 +385,35 @@ function getTargetLabel(target: PlanificationItem["cible"]) {
   }
 }
 
+function getParticipantDisplayLabel(participant: any) {
+  const fullName = [participant?.agent?.nom, participant?.agent?.prenom]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (participant?.agent?.matricule && fullName) {
+    return `${participant.agent.matricule} - ${fullName}`;
+  }
+
+  return (
+    participant?.agent?.matricule ||
+    fullName ||
+    `Agent #${participant?.agentId ?? "--"}`
+  );
+}
+
 export default function TableauPlanifications() {
   const { auth }: any = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<ListFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [participantPreview, setParticipantPreview] =
+    useState<ParticipantPreviewState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PlanificationItem | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
 
@@ -422,12 +484,32 @@ export default function TableauPlanifications() {
   ]);
   const filteredPlanifications = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) {
-      return planifications;
-    }
 
     return planifications
       .filter((item: any) => {
+        if (
+          filters.type !== "ALL" &&
+          String(item.typePlanificationId) !== filters.type
+        ) {
+          return false;
+        }
+
+        if (filters.statut !== "ALL" && item.statut !== filters.statut) {
+          return false;
+        }
+
+        if (filters.priorite !== "ALL" && item.priorite !== filters.priorite) {
+          return false;
+        }
+
+        if (filters.cible !== "ALL" && item.cible !== filters.cible) {
+          return false;
+        }
+
+        if (!query) {
+          return true;
+        }
+
         const participants = Array.isArray(item.participants)
           ? item.participants
               .map((participant: any) =>
@@ -451,7 +533,7 @@ export default function TableauPlanifications() {
           new Date(left.dateDebut).getTime() - new Date(right.dateDebut).getTime()
         );
       });
-  }, [planifications, search]);
+  }, [filters, planifications, search]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPlanifications.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -488,9 +570,38 @@ export default function TableauPlanifications() {
   const showParticipants = form.cible === "INDIVIDUEL" && !isHolidayType;
   const showUnitTarget = form.cible === "UNITE";
   const showProvinceTarget = form.cible === "PROVINCE";
+  const selectedDemandeConge = useMemo(
+    () =>
+      demandes.find((demande) => String(demande.id) === form.demandeCongeId) ?? null,
+    [demandes, form.demandeCongeId]
+  );
+  const availableDemandes = useMemo(() => {
+    return demandes.filter((demande) => {
+      const linkedPlanifications = Array.isArray(demande.planifications)
+        ? demande.planifications.filter(
+            (planification) =>
+              planification &&
+              planification.statut !== "ANNULE" &&
+              String(planification.id) !== String(form.id ?? "")
+          )
+        : [];
+
+      return linkedPlanifications.length === 0;
+    });
+  }, [demandes, form.id]);
+  const congeType = useMemo(
+    () => types.find((type) => type.code === "CONGE") ?? null,
+    [types]
+  );
+  const lockedCongeAgentId =
+    selectedType?.code === "CONGE" && selectedDemandeConge?.agentId
+      ? String(selectedDemandeConge.agentId)
+      : null;
 
   const submitting = creating || updating;
   const isEditing = Boolean(form.id);
+  const consumedPrefillRef = useRef<string | null>(null);
+  const consumedOpenRef = useRef<string | null>(null);
 
   function handlePageSizeChange(value: string) {
     setPageSize(Number(value));
@@ -501,11 +612,97 @@ export default function TableauPlanifications() {
     setForm(emptyForm);
   }
 
+  function clearHandledQueryParam(paramName: string) {
+    const nextParams = new URLSearchParams(searchParams.toString());
+    nextParams.delete(paramName);
+    router.replace(
+      nextParams.size ? `${pathname}?${nextParams.toString()}` : pathname,
+      { scroll: false }
+    );
+  }
+
+  useEffect(() => {
+    const prefillDemandeCongeId = searchParams.get("prefillDemandeCongeId");
+    if (
+      !prefillDemandeCongeId ||
+      consumedPrefillRef.current === prefillDemandeCongeId ||
+      !canManage ||
+      !congeType
+    ) {
+      return;
+    }
+
+    const demande = demandes.find(
+      (item) => String(item.id) === prefillDemandeCongeId
+    );
+    if (!demande?.agentId) {
+      return;
+    }
+
+    const hasActivePlanification = Array.isArray(demande.planifications)
+      ? demande.planifications.some((planification) => planification?.statut !== "ANNULE")
+      : false;
+
+    if (hasActivePlanification) {
+      consumedPrefillRef.current = prefillDemandeCongeId;
+      clearHandledQueryParam("prefillDemandeCongeId");
+      return;
+    }
+
+    setForm({
+      id: undefined,
+      titre: `Planification conge - ${demande.agent?.matricule || `${demande.agent?.nom ?? ""} ${demande.agent?.prenom ?? ""}`.trim() || `Agent #${demande.agentId}`}`,
+      description: "",
+      typePlanificationId: String(congeType.id),
+      dateDebut: formatDateInput(demande.dateDebut),
+      dateFin: formatDateInput(demande.dateFin),
+      dateRappel: formatDateInput(demande.dateDebut),
+      statut: "PLANIFIE",
+      priorite: "NORMALE",
+      cible: "INDIVIDUEL",
+      uniteOrganisationnelleId: "",
+      provinceId: "",
+      demandeCongeId: String(demande.id),
+      affectationId: "",
+      notes: "",
+      participantAgentIds: [String(demande.agentId)],
+    });
+    setDialogOpen(true);
+    consumedPrefillRef.current = prefillDemandeCongeId;
+    clearHandledQueryParam("prefillDemandeCongeId");
+  }, [canManage, congeType, demandes, pathname, router, searchParams]);
+
+  useEffect(() => {
+    const openPlanificationId = searchParams.get("openPlanificationId");
+    if (
+      !openPlanificationId ||
+      consumedOpenRef.current === openPlanificationId ||
+      !canRead
+    ) {
+      return;
+    }
+
+    const target = planifications.find(
+      (item) => String(item.id) === openPlanificationId
+    );
+    if (!target) {
+      return;
+    }
+
+    openEdit(target);
+    consumedOpenRef.current = openPlanificationId;
+    clearHandledQueryParam("openPlanificationId");
+  }, [canRead, pathname, planifications, router, searchParams]);
+
   useEffect(() => {
     if (page > totalPages) {
       setPage(totalPages);
     }
   }, [page, totalPages]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters, search]);
 
   function openCreate() {
     resetForm();
@@ -564,8 +761,31 @@ export default function TableauPlanifications() {
     setDialogOpen(true);
   }
 
+  function openParticipantPreview(item: any) {
+    const participants = Array.isArray(item.participants)
+      ? item.participants.map((participant: any) => ({
+          id: participant.agent?.id ?? participant.agentId,
+          matricule: participant.agent?.matricule ?? null,
+          nom: participant.agent?.nom ?? null,
+          prenom: participant.agent?.prenom ?? null,
+        }))
+      : [];
+
+    setParticipantPreview({
+      titre: item.titre ?? "Planification",
+      participants,
+    });
+  }
+
   function toggleParticipant(agentId: string, checked: boolean) {
     setForm((current) => {
+      if (selectedType?.code === "CONGE") {
+        return {
+          ...current,
+          participantAgentIds: checked ? [agentId] : [],
+        };
+      }
+
       if (checked) {
         return {
           ...current,
@@ -595,6 +815,18 @@ export default function TableauPlanifications() {
 
     if (form.dateRappel && form.dateRappel > form.dateDebut) {
       toast.error("La date de rappel doit etre anterieure ou egale a la date de debut.");
+      return;
+    }
+
+    if (selectedType?.code === "CONGE" && form.participantAgentIds.length > 1) {
+      toast.error("Une planification de conge ne peut concerner qu'un seul agent.");
+      return;
+    }
+
+    if (selectedType?.code === "CONGE" && overlappingPlanifications.length > 0) {
+      toast.error(
+        "Ce conge chevauche deja une autre planification active pour cet agent."
+      );
       return;
     }
 
@@ -668,6 +900,56 @@ export default function TableauPlanifications() {
     }
   }
 
+  const overlappingPlanifications = useMemo(() => {
+    if (
+      !showParticipants ||
+      form.participantAgentIds.length === 0 ||
+      !form.dateDebut
+    ) {
+      return [];
+    }
+
+    const start = new Date(form.dateDebut);
+    const end = new Date(form.dateFin || form.dateDebut);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return [];
+    }
+
+    return planifications.filter((item) => {
+      if (form.id && item.id === form.id) {
+        return false;
+      }
+
+      if (item.statut === "ANNULE" || item.statut === "REPORTE") {
+        return false;
+      }
+
+      const itemStart = new Date(item.dateDebut);
+      const itemEnd = new Date(item.dateFin || item.dateDebut);
+      if (
+        Number.isNaN(itemStart.getTime()) ||
+        Number.isNaN(itemEnd.getTime()) ||
+        itemStart > end ||
+        itemEnd < start
+      ) {
+        return false;
+      }
+
+      return Array.isArray(item.participants)
+        ? item.participants.some((participant) =>
+            form.participantAgentIds.includes(String(participant.agentId))
+          )
+        : false;
+    });
+  }, [
+    form.dateDebut,
+    form.dateFin,
+    form.id,
+    form.participantAgentIds,
+    planifications,
+    showParticipants,
+  ]);
+
   if (!canRead) {
     return (
       <div className="rounded-lg border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
@@ -679,12 +961,93 @@ export default function TableauPlanifications() {
   return (
     <div className="flex flex-col gap-4 rounded-lg border bg-card p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Rechercher une planification..."
-          className="w-full md:max-w-sm"
-        />
+        <div className="flex w-full flex-col gap-3">
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Rechercher une planification..."
+            className="w-full md:max-w-sm"
+          />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <Select
+              value={filters.type}
+              onValueChange={(value) =>
+                setFilters((current) => ({ ...current, type: value }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Tous les types</SelectItem>
+                {types.map((type) => (
+                  <SelectItem key={type.id} value={String(type.id)}>
+                    {type.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.statut}
+              onValueChange={(value) =>
+                setFilters((current) => ({ ...current, statut: value }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Tous les statuts" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Tous les statuts</SelectItem>
+                {["BROUILLON", "PLANIFIE", "EN_COURS", "TERMINE", "ANNULE", "REPORTE"].map(
+                  (status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.priorite}
+              onValueChange={(value) =>
+                setFilters((current) => ({ ...current, priorite: value }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Toutes les priorites" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Toutes les priorites</SelectItem>
+                {PLAN_PRIORITIES.map((priority) => (
+                  <SelectItem key={priority.value} value={priority.value}>
+                    {priority.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.cible}
+              onValueChange={(value) =>
+                setFilters((current) => ({ ...current, cible: value }))
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Toutes les cibles" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Toutes les cibles</SelectItem>
+                {PLAN_TARGETS.map((target) => (
+                  <SelectItem key={target.value} value={target.value}>
+                    {target.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         {canManage && (
           <Button type="button" onClick={openCreate} disabled={types.length === 0}>
@@ -740,16 +1103,28 @@ export default function TableauPlanifications() {
                 </TableCell>
                 <TableCell>{item.uniteOrganisationnelle?.nom ?? "--"}</TableCell>
                 <TableCell>
-                  {Array.isArray(item.participants) && item.participants.length > 0
-                    ? item.participants
-                        .slice(0, 2)
-                        .map((participant: any) => participant.agent?.matricule || participant.agent?.nom)
-                        .filter(Boolean)
-                        .join(", ")
-                    : "--"}
-                  {Array.isArray(item.participants) && item.participants.length > 2
-                    ? ` +${item.participants.length - 2}`
-                    : ""}
+                  {Array.isArray(item.participants) && item.participants.length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-sm">
+                        {item.participants
+                          .slice(0, 2)
+                          .map((participant: any) => getParticipantDisplayLabel(participant))
+                          .join(", ")}
+                      </span>
+                      {item.participants.length > 2 && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto justify-start px-0 text-xs"
+                          onClick={() => openParticipantPreview(item)}
+                        >
+                          Voir tous ({item.participants.length})
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    "--"
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant={getStatusBadgeVariant(item.statut)}>{item.statut}</Badge>
@@ -839,45 +1214,45 @@ export default function TableauPlanifications() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1">
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPage(1)}
               disabled={currentPage === 1}
             >
-              Premier
+              <IconChevronsLeft className="h-4 w-4" />
             </Button>
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPage((prev) => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
             >
-              Precedent
+              <IconChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-muted-foreground">
-              Page {currentPage} / {totalPages}
+            <span className="px-2 text-sm text-muted-foreground">
+              Page {currentPage} sur {totalPages}
             </span>
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
               disabled={currentPage >= totalPages}
             >
-              Suivant
+              <IconChevronRight className="h-4 w-4" />
             </Button>
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => setPage(totalPages)}
               disabled={currentPage >= totalPages}
             >
-              Dernier
+              <IconChevronsRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -935,7 +1310,9 @@ export default function TableauPlanifications() {
                         cible: nextTarget,
                         participantAgentIds:
                           nextTarget === "INDIVIDUEL" && !nextIsHoliday
-                            ? current.participantAgentIds
+                            ? nextType?.code === "CONGE"
+                              ? current.participantAgentIds.slice(0, 1)
+                              : current.participantAgentIds
                             : [],
                         demandeCongeId: nextType?.code === "CONGE" ? current.demandeCongeId : "",
                         affectationId: nextType?.code === "AFFECTATION" ? current.affectationId : "",
@@ -956,6 +1333,27 @@ export default function TableauPlanifications() {
                 </Select>
               </div>
             </div>
+
+            {overlappingPlanifications.length > 0 ? (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="font-medium">Attention aux chevauchements</div>
+                <p className="mt-1 text-xs text-amber-800">
+                  Un ou plusieurs agents selectionnes ont deja une planification active sur cette periode.
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-amber-900">
+                  {overlappingPlanifications.slice(0, 3).map((item) => (
+                    <li key={item.id}>
+                      {item.titre} ({formatDate(item.dateDebut)} - {formatDate(item.dateFin)})
+                    </li>
+                  ))}
+                  {overlappingPlanifications.length > 3 ? (
+                    <li>
+                      + {overlappingPlanifications.length - 3} autre(s) conflit(s)
+                    </li>
+                  ) : null}
+                </ul>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label htmlFor="description-planification">Description</Label>
@@ -1146,6 +1544,14 @@ export default function TableauPlanifications() {
                     setForm((current) => ({
                       ...current,
                       demandeCongeId: value === "__none__" ? "" : value,
+                      participantAgentIds:
+                        value === "__none__"
+                          ? current.participantAgentIds
+                          : demandes
+                              .filter((demande) => String(demande.id) === value)
+                              .map((demande) => String(demande.agentId))
+                              .filter(Boolean)
+                              .slice(0, 1),
                     }))
                   }
                 >
@@ -1154,7 +1560,7 @@ export default function TableauPlanifications() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Aucune</SelectItem>
-                    {demandes.map((demande) => (
+                    {availableDemandes.map((demande) => (
                       <SelectItem key={demande.id} value={String(demande.id)}>
                         #{demande.id} - {demande.typeConge?.libelle ?? "Conge"} -{" "}
                         {demande.agent?.matricule || demande.agent?.nom || "Agent"}
@@ -1162,6 +1568,11 @@ export default function TableauPlanifications() {
                     ))}
                   </SelectContent>
                 </Select>
+                {canLinkDemandeConge ? (
+                  <p className="text-xs text-muted-foreground">
+                    Les demandes deja planifiees n'apparaissent plus ici, sauf celle deja liee a cette planification.
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -1229,7 +1640,16 @@ export default function TableauPlanifications() {
                             <input
                               type="checkbox"
                               className="mt-1 h-4 w-4 shrink-0 accent-primary"
-                              checked={isSelected}
+                              checked={
+                                lockedCongeAgentId
+                                  ? agentId === lockedCongeAgentId
+                                  : isSelected
+                              }
+                              disabled={
+                                selectedType?.code === "CONGE" &&
+                                Boolean(lockedCongeAgentId) &&
+                                agentId !== lockedCongeAgentId
+                              }
                               onChange={(event) => toggleParticipant(agentId, event.target.checked)}
                             />
                             <div className="min-w-0">
@@ -1247,7 +1667,11 @@ export default function TableauPlanifications() {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Cochez un ou plusieurs agents concernes par cette planification.
+                  {selectedType?.code === "CONGE"
+                    ? lockedCongeAgentId
+                      ? "Le participant suit automatiquement l'agent de la demande de conge liee."
+                      : "Une planification de conge ne peut concerner qu'un seul agent."
+                    : "Cochez un ou plusieurs agents concernes par cette planification."}
                 </p>
               </div>
             ) : (
@@ -1299,6 +1723,44 @@ export default function TableauPlanifications() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={Boolean(participantPreview)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setParticipantPreview(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Participants de la planification</DialogTitle>
+            <DialogDescription>
+              {participantPreview?.titre ?? "Planification"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="max-h-[60vh] space-y-2 overflow-y-auto">
+            {participantPreview?.participants.length ? (
+              participantPreview.participants.map((participant) => (
+                <div key={participant.id} className="rounded-md border px-3 py-2 text-sm">
+                  <div className="font-medium">
+                    {[participant.nom, participant.prenom].filter(Boolean).join(" ").trim() ||
+                      `Agent #${participant.id}`}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {participant.matricule || "Matricule non renseigne"}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground">
+                Aucun participant lie a cette planification.
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

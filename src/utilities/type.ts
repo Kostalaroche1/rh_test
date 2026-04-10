@@ -235,6 +235,13 @@ export type DemandeConge = {
     prenom: string
     postnom?: string
   }
+  planifications?: Array<{
+    id: number
+    titre?: string
+    statut: string
+    dateDebut?: string | Date | null
+    dateFin?: string | Date | null
+  }>
   role?: string
   action?: string
 }

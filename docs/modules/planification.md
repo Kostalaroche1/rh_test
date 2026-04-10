@@ -47,6 +47,80 @@ Une planification peut deja etre reliee a :
 - une `UniteOrganisationnelle`
 - une `Province`
 
+## Lien avec les demandes de conge
+
+La planification ne remplace pas `DemandeConge`.
+
+La logique metier est la suivante :
+- `TypeConge` definit la nature du conge
+- `DemandeConge` porte le workflow officiel de demande
+- `Planification` ajoute la preparation et l'anticipation autour de cette demande
+
+Exemple :
+- l'agent depose une demande de conge annuel
+- le responsable la confirme
+- RH ou un utilisateur autorise cree ensuite une planification liee pour organiser l'absence
+
+Cette planification permet notamment :
+- d'anticiper l'absence
+- de la rendre visible dans le calendrier et les rapports
+- de poser un rappel
+- de coordonner le suivi RH
+
+### Quand `Creer planification` apparait
+
+Dans les ecrans des demandes de conge, l'action `Creer planification` apparait seulement si :
+- la demande est en statut `CONFIRME` ou `VALIDE`
+- l'utilisateur courant possede `planification.create`
+- aucune planification active n'est deja liee a cette demande
+
+L'action n'apparait donc pas pour :
+- `EN_ATTENTE`
+- `REJETE`
+- une demande deja planifiee
+
+### Prefill depuis une demande de conge
+
+Quand l'utilisateur clique `Creer planification` depuis une demande de conge :
+- le module de planification s'ouvre
+- le formulaire est pre-rempli pour une planification de type `CONGE`
+- la demande de conge est deja liee
+- l'agent de la demande est deja selectionne
+- les dates de debut et de fin de la demande sont reprises
+
+### Consultation depuis une demande de conge
+
+Quand une demande est deja planifiee :
+- l'ecran de conges affiche son statut de planification
+- l'action `Voir planification` ouvre d'abord un apercu en modal dans le module de conges
+- le bouton `Voir plus` de cette modal redirige ensuite vers l'onglet `Planifications` avec la bonne fiche ouverte
+
+### Regle d'unicite pour `CONGE`
+
+Une `DemandeConge` ne peut etre reliee qu'a une seule planification active de type `CONGE`.
+
+Concretement :
+- une demande deja planifiee ne reapparait plus dans la liste `Demande de conge liee`
+- l'API refuse aussi la creation d'une deuxieme planification active sur la meme demande
+
+Une demande redevient eligible si la planification precedente est `ANNULE`.
+
+### Regle de chevauchement pour `CONGE`
+
+Pour les planifications de type `CONGE`, le systeme ne se contente plus d'avertir.
+
+Il bloque la creation ou la modification si :
+- le meme agent a deja une autre planification individuelle active
+- et que les periodes se chevauchent
+
+Les statuts exclus de ce controle sont :
+- `ANNULE`
+- `REPORTE`
+
+Consequence pratique :
+- pour `CONGE`, le conflit de periode est bloquant
+- pour les autres types individuels, l'interface affiche encore seulement un avertissement
+
 ## Fonctionnement de l'ecran
 
 L'interface utilise maintenant un seul espace `Planifications`.
