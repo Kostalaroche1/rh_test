@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import {
   Card, CardHeader, CardTitle, CardContent,
   CardDescription
@@ -34,6 +34,14 @@ import { hasAnyPermission } from "@/security/permissions"
 
 /* ---------------- CONSTANTES ---------------- */
 const TAUX_RETENUE = 0.1
+const getDefaultPeriode = () => new Date().toISOString().slice(0, 10)
+const getEmptyForm = () => ({
+  agentId: "",
+  periode: getDefaultPeriode(),
+  salaireBase: "",
+  brut: "",
+  net: ""
+})
 
 const statutColor = (statut: string) => {
   if (statut === "PAYE") return "bg-emerald-500/18 text-emerald-500"
@@ -60,13 +68,7 @@ export default function PaieAvantagesDashboard({ session }: any) {
   const [selectedPaie, setSelectedPaie] = useState<any>(null)
   const [agentFilter, setAgentFilter] = useState<number | null>(null)
 
-  const [form, setForm] = useState({
-    agentId: "",
-    periode: "",
-    salaireBase: "",
-    brut: "",
-    net: ""
-  })
+  const [form, setForm] = useState(getEmptyForm)
 
   // const [primes, setPrimes] = useState<{ type: string; montant: number }[]>([])
 
@@ -81,6 +83,32 @@ export default function PaieAvantagesDashboard({ session }: any) {
 
   const { mutateAsync: payerAgent, isPending: isPendingPayerAgent } = usePost(createPaie)
   const { mutate: supprimerPaie } = useDelete(deletePaie)
+
+  const latestPaieByAgent = useMemo(() => {
+    const getTimestamp = (value: any) => {
+      const parsed = new Date(value || 0).getTime()
+      return Number.isFinite(parsed) ? parsed : -1
+    }
+
+    return (Array.isArray(paies) ? paies : []).reduce((acc, paie: any) => {
+      const agentId = Number(paie?.agentId)
+      if (!Number.isFinite(agentId)) return acc
+
+      const current = acc.get(agentId)
+      if (!current) {
+        acc.set(agentId, paie)
+        return acc
+      }
+
+      const currentTimestamp = getTimestamp(current?.datePaiement ?? current?.periode)
+      const candidateTimestamp = getTimestamp(paie?.datePaiement ?? paie?.periode)
+      if (candidateTimestamp >= currentTimestamp) {
+        acc.set(agentId, paie)
+      }
+
+      return acc
+    }, new Map<number, any>())
+  }, [paies])
 
   /* -------- CALCUL AUTO -------- */
   useEffect(() => {
@@ -102,7 +130,6 @@ export default function PaieAvantagesDashboard({ session }: any) {
     }))
   }, [form.salaireBase, primes])
 
-  console.log(paies, "paies nest PaieAvantageDasgbord")
   /* -------- INDICATEURS -------- */
   const totalSalaires = paies.reduce((acc: number, p: any) => acc + Number(p.net), 0)
   const salaireMoyen = paies.length ? (totalSalaires / paies.length).toFixed(2) : "0"
@@ -114,6 +141,11 @@ export default function PaieAvantagesDashboard({ session }: any) {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
+    if (!form.agentId || !form.periode || !form.salaireBase) {
+      toast.warning("Veuillez renseigner l'agent, la periode et le salaire de base.")
+      return
+    }
+
     const response = await payerAgent({
       agentId: Number(form.agentId),
       periode: form.periode,
@@ -123,12 +155,17 @@ export default function PaieAvantagesDashboard({ session }: any) {
       etat: "PAYE",
       primes
     })
+
+    if (response?.status !== 200) {
+      toast.error(response?.message || "Echec de paiement")
+      return
+    }
+
     setOpenDialog(false)
-    toast.info(response.message)
-    setForm({ agentId: "", periode: "", salaireBase: "", brut: "", net: "" })
+    toast.success(response.message || "Paiement enregistre")
+    setForm(getEmptyForm())
     setPrimes([])
     refetch()
-    if (response.status !== 200) return
   }
 
   const paiesFiltrees = agentFilter
@@ -148,6 +185,42 @@ export default function PaieAvantagesDashboard({ session }: any) {
       }
     })
     .filter(Boolean)
+
+  const selectedAgentOption = agentOptions.find((option: any) => option.value === Number(form.agentId)) || null
+
+  const handleSelectAgent = (opt: any) => {
+    const selectedAgentId = Number(opt?.value)
+
+    if (!Number.isFinite(selectedAgentId)) {
+      setForm((prev) => ({
+        ...prev,
+        agentId: "",
+        salaireBase: "",
+        brut: "",
+        net: ""
+      }))
+      setPrimes([])
+      return
+    }
+
+    const lastPaie = latestPaieByAgent.get(selectedAgentId)
+    const previousPrimes = Array.isArray(lastPaie?.primes)
+      ? lastPaie.primes.map((prime: any) => ({
+          type: String(prime?.type ?? prime?.nom ?? ""),
+          montant: Number(prime?.montant ?? 0),
+          tag: prime?.tag === "+" ? "+" : "-",
+        }))
+      : []
+
+    setForm((prev) => ({
+      ...prev,
+      agentId: String(selectedAgentId),
+      salaireBase: lastPaie ? String(Number(lastPaie?.salaireBase ?? 0)) : "",
+      brut: "",
+      net: ""
+    }))
+    setPrimes(previousPrimes)
+  }
 
 
 
@@ -210,7 +283,14 @@ export default function PaieAvantagesDashboard({ session }: any) {
         <TabsContent value="bulletins">
           <div className="flex gap-2">
             {canManagePaie && (
-              <Button className="mb-4" onClick={() => setOpenDialog(true)} >
+              <Button
+                className="mb-4"
+                onClick={() => {
+                  setForm(getEmptyForm())
+                  setPrimes([])
+                  setOpenDialog(true)
+                }}
+              >
                 <FileText className="w-4 h-4 mr-2" /> Payer un agent
               </Button>
             )}
@@ -292,7 +372,8 @@ export default function PaieAvantagesDashboard({ session }: any) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <Select
               options={agentOptions}
-              onChange={opt => setForm({ ...form, agentId: opt?.value })}
+              value={selectedAgentOption}
+              onChange={handleSelectAgent}
               placeholder="-- Sélectionnez un agent --"
               isClearable
               {...dialogSelectProps}

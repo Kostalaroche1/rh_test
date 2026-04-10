@@ -25,36 +25,45 @@ export async function POST(req: Request) {
 
 
     const body = await req.json();
-    console.log(body, "body from paie frontend")
+    const agentId = Number(body?.agentId);
 
-    if (!body?.agentId) {
+    if (!Number.isFinite(agentId)) {
       return NextResponse.json({ message: "agentId obligatoire" }, { status: 400 });
     }
 
-    if (!(await canAccessAgentForPermissions(auth!.userId, Number(body.agentId), ["paie.create"]))) {
+    if (!(await canAccessAgentForPermissions(auth!.userId, agentId, ["paie.create"]))) {
       return NextResponse.json({ message: "Acces refuse" }, { status: 403 });
     }
 
+    const now = new Date();
     const affectation = await prisma.affectation.findFirst({
-      where: { agentId: Number(body.agentId), statut: { not: "REJETE" } },
-      orderBy: { dateDebut: "desc" },
+      where: {
+        agentId,
+        statut: "VALIDE",
+        actif: true,
+        statutOrganisationnel: "ACTIVE",
+        dateDebut: { lte: now },
+        OR: [{ dateFin: null }, { dateFin: { gte: now } }],
+      },
+      orderBy: [{ principale: "desc" }, { dateDebut: "desc" }],
     });
 
     if (!affectation) {
       return NextResponse.json(
-        { message: "Cet agent n'est pas affecte a un service actif." },
+        { message: "Paiement refuse: l'affectation de cet agent n'est pas encore approuvee (VALIDE)." },
         { status: 409 }
       );
     }
 
-    const periode = new Date(body.periode).toLocaleDateString();
-    if (!periode) {
+    const periodeDate = new Date(body?.periode);
+    if (!body?.periode || Number.isNaN(periodeDate.getTime())) {
       return NextResponse.json({ message: "Periode obligatoire" }, { status: 400 });
     }
+    const periode = periodeDate.toLocaleDateString();
 
     const alreadyPaid = await prisma.paie.findFirst({
       where: {
-        agentId: Number(body.agentId),
+        agentId,
         periode,
       },
       select: { id: true },
@@ -69,7 +78,7 @@ export async function POST(req: Request) {
 
     const paie = await prisma.paie.create({
       data: {
-        agentId: Number(body.agentId),
+        agentId,
         periode: periode,
         datePaiement: new Date(),
         salaireBase: body.salaireBase,
