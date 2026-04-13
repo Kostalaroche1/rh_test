@@ -2,6 +2,7 @@ import {
   Building2,
   CalendarDays,
   ClipboardCheck,
+  Hospital,
   ShieldCheck,
   TrendingUp,
   Users,
@@ -60,6 +61,20 @@ export const MODULES: ModuleCard[] = [
     href: "/dashboard/paie",
     icon: Wallet,
     permissions: ["paie.read"],
+  },
+  {
+    title: "Polyclinique",
+    description: "Demandes de soin, validation RH et dossiers medicaux.",
+    href: "/dashboard/polyclinique",
+    icon: Hospital,
+    permissions: [
+      "polyclinique.access",
+      "polyclinique_demande.read",
+      "polyclinique_demande.request",
+      "polyclinique_demande.validate",
+      "polyclinique_dossier.read",
+      "polyclinique_dossier.create",
+    ],
   },
   {
     title: "Controle d'acces",

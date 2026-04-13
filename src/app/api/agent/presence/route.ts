@@ -47,6 +47,16 @@ export const POST = async (req: Request) => {
     )
   }
 
+  if (dayContext.state === "HOLIDAY") {
+    return NextResponse.json(
+      {
+        status: 400,
+        message: `Jour ferie aujourd'hui: ${dayContext.holiday?.titre ?? "Jour ferie"}. Aucun pointage de presence n'est autorise.`,
+      },
+      { status: 400 }
+    )
+  }
+
   if (dayContext.state === "OFF") {
     return NextResponse.json(
       { status: 400, message: "Vous etes en jour off aujourd'hui. Aucun pointage de presence n'est autorise." },

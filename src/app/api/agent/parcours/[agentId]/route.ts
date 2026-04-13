@@ -56,6 +56,54 @@ export async function GET(_: NextRequest, { params }: Params) {
           include: { typeConge: true },
           orderBy: { dateDemande: "desc" },
         },
+        demandesSoin: {
+          include: {
+            validePar: {
+              select: {
+                id: true,
+                login: true,
+              },
+            },
+            dossierMedical: {
+              select: {
+                id: true,
+                createdAt: true,
+              },
+            },
+          },
+          orderBy: { dateDemande: "desc" },
+        },
+        dossiersMedicaux: {
+          include: {
+            demandeSoin: {
+              select: {
+                id: true,
+                motif: true,
+                dateDemande: true,
+                statut: true,
+              },
+            },
+            medecinUtilisateur: {
+              select: {
+                id: true,
+                login: true,
+                compteAgent: {
+                  select: {
+                    agent: {
+                      select: {
+                        id: true,
+                        matricule: true,
+                        nom: true,
+                        prenom: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+        },
         paie: {
           include: { primes: true },
           orderBy: { datePaiement: "desc" },
@@ -98,6 +146,18 @@ export async function GET(_: NextRequest, { params }: Params) {
         date: d.dateDemande,
         label: `Demande de conge (${d.typeConge?.libelle ?? "-"}) - ${d.statut}`,
         payload: d,
+      })),
+      ...agent.demandesSoin.map((d) => ({
+        type: "DEMANDE_SOIN",
+        date: d.dateDemande,
+        label: `Demande de soin (${d.motif ?? "-"}) - ${d.statut}`,
+        payload: d,
+      })),
+      ...agent.dossiersMedicaux.map((dossier) => ({
+        type: "DOSSIER_MEDICAL",
+        date: dossier.createdAt,
+        label: `Dossier medical etabli (${dossier.demandeSoin?.motif ?? "Soin"})`,
+        payload: dossier,
       })),
       ...agent.paie.map((p) => ({
         type: "PAIE",

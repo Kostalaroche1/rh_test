@@ -39,3 +39,50 @@ Ce module gere :
 ## Decision importante
 `demande_conge.create` a ete retiree du modele actif.
 L'action metier correcte est `demande_conge.request`.
+
+## Lien avec la planification
+
+Le module `Conges` reste le workflow officiel des absences.
+
+Difference de responsabilite :
+- `TypeConge` definit la nature du conge
+- `DemandeConge` gere la demande, la confirmation et la validation
+- `Planification` sert a preparer et suivre le conge avant son execution
+
+### Quand une demande peut etre planifiee
+
+Dans les vues RH et unite, une demande peut afficher `Creer planification` seulement si :
+- son statut est `CONFIRME` ou `VALIDE`
+- l'utilisateur courant possede `planification.create`
+- aucune planification active n'est deja liee a cette demande
+
+Les statuts suivants ne proposent pas cette action :
+- `EN_ATTENTE`
+- `REJETE`
+
+### Ce que fait `Creer planification`
+
+Cette action ouvre le module `Planification` avec un formulaire pre-rempli :
+- type `CONGE`
+- demande de conge deja liee
+- agent deja selectionne
+- dates de debut et de fin reprises depuis la demande
+
+### Consultation d'une planification existante
+
+Quand une demande est deja planifiee :
+- la vue de conges affiche le statut de la planification
+- `Voir planification` ouvre un apercu rapide en modal dans l'ecran courant
+- `Voir plus` redirige vers l'onglet `Planifications` avec la planification cible deja ouverte
+
+### Regle importante
+
+Une `DemandeConge` ne peut avoir qu'une seule planification active liee.
+
+Consequence :
+- une demande deja planifiee est marquee `Planifie`
+- elle ne reapparait plus dans la liste `Demande de conge liee` du formulaire de planification
+- elle redevient eligible si la planification precedente est `ANNULE`
+
+Voir aussi :
+- [Planification](./planification.md)

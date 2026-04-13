@@ -36,8 +36,17 @@ const MENU_PERMISSIONS: Record<string, string[]> = {
   ],
   "/dashboard/presenceAbsence": ["presence.read", "presence.sign", "presence.confirm", "presence.validate"],
   "/dashboard/conges": ["demande_conge.read", "demande_conge.request", "type_conge.read"],
+  "/dashboard/planification": ["planification.read", "type_planification.read"],
   "/dashboard/carrieres": ["affectation.read", "agent.read"],
   "/dashboard/paie": ["paie.read"],
+  "/dashboard/polyclinique": [
+    "polyclinique.access",
+    "polyclinique_demande.read",
+    "polyclinique_demande.request",
+    "polyclinique_demande.validate",
+    "polyclinique_dossier.read",
+    "polyclinique_dossier.create",
+  ],
   "/dashboard/access": ["role.read", "permission.read"],
 };
 

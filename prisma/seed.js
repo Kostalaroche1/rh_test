@@ -10,6 +10,8 @@ const CRUD_RESOURCES = [
   "user",
   "agent",
   "province",
+  "type_planification",
+  "planification",
   "type_conge",
   "paie",
   "horaire_travail",
@@ -18,6 +20,8 @@ const CRUD_RESOURCES = [
   "grade",
   "notification",
   "rapport",
+  "polyclinique_demande",
+  "polyclinique_dossier",
   "type_unite_organisationnelle",
   "unite_organisationnelle",
   "regle_portee_role",
@@ -39,6 +43,11 @@ const EXTRA_PERMISSIONS = [
   "paie.publish",
   "affectation.assign",
   "horaire_agent.assign",
+  "planification.assign",
+  "planification.validate",
+  "polyclinique.access",
+  "polyclinique_demande.request",
+  "polyclinique_demande.validate",
 ];
 
 const LEGACY_PERMISSION_PREFIXES = ["direction.", "departement.", "site."];
@@ -49,6 +58,8 @@ const RESOURCE_LABELS = {
   user: "utilisateurs",
   agent: "agents",
   province: "provinces",
+  type_planification: "types de planification",
+  planification: "planifications",
   presence: "presences",
   demande_conge: "demandes de conge",
   type_conge: "types de conge",
@@ -61,6 +72,9 @@ const RESOURCE_LABELS = {
   grade: "grades",
   notification: "notifications",
   rapport: "rapports",
+  polyclinique: "acces polyclinique",
+  polyclinique_demande: "demandes de soin polyclinique",
+  polyclinique_dossier: "dossiers medicaux polyclinique",
   type_unite_organisationnelle: "types d'unite organisationnelle",
   unite_organisationnelle: "unites organisationnelles",
   regle_portee_role: "regles de portee par role",
@@ -73,6 +87,8 @@ const MODULE_LABELS = {
   user: "Utilisateurs",
   agent: "Agents",
   province: "Organisation",
+  type_planification: "Planification",
+  planification: "Planification",
   presence: "Presences",
   demande_conge: "Conges",
   type_conge: "Conges",
@@ -87,7 +103,53 @@ const MODULE_LABELS = {
   unite_organisationnelle: "Organisation",
   notification: "Notifications & Rapports",
   rapport: "Notifications & Rapports",
+  polyclinique: "Polyclinique",
+  polyclinique_demande: "Polyclinique",
+  polyclinique_dossier: "Polyclinique",
 };
+
+const DEFAULT_PLANIFICATION_TYPES = [
+  {
+    code: "CONGE",
+    nom: "Conge",
+    description: "Planification des absences et periodes de conge.",
+  },
+  {
+    code: "FORMATION",
+    nom: "Formation",
+    description: "Sessions de formation et renforcement des capacites.",
+  },
+  {
+    code: "ENTRETIEN",
+    nom: "Entretien",
+    description: "Entretiens RH, disciplinaires ou de suivi.",
+  },
+  {
+    code: "EVALUATION",
+    nom: "Evaluation",
+    description: "Campagnes et rendez-vous d'evaluation.",
+  },
+  {
+    code: "AFFECTATION",
+    nom: "Affectation",
+    description: "Preparation des mouvements, nominations et changements de poste.",
+  },
+  {
+    code: "MISSION",
+    nom: "Mission",
+    description: "Missions temporaires et deplacements planifies.",
+  },
+  {
+    code: "PAIE",
+    nom: "Paie",
+    description: "Echeances de cloture et publication de paie.",
+  },
+  {
+    code: "JOUR_FERIE",
+    nom: "Jour ferie",
+    description: "Jours feries collectifs, fermetures exceptionnelles et evenements calendaires non travaillés.",
+  },
+];
 
 const ACTION_LABELS = {
   read: "Lire",
@@ -370,9 +432,31 @@ async function seedProvinces() {
   }
 }
 
+async function seedPlanificationTypes() {
+  for (const type of DEFAULT_PLANIFICATION_TYPES) {
+    await prisma.typePlanification.upsert({
+      where: { code: type.code },
+      update: {
+        nom: type.nom,
+        description: type.description,
+        actif: true,
+        systeme: true,
+      },
+      create: {
+        code: type.code,
+        nom: type.nom,
+        description: type.description,
+        actif: true,
+        systeme: true,
+      },
+    });
+  }
+}
+
 async function main() {
   await seedPermissions();
   await seedProvinces();
+  await seedPlanificationTypes();
   const migratedLegacyLeavePermissions = await migrateLegacyLeavePermissions();
   const removedLegacyPermissions = await removeLegacyPermissions();
   const removedDeprecatedWorkflowPermissions = await removeDeprecatedWorkflowPermissions();
@@ -381,6 +465,7 @@ async function main() {
   console.log("Seed complete", {
     permissions: DEFAULT_PERMISSION_CODES.length,
     provinces: PROVINCES_RDC.length,
+    typesPlanification: DEFAULT_PLANIFICATION_TYPES.length,
     migratedLegacyLeavePermissions,
     removedLegacyPermissions,
     removedDeprecatedWorkflowPermissions,

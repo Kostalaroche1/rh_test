@@ -403,7 +403,7 @@ export default function DossierAgentDashboard() {
                     </CardContent>
                   </Card>
 
-                  <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
                     <Card className="dashboard-stat-card dashboard-stat-tone-blue py-4">
                       <CardHeader className="gap-1 px-4 pb-2">
                         <p className="dashboard-stat-title">Affectations</p>
@@ -439,6 +439,16 @@ export default function DossierAgentDashboard() {
                         <p className="dashboard-stat-title">Paies</p>
                         <CardTitle className="dashboard-stat-value text-2xl">
                           {Array.isArray(selectedAgentDossier.agent.paie) ? selectedAgentDossier.agent.paie.length : 0}
+                        </CardTitle>
+                      </CardHeader>
+                    </Card>
+                    <Card className="dashboard-stat-card dashboard-stat-tone-blue py-4">
+                      <CardHeader className="gap-1 px-4 pb-2">
+                        <p className="dashboard-stat-title">Dossiers medicaux</p>
+                        <CardTitle className="dashboard-stat-value text-2xl">
+                          {Array.isArray(selectedAgentDossier.agent.dossiersMedicaux)
+                            ? selectedAgentDossier.agent.dossiersMedicaux.length
+                            : 0}
                         </CardTitle>
                       </CardHeader>
                     </Card>
@@ -570,6 +580,54 @@ export default function DossierAgentDashboard() {
                             <TableRow>
                               <TableCell colSpan={5} className="text-center text-muted-foreground">
                                 Aucune demande de conge.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Dossiers medicaux (Polyclinique)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date dossier</TableHead>
+                            <TableHead>Medecin</TableHead>
+                            <TableHead>Motif de soin</TableHead>
+                            <TableHead>Resume</TableHead>
+                            <TableHead>Traitements suivis</TableHead>
+                            <TableHead>Fichier</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(Array.isArray(selectedAgentDossier.agent.dossiersMedicaux)
+                            ? selectedAgentDossier.agent.dossiersMedicaux
+                            : []
+                          ).map((item: any) => (
+                            <TableRow key={`dossier-medical-${item.id}`}>
+                              <TableCell>{formatDate(item.createdAt)}</TableCell>
+                              <TableCell>
+                                {item.medecinUtilisateur?.compteAgent?.agent
+                                  ? `${item.medecinUtilisateur.compteAgent.agent.prenom ?? ""} ${item.medecinUtilisateur.compteAgent.agent.nom ?? ""}`.trim()
+                                  : item.medecinUtilisateur?.login ?? "--"}
+                              </TableCell>
+                              <TableCell>{item.demandeSoin?.motif ?? "--"}</TableCell>
+                              <TableCell>{item.resumeTraitements ?? "--"}</TableCell>
+                              <TableCell>{item.traitementsSuivis ?? "--"}</TableCell>
+                              <TableCell>{item.fichierPath ?? "--"}</TableCell>
+                            </TableRow>
+                          ))}
+                          {(Array.isArray(selectedAgentDossier.agent.dossiersMedicaux)
+                            ? selectedAgentDossier.agent.dossiersMedicaux.length
+                            : 0) === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="text-center text-muted-foreground">
+                                Aucun dossier medical.
                               </TableCell>
                             </TableRow>
                           )}

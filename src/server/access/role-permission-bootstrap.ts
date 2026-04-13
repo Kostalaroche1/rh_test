@@ -5,7 +5,7 @@ import { DEFAULT_PERMISSION_CODES } from "@/server/access/permission-catalog";
 type Scope = PorteeDonnees;
 
 type RoleTemplate = {
-  id: "admin" | "rh" | "chefservice" | "agent";
+  id: "admin" | "rh" | "chefservice" | "agent" | "medecin";
   aliases: string[];
   permissionCodes: string[] | "*";
   defaultScope: Scope;
@@ -45,6 +45,10 @@ const AGENT_PERMISSION_CODES = [
   "presence.read",
   "demande_conge.request",
   "demande_conge.read",
+  "polyclinique.access",
+  "polyclinique_demande.request",
+  "polyclinique_demande.read",
+  "polyclinique_dossier.read",
   "type_conge.read",
   "paie.read",
   "notification.read",
@@ -129,8 +133,21 @@ const RH_PERMISSION_CODES = [
   "rapport.read",
   "rapport.create",
   "rapport.update",
+  "polyclinique.access",
+  "polyclinique_demande.read",
+  "polyclinique_demande.validate",
+  "polyclinique_dossier.read",
   "role.read",
   "role.update",
+];
+
+const MEDECIN_PERMISSION_CODES = [
+  "agent.read",
+  "agent_dossier.read",
+  "polyclinique.access",
+  "polyclinique_demande.read",
+  "polyclinique_dossier.read",
+  "polyclinique_dossier.create",
 ];
 
 const ROLE_TEMPLATES: RoleTemplate[] = [
@@ -179,6 +196,15 @@ const ROLE_TEMPLATES: RoleTemplate[] = [
     aliases: ["agent", "ag", "employe", "employee", "utilisateur"],
     permissionCodes: AGENT_PERMISSION_CODES,
     defaultScope: PorteeDonnees.SOI_MEME,
+  },
+  {
+    id: "medecin",
+    aliases: ["medecin", "medecins", "docteur", "doctor", "medical", "sante"],
+    permissionCodes: MEDECIN_PERMISSION_CODES,
+    defaultScope: PorteeDonnees.UNITE_ET_DESCENDANTS,
+    scopeOverrides: {
+      "polyclinique.access": PorteeDonnees.SOI_MEME,
+    },
   },
 ];
 

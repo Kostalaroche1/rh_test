@@ -2,8 +2,10 @@ import {
   ClipboardCheck,
   Building2,
   CalendarDays,
+  CalendarRange,
   Command,
   FolderOpen,
+  Hospital,
   LayoutDashboard,
   LifeBuoy,
   Send,
@@ -59,6 +61,11 @@ export const data = {
       icon: CalendarDays,
     },
     {
+      title: "Planification",
+      url: "/dashboard/planification",
+      icon: CalendarRange,
+    },
+    {
       title: "Carriere & Decisions",
       url: "/dashboard/carrieres",
       icon: TrendingUp,
@@ -67,6 +74,11 @@ export const data = {
       title: "Paie & Avantages",
       url: "/dashboard/paie",
       icon: Wallet,
+    },
+    {
+      title: "Polyclinique",
+      url: "/dashboard/polyclinique",
+      icon: Hospital,
     },
     {
       title: "Access Control",

@@ -158,6 +158,8 @@ const RESOURCE_LABELS: Record<string, string> = {
   paie: "Paie",
   horaire_travail: "Horaire de travail",
   horaire_agent: "Horaire employe",
+  type_planification: "Type de planification",
+  planification: "Planification",
   affectation: "Affectation",
   type_unite_organisationnelle: "Type d'unite",
   unite_organisationnelle: "Unite organisationnelle",
@@ -167,6 +169,9 @@ const RESOURCE_LABELS: Record<string, string> = {
   province: "Province",
   notification: "Notification",
   rapport: "Rapport",
+  polyclinique: "Acces polyclinique",
+  polyclinique_demande: "Demande de soin polyclinique",
+  polyclinique_dossier: "Dossier medical polyclinique",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -189,8 +194,10 @@ const MODULE_LABELS: Record<string, string> = {
   conges: "Conges",
   paie: "Paie",
   horaires: "Horaires",
+  planification: "Planification",
   organisation: "Organisation",
   communication: "Notifications & Rapports",
+  polyclinique: "Polyclinique",
   autres: "Autres",
 };
 
@@ -251,6 +258,8 @@ const RESOURCE_MODULES: Record<string, string> = {
   paie: "paie",
   horaire_travail: "horaires",
   horaire_agent: "horaires",
+  type_planification: "planification",
+  planification: "planification",
   affectation: "organisation",
   type_unite_organisationnelle: "organisation",
   unite_organisationnelle: "organisation",
@@ -260,6 +269,9 @@ const RESOURCE_MODULES: Record<string, string> = {
   province: "organisation",
   notification: "communication",
   rapport: "communication",
+  polyclinique: "polyclinique",
+  polyclinique_demande: "polyclinique",
+  polyclinique_dossier: "polyclinique",
 };
 
 function formatPermissionLabel(code: string) {

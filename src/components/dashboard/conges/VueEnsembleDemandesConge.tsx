@@ -1,6 +1,7 @@
 'use client'
 // gabriel code
 
+import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,10 +11,76 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { GetAllDemandeConge } from "@/app/action/conge/demandeconge/action"
 import { obtenirCouleurBadgeStatut, obtenirLibelleStatut } from "@/components/dashboard/espaceTravail/utilitaires/statuts"
 import { DemandeConge } from "@/utilities/type"
+import { useAuth } from "@/app/contexts/auth/context"
+import { hasAnyPermission } from "@/security/permissions"
+import ApercuPlanificationLiee from "@/components/dashboard/conges/ApercuPlanificationLiee"
 
 const PAGE_SIZE = 14
 
+function canCreatePlanificationForDemande(demande: DemandeConge) {
+  return ["CONFIRME", "VALIDE"].includes(demande.statut)
+}
+
+function getActivePlanifications(demande: DemandeConge) {
+  return Array.isArray(demande.planifications)
+    ? demande.planifications.filter((planification) => planification?.statut !== "ANNULE")
+    : []
+}
+
+function getPlanificationBadge(
+  demande: DemandeConge,
+  canCreatePlanification: boolean,
+  canReadPlanification: boolean
+) {
+  const activePlanifications = getActivePlanifications(demande)
+  const linkedPlanification = activePlanifications[0]
+  const canCreate = canCreatePlanification && canCreatePlanificationForDemande(demande)
+
+  if (activePlanifications.length === 0) {
+    return (
+      <div className="space-y-2">
+        <Badge variant="outline" className="whitespace-nowrap">
+          Non planifie
+        </Badge>
+        {canCreate ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/dashboard/planification?prefillDemandeCongeId=${demande.id}`}>
+              Creer planification
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="space-y-1">
+        <Badge variant="outline" className="whitespace-nowrap">
+          {linkedPlanification?.statut || "Planifie"}
+        </Badge>
+        <p className="text-xs text-muted-foreground">
+          {linkedPlanification?.titre || `${activePlanifications.length} planification(s)`}
+        </p>
+      </div>
+      {canReadPlanification ? (
+        <ApercuPlanificationLiee planification={linkedPlanification} />
+      ) : null}
+    </div>
+  )
+}
+
 export default function AdminDemandeConge() {
+  const { auth }: any = useAuth()
+  const canCreatePlanification = hasAnyPermission(auth, ["planification.create"])
+  const canReadPlanification = hasAnyPermission(auth, [
+    "planification.read",
+    "planification.create",
+    "planification.update",
+    "planification.delete",
+    "planification.assign",
+    "planification.validate",
+  ])
   const [demandes, setDemandes] = useState<DemandeConge[]>([])
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
@@ -89,6 +156,7 @@ export default function AdminDemandeConge() {
                 <TableHead>Date fin</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Planification</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -103,11 +171,12 @@ export default function AdminDemandeConge() {
                       {obtenirLibelleStatut(d.statut)}
                     </Badge>
                   </TableCell>
+                  <TableCell>{getPlanificationBadge(d, canCreatePlanification, canReadPlanification)}</TableCell>
                 </TableRow>
               ))}
               {paginatedDemandes.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-4 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-4 text-center text-muted-foreground">
                     Aucun resultat
                   </TableCell>
                 </TableRow>
