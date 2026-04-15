@@ -35,14 +35,14 @@ export default function Page() {
   return (
     <CoquillePageTableauBord>
       {canManageAgentsWorkspace ? (
-        <Tabs defaultValue="dashboard" className="w-full">
+        <Tabs defaultValue="gestion" className="w-full">
           <TabsList className="mb-4">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+            {/* <TabsTrigger value="dashboard">Dashboard</TabsTrigger> */}
             <TabsTrigger value="gestion">Gestion agents</TabsTrigger>
           </TabsList>
-          <TabsContent value="dashboard">
+          {/* <TabsContent value="dashboard">
             <TableauBordEspaceTravail />
-          </TabsContent>
+          </TabsContent> */}
           <TabsContent value="gestion">
             <DataTable
               data={Array.isArray(agents) ? agents : []}

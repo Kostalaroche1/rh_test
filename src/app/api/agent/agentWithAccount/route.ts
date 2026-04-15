@@ -178,7 +178,7 @@ export async function POST(req: Request) {
       return { CreationCompte, utilisateur, agent, utilisateurRole }
     })
 
-    console.log(dataAll, "all data")
+    // console.log(dataAll, "all data")
 
     return NextResponse.json(
       { status: 200, message: "Compte créé avec succès" },

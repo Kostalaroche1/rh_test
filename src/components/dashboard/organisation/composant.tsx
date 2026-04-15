@@ -167,9 +167,8 @@ export default function OrganisationDashboard() {
     );
   }, [types, selectedProvinceId]);
 
-  const filteredUnitesByProvince = useMemo(() => {
-    if (!selectedProvinceId) return [] as any[];
-    const rows = (unites as any[]).filter((item) => Number(item.provinceId) === selectedProvinceId);
+  const allUnitesForParent = useMemo(() => {
+    const rows = unites as any[];
     const uniqueById = new Map<number, any>();
     for (const row of rows) {
       const id = Number(row.id);
@@ -177,8 +176,11 @@ export default function OrganisationDashboard() {
         uniqueById.set(id, row);
       }
     }
-    return [...uniqueById.values()];
-  }, [unites, selectedProvinceId]);
+    return [...uniqueById.values()].sort((a, b) => {
+      if (Number(a.niveau) !== Number(b.niveau)) return Number(a.niveau) - Number(b.niveau);
+      return String(a.nom).localeCompare(String(b.nom));
+    });
+  }, [unites]);
 
   const filteredUnitesByProvinceAndType = useMemo(() => {
     if (!selectedProvinceId || !selectedTypeUniteId) return [] as any[];
@@ -190,17 +192,10 @@ export default function OrganisationDashboard() {
   }, [unites, selectedProvinceId, selectedTypeUniteId]);
 
   const availableExistingUnites = useMemo(() => {
-    const allUnits = new Map<number, any>();
-    for (const unit of unites as any[]) {
-      if (!allUnits.has(Number(unit.id))) {
-        allUnits.set(Number(unit.id), unit);
-      }
-    }
-    const base = [...allUnits.values()];
     if (!selectedProvinceId || !selectedTypeUniteId) {
-      return base;
+      return allUnitesForParent;
     }
-    return base.filter(
+    return allUnitesForParent.filter(
       (unit) =>
         !(unites as any[]).some(
           (row) =>
@@ -209,7 +204,7 @@ export default function OrganisationDashboard() {
             Number(row.typeUniteId) === selectedTypeUniteId
         )
     );
-  }, [unites, selectedProvinceId, selectedTypeUniteId]);
+  }, [allUnitesForParent, unites, selectedProvinceId, selectedTypeUniteId]);
 
   const unitesTypes = useMemo(() => {
     return (types as any[]).slice().sort((a, b) => String(a.nom).localeCompare(String(b.nom)));
@@ -886,15 +881,26 @@ export default function OrganisationDashboard() {
                   value={formData.parentId || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, parentId: e.target.value }))}
                 >
-                  <option value="">-- Station parente (optionnel) --</option>
-                  {filteredTypesByProvince
+                  <option value="">-- Station parente (toutes provinces, optionnel) --</option>
+                  {(unitesTypes as any[])
                     .filter((item) => Number(item.id) !== Number(editingItem?.id))
-                    .map((item) => (
+                    .map((item) => {
+                      const provinceNames = [
+                        ...new Set(
+                          (item.typeOrgaUniteProvinces ?? [])
+                            .filter((link: any) => link.actif !== false)
+                            .map((link: any) => link?.province?.nom)
+                            .filter(Boolean)
+                        ),
+                      ].join(", ");
+                      return (
                       <option key={item.id} value={item.id}>
                         {item.parentId ? "-- " : ""}
                         {item.nom}
+                        {provinceNames ? ` (${provinceNames})` : ""}
                       </option>
-                    ))}
+                      );
+                    })}
                 </select>
               </>
             )}
@@ -974,11 +980,14 @@ export default function OrganisationDashboard() {
                   value={formData.parentId || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, parentId: e.target.value }))}
                 >
-                  <option value="">-- Direction parente (optionnel) --</option>
-                  {filteredUnitesByProvince
+                  <option value="">-- Direction parente (toutes provinces, optionnel) --</option>
+                  {allUnitesForParent
                     .filter((item) => Number(item.id) !== Number(editingItem?.id))
                     .map((item) => (
-                    <option key={`${item.id}-${item.mappingId ?? "x"}`} value={item.id}>{getIndent(item.niveau, item.nom)}</option>
+                    <option key={`${item.id}-${item.mappingId ?? "x"}`} value={item.id}>
+                      {getIndent(item.niveau, item.nom)}
+                      {item.province?.nom ? ` (${item.province.nom})` : ""}
+                    </option>
                   ))}
                 </select>
                 <p className="text-xs text-muted-foreground">

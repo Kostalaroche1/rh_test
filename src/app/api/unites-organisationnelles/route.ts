@@ -249,22 +249,6 @@ export async function POST(req: Request) {
     if (!parent) {
       return NextResponse.json({ message: "Unite parente introuvable" }, { status: 404 });
     }
-
-    const parentLinkedToProvince = await prisma.typeOrgaUniteProvince.findFirst({
-      where: {
-        provinceId,
-        uniteOrganisationnelleId: parentId,
-        actif: true,
-      },
-      select: { id: true },
-    });
-
-    if (!parentLinkedToProvince) {
-      return NextResponse.json(
-        { message: "Le parent n'appartient pas a la province selectionnee." },
-        { status: 400 }
-      );
-    }
   }
 
   if (uniteExistanteId) {
@@ -472,22 +456,6 @@ export async function PUT(req: Request) {
 
     if (!parent) {
       return NextResponse.json({ message: "Unite parente introuvable" }, { status: 404 });
-    }
-
-    const parentLinkedToProvince = await prisma.typeOrgaUniteProvince.findFirst({
-      where: {
-        provinceId: resolvedProvinceId,
-        uniteOrganisationnelleId: parentId,
-        actif: true,
-      },
-      select: { id: true },
-    });
-
-    if (!parentLinkedToProvince) {
-      return NextResponse.json(
-        { message: "Le parent n'appartient pas a la province selectionnee." },
-        { status: 400 }
-      );
     }
   }
 

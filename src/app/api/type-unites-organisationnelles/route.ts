@@ -155,25 +155,11 @@ export async function POST(req: Request) {
   if (parentId) {
     const parent = await prisma.typeUniteOrganisationnelle.findUnique({
       where: { id: parentId },
-      select: {
-        id: true,
-        typeOrgaUniteProvinces: {
-          where: { provinceId, actif: true },
-          select: { id: true },
-          take: 1,
-        },
-      },
+      select: { id: true },
     });
 
     if (!parent) {
       return NextResponse.json({ message: "Type parent introuvable" }, { status: 404 });
-    }
-
-    if (!parent.typeOrgaUniteProvinces.length) {
-      return NextResponse.json(
-        { message: "Le type parent n'est pas rattache a cette province." },
-        { status: 400 }
-      );
     }
   }
 
