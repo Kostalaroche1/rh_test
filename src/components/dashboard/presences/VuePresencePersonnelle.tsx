@@ -3,6 +3,7 @@
 // Gabriel code merged with Habacuk design
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -175,6 +176,11 @@ export default function AgentDashPresence() {
             <Clock size={20} />
             Presence du jour
           </CardTitle>
+          <CardDescription>
+            <Link href="/pointage/biometrique" className="text-primary underline-offset-4 hover:underline">
+              Ouvrir le pointage biometrique (route dediee)
+            </Link>
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {todayMessage && (

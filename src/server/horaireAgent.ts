@@ -359,9 +359,8 @@ async function getActiveHolidayForAgent(agentId: number, date: Date) {
   });
 }
 
-export async function getPresenceDayContextForUtilisateur(utilisateurId: number) {
-  const agentId = await getAgentIdFromUtilisateurId(utilisateurId);
-  if (!agentId) {
+export async function getPresenceDayContextForAgent(agentId: number) {
+  if (!Number.isInteger(agentId) || agentId <= 0) {
     return null;
   }
 
@@ -424,4 +423,13 @@ export async function getPresenceDayContextForUtilisateur(utilisateurId: number)
     conge: null,
     holiday: null,
   };
+}
+
+export async function getPresenceDayContextForUtilisateur(utilisateurId: number) {
+  const agentId = await getAgentIdFromUtilisateurId(utilisateurId);
+  if (!agentId) {
+    return null;
+  }
+
+  return getPresenceDayContextForAgent(agentId);
 }
