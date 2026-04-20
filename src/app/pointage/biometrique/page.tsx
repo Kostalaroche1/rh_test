@@ -59,7 +59,10 @@ export default function PointageBiometriquePage() {
     auth: unknown;
     isPending?: boolean;
   };
-  const canSignPresence = hasAnyPermission(auth as any, ["presence.sign"]);
+  const canUseBiometric = hasAnyPermission(auth as any, [
+    "presence.biometric",
+    "presence.sign",
+  ]);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -194,6 +197,47 @@ export default function PointageBiometriquePage() {
     }
   }
 
+  async function extractReferenceDescriptor(
+    faceapi: FaceApiModule,
+    image: HTMLImageElement
+  ) {
+    const optionsList = [
+      { inputSize: 416, scoreThreshold: 0.45 },
+      { inputSize: 512, scoreThreshold: 0.3 },
+      { inputSize: 320, scoreThreshold: 0.2 },
+    ] as const;
+
+    for (const option of optionsList) {
+      const detectorOptions = new faceapi.TinyFaceDetectorOptions(option);
+      const singleDetection = await faceapi
+        .detectSingleFace(image, detectorOptions)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (singleDetection?.descriptor) {
+        return singleDetection.descriptor;
+      }
+
+      const allDetections = await faceapi
+        .detectAllFaces(image, detectorOptions)
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+      if (allDetections.length) {
+        const largestFace = allDetections.reduce((currentLargest, current) => {
+          const currentArea = current.detection.box.width * current.detection.box.height;
+          const largestArea =
+            currentLargest.detection.box.width * currentLargest.detection.box.height;
+          return currentArea > largestArea ? current : currentLargest;
+        });
+
+        if (largestFace?.descriptor) {
+          return largestFace.descriptor;
+        }
+      }
+    }
+
+    return null;
+  }
+
   async function loadReferencesMatcher(faceapi: FaceApiModule) {
     setStatus("loading-references");
     setReferencesTotal(0);
@@ -234,48 +278,49 @@ export default function PointageBiometriquePage() {
       const labeledDescriptors: import("face-api.js").LabeledFaceDescriptors[] = [];
       const knownAgents = new Map<number, ReferenceFace>();
       let preparedCount = 0;
+      let skippedCount = 0;
 
       for (const reference of references) {
         if (!reference.photoUrl) {
+          skippedCount += 1;
           continue;
         }
 
         try {
           const image = await faceapi.fetchImage(reference.photoUrl);
-          const detection = await faceapi
-            .detectSingleFace(
-              image,
-              new faceapi.TinyFaceDetectorOptions({
-                inputSize: 416,
-                scoreThreshold: 0.45,
-              })
-            )
-            .withFaceLandmarks()
-            .withFaceDescriptor();
-
-          if (!detection?.descriptor) {
+          const descriptor = await extractReferenceDescriptor(faceapi, image);
+          if (!descriptor) {
+            skippedCount += 1;
             continue;
           }
 
           labeledDescriptors.push(
             new faceapi.LabeledFaceDescriptors(String(reference.agentId), [
-              detection.descriptor,
+              descriptor,
             ])
           );
           knownAgents.set(reference.agentId, reference);
           preparedCount += 1;
           setReferencesReady(preparedCount);
         } catch {
+          skippedCount += 1;
           continue;
         }
       }
 
       if (!labeledDescriptors.length) {
         const message =
-          "Aucun visage exploitable n'a ete extrait des photos. Camera active, pointage auto inactif.";
+          "Aucun visage exploitable n'a ete extrait des photos. Utilise une photo nette, frontale, bien eclairee. Camera active, pointage auto inactif.";
         setErrorMessage(message);
         pushEvent("error", message);
         return;
+      }
+
+      if (skippedCount > 0) {
+        pushEvent(
+          "info",
+          `${skippedCount} photo(s) reference ignoree(s): visage non detecte ou image invalide.`
+        );
       }
 
       matcherRef.current = new faceapi.FaceMatcher(
@@ -441,9 +486,10 @@ export default function PointageBiometriquePage() {
         }
 
         ctx.strokeStyle = strokeColor;
-        ctx.beginPath();
-        ctx.ellipse(centerX, centerY, box.width / 2, box.height / 2, 0, 0, Math.PI * 2);
-        ctx.stroke();
+        const squareSize = Math.max(box.width, box.height);
+        const squareX = centerX - squareSize / 2;
+        const squareY = centerY - squareSize / 2;
+        ctx.strokeRect(squareX, squareY, squareSize, squareSize);
 
         const labelWidth = ctx.measureText(label).width + labelPadding * 2;
         const labelX = Math.max(0, box.x);
@@ -470,6 +516,13 @@ export default function PointageBiometriquePage() {
 
   async function startRecognition() {
     if (isRunningRef.current) {
+      return;
+    }
+    if (!canUseBiometric) {
+      const message =
+        "Acces refuse: permission presence.biometric (ou presence.sign legacy) requise.";
+      setErrorMessage(message);
+      pushEvent("error", message);
       return;
     }
 
@@ -541,7 +594,7 @@ export default function PointageBiometriquePage() {
             <div className="space-y-1">
               <CardTitle>Camera de Detection</CardTitle>
               <CardDescription>
-                Les visages reconnus sont encercles en vert puis pointes automatiquement.
+                Les visages reconnus sont encadres par un carre vert puis pointes automatiquement.
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -553,6 +606,7 @@ export default function PointageBiometriquePage() {
               <Button
                 onClick={() => void startRecognition()}
                 disabled={
+                  !canUseBiometric ||
                   status === "loading-models" ||
                   status === "loading-references" ||
                   status === "starting-camera" ||
@@ -588,9 +642,9 @@ export default function PointageBiometriquePage() {
             <Badge variant="outline">
               References pretes: {referencesReady}/{referencesTotal}
             </Badge>
-            {!canSignPresence && (
+            {!canUseBiometric && (
               <Badge variant="destructive">
-                Pas de permission presence.sign
+                Pas de permission presence.biometric
               </Badge>
             )}
           </div>
@@ -661,3 +715,4 @@ export default function PointageBiometriquePage() {
     </div>
   );
 }
+

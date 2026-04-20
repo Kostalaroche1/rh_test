@@ -35,12 +35,13 @@ export async function GET() {
   }
 
   try {
-    await requireAccess({ permissions: ["presence.sign"] });
+    await requireAccess({ permissions: ["presence.biometric", "presence.sign"] });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
 
   const accessibleAgentIds = await getAccessibleAgentIdsForPermissions(auth.userId, [
+    "presence.biometric",
     "presence.sign",
   ]);
 
@@ -75,4 +76,3 @@ export async function GET() {
 
   return NextResponse.json({ data }, { status: 200 });
 }
-

@@ -51,7 +51,13 @@ export default function DashboardOverviewWorkspace() {
   }, [dashboardRaw]);
 
   const canReadAgents = hasAnyPermission(auth, ["agent.read"]);
-  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.sign", "presence.confirm", "presence.validate"]);
+  const canReadPresence = hasAnyPermission(auth, [
+    "presence.read",
+    "presence.sign",
+    "presence.biometric",
+    "presence.confirm",
+    "presence.validate",
+  ]);
   const canReadConges = hasAnyPermission(auth, ["demande_conge.read", "demande_conge.request", "demande_conge.confirm", "demande_conge.validate"]);
   const canReadType = hasAnyPermission(auth, ["type_unite_organisationnelle.read"]);
   const canReadOrganisation = hasAnyPermission(auth, ["unite_organisationnelle.read"]);

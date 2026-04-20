@@ -29,6 +29,7 @@ const EXTRA_PERMISSIONS = [
   "presence.update",
   "presence.delete",
   "presence.sign",
+  "presence.biometric",
   "presence.confirm",
   "presence.validate",
   "demande_conge.read",

@@ -39,7 +39,13 @@ export const MODULES: ModuleCard[] = [
     description: "Pointage, confirmation, validation et suivi des absences.",
     href: "/dashboard/presenceAbsence",
     icon: ClipboardCheck,
-    permissions: ["presence.read", "presence.sign", "presence.confirm", "presence.validate"],
+    permissions: [
+      "presence.read",
+      "presence.sign",
+      "presence.biometric",
+      "presence.confirm",
+      "presence.validate",
+    ],
   },
   {
     title: "Conges",

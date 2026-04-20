@@ -42,6 +42,7 @@ export type BootstrapSummary = {
 
 const AGENT_PERMISSION_CODES = [
   "presence.sign",
+  "presence.biometric",
   "presence.read",
   "demande_conge.request",
   "demande_conge.read",
@@ -61,6 +62,7 @@ const CHEF_SERVICE_PERMISSION_CODES = [
   "agent_dossier.read",
   "user.read",
   "presence.sign",
+  "presence.biometric",
   "presence.read",
   "presence.confirm",
   "demande_conge.request",
@@ -94,6 +96,7 @@ const RH_PERMISSION_CODES = [
   "demande_conge.update",
   "presence.read",
   "presence.sign",
+  "presence.biometric",
   "presence.confirm",
   "presence.validate",
   "presence.update",
@@ -186,6 +189,7 @@ const ROLE_TEMPLATES: RoleTemplate[] = [
     defaultScope: PorteeDonnees.UNITE_ET_DESCENDANTS,
     scopeOverrides: {
       "presence.sign": PorteeDonnees.SOI_MEME,
+      "presence.biometric": PorteeDonnees.SOI_MEME,
       "demande_conge.request": PorteeDonnees.SOI_MEME,
       "notification.read": PorteeDonnees.SOI_MEME,
       "rapport.read": PorteeDonnees.SOI_MEME,

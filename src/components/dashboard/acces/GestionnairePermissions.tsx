@@ -180,6 +180,7 @@ const ACTION_LABELS: Record<string, string> = {
   update: "Modifier",
   delete: "Supprimer",
   sign: "Signer",
+  biometric: "Biometrie",
   confirm: "Confirmer",
   validate: "Valider",
   request: "Demander",

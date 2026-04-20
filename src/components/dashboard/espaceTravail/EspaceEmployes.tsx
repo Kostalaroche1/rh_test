@@ -35,7 +35,11 @@ export default function EspaceEmployes() {
 
   const { auth }: any = useAuth()
   const canReadConge = hasAnyPermission(auth, ["demande_conge.read", "demande_conge.request", "demande_conge.update", "demande_conge.delete"])
-  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.sign"])
+  const canReadPresence = hasAnyPermission(auth, [
+    "presence.read",
+    "presence.sign",
+    "presence.biometric",
+  ])
   const canReadPaie = hasAnyPermission(auth, ["paie.read"])
   const visibleTabs = [
     { value: "dashboard", label: "Dashboard" },

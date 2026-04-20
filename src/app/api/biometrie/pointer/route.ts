@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    await requireAccess({ permissions: ["presence.sign"] });
+    await requireAccess({ permissions: ["presence.biometric", "presence.sign"] });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
   }
@@ -35,6 +35,7 @@ export async function POST(req: Request) {
   }
 
   const allowed = await canAccessAgentForPermissions(auth.userId, agentId, [
+    "presence.biometric",
     "presence.sign",
   ]);
   if (!allowed) {
@@ -148,4 +149,3 @@ export async function POST(req: Request) {
     { status: 200 }
   );
 }
-
