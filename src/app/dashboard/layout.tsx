@@ -17,6 +17,7 @@ import { Toaster } from "sonner";
 import { AgentProvider } from "../contexts/agents/context";
 import { StatAgentProvider } from "../contexts/agents/stats/context";
 import HeaderWithNotifications from "./HeaderWithNotification";
+import SessionHeartbeat from "@/components/session-heartbeat";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="erp-shell [--header-height:4rem]">
       <SidebarProvider className="h-svh w-full">
+        <SessionHeartbeat />
         <div className="flex h-svh w-full overflow-hidden p-2 md:p-3">
           <AppSidebar />
 

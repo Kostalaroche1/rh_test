@@ -1,8 +1,16 @@
-import { NextResponse } from "next/server"
+import { NextResponse } from "next/server";
+
+import { getAuthenticatedUser } from "@/security/auth";
+import { markUserOffline } from "@/server/session-presence";
 
 export async function POST() {
-    const response = NextResponse.json({ message: "Déconnecté" })
-    console.log(response , "Deconnexion cookies")
-    response.cookies.delete("auth_token")
-    return response
+  const auth = await getAuthenticatedUser();
+  if (auth?.userId) {
+    markUserOffline(auth.userId);
+  }
+
+  const response = NextResponse.json({ message: "Deconnecte" });
+  response.cookies.delete("auth_token");
+  return response;
 }
+

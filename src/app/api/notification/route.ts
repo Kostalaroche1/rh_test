@@ -3,14 +3,22 @@ import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import { hasAnyPermission } from "@/security/permissions";
 import { getRoleIds } from "@/security/roles";
+import { getPermissionScopesForUser } from "@/server/access/scope";
 import { NextResponse } from "next/server";
 
 function buildReadableScope(user: {
   compteId?: number | null;
   roleIds: number[];
   admin: boolean;
+  selfOnly: boolean;
 }) {
   if (user.admin) return {};
+
+  if (user.selfOnly) {
+    return {
+      compteId: Number(user.compteId ?? -1),
+    };
+  }
 
   return {
     OR: [
@@ -53,6 +61,15 @@ async function resolveCompteIdsForRoleId(roleId: number) {
   ];
 }
 
+async function isNotificationSelfOnlyScope(userId: number) {
+  const scopes = await getPermissionScopesForUser(userId, ["notification.read"]);
+  return (
+    scopes.length > 0 &&
+    scopes.includes("SOI_MEME") &&
+    scopes.every((scope) => scope === "SOI_MEME")
+  );
+}
+
 export async function GET() {
   try {
     const user = await getAuthenticatedUser();
@@ -68,12 +85,14 @@ export async function GET() {
 
     const roleIds = getRoleIds(user);
     const admin = hasAnyPermission(user, ["notification.create", "notification.update", "notification.delete"]);
+    const selfOnly = await isNotificationSelfOnlyScope(user.userId);
 
     const notifications = await prisma.notification.findMany({
       where: buildReadableScope({
         compteId: user.compteId ?? null,
         roleIds,
         admin,
+        selfOnly,
       }),
       include: { role: true, compte: true },
       orderBy: { dateEnvoi: "desc" },
@@ -222,12 +241,16 @@ export async function PUT(req: Request) {
 
     const roleIds = getRoleIds(user);
     const admin = hasAnyPermission(user, ["notification.create", "notification.update", "notification.delete"]);
+    const selfOnly = await isNotificationSelfOnlyScope(user.userId);
     const canRead =
-      admin ||
-      (notification.compteId == null && notification.roleId == null) ||
-      (notification.compteId != null &&
-        Number(notification.compteId) === Number(user.compteId ?? -1)) ||
-      (notification.roleId != null && roleIds.includes(Number(notification.roleId)));
+      (selfOnly
+        ? notification.compteId != null &&
+          Number(notification.compteId) === Number(user.compteId ?? -1)
+        : admin ||
+          (notification.compteId == null && notification.roleId == null) ||
+          (notification.compteId != null &&
+            Number(notification.compteId) === Number(user.compteId ?? -1)) ||
+          (notification.roleId != null && roleIds.includes(Number(notification.roleId))));
 
     if (!canRead) {
       return NextResponse.json({ error: "Acces refuse" }, { status: 403 });

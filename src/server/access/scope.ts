@@ -98,6 +98,14 @@ async function getScopedPorteeForPermissions(
   };
 }
 
+export async function getPermissionScopesForUser(
+  utilisateurId: number,
+  permissionCodes: string[]
+) {
+  const { scopes } = await getScopedPorteeForPermissions(utilisateurId, permissionCodes);
+  return scopes;
+}
+
 async function getPrimaryAffectationContextForAgent(agentId: number | null) {
   if (!agentId) {
     return {

@@ -54,6 +54,8 @@ const MENU_PERMISSIONS: Record<string, string[]> = {
     "polyclinique_dossier.create",
   ],
   "/dashboard/access": ["role.read", "permission.read"],
+  "/dashboard/parametre/notifications": ["notification.read"],
+  "/dashboard/parametre/session": ["user.read"],
 };
 
 export function NavMain({
@@ -78,18 +80,37 @@ export function NavMain({
   const getBaseHref = (href: string) => href.split("?")[0].split("#")[0];
 
   const filteredMenuLinks = useMemo(() => {
-    return items.filter((item) => {
-      const requiredPermissions = MENU_PERMISSIONS[item.url] ?? MENU_PERMISSIONS[getBaseHref(item.url)];
+    const canAccessUrl = (url: string) => {
+      const requiredPermissions = MENU_PERMISSIONS[url] ?? MENU_PERMISSIONS[getBaseHref(url)];
       if (!requiredPermissions?.length) {
         return true;
       }
 
-      if (getBaseHref(item.url) === "/dashboard/access") {
+      if (getBaseHref(url) === "/dashboard/access") {
         return canManageAccessControl(auth);
       }
 
       return hasAnyPermission(auth, requiredPermissions);
-    });
+    };
+
+    return items
+      .map((item) => {
+        const hasSubItems = Boolean(item.items?.length);
+        if (!hasSubItems) {
+          return canAccessUrl(item.url) ? item : null;
+        }
+
+        const visibleSubItems = (item.items ?? []).filter((subItem) => canAccessUrl(subItem.url));
+        if (!visibleSubItems.length && !canAccessUrl(item.url)) {
+          return null;
+        }
+
+        return {
+          ...item,
+          items: visibleSubItems,
+        };
+      })
+      .filter((item): item is (typeof items)[number] => Boolean(item));
   }, [auth, items]);
 
   const hasMatchingQuery = (href: string) => {

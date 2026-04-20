@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 
 import prisma from "@/lib/prisma";
 import { notifyLogin } from "@/server/services/notification.service";
+import { touchUserSession } from "@/server/session-presence";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 
@@ -142,6 +143,7 @@ export async function POST(req: Request) {
   });
 
   try {
+    touchUserSession(user.id);
     await notifyLogin(tokenPayload);
   } catch (error) {
     console.error("Login notification failed:", error);

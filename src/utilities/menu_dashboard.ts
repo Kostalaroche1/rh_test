@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Send,
+  Settings2,
   ShieldCheck,
   TrendingUp,
   Users,
@@ -84,6 +85,21 @@ export const data = {
       title: "Access Control",
       url: "/dashboard/access",
       icon: ShieldCheck,
+    },
+    {
+      title: "Parametre",
+      url: "#",
+      icon: Settings2,
+      items: [
+        {
+          title: "Notifications",
+          url: "/dashboard/parametre/notifications",
+        },
+        {
+          title: "Session",
+          url: "/dashboard/parametre/session",
+        },
+      ],
     },
   ],
   navSecondary: [
