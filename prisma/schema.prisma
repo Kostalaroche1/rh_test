@@ -96,6 +96,25 @@ model Agent {
   planificationParticipants PlanificationParticipant[]
   demandesSoin DemandeSoinPolyclinique[]
   dossiersMedicaux DossierMedicalPolyclinique[]
+  biometricReferences BiometricReference[]
+}
+
+model BiometricReference {
+  id         Int      @id @default(autoincrement())
+  agentId    Int
+  angleCode  String
+  angleLabel String?
+  photoPath  String
+  descriptor Json
+  actif      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([angleCode])
+  @@index([actif])
 }
 
 model CompteAgent {

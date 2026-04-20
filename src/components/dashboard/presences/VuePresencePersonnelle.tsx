@@ -7,12 +7,11 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Clock, LogIn, LogOut } from "lucide-react"
-import { AddPointPresence, GetPresence, GetTodayPresence, UpdatePresence } from "@/app/action/agent/presence/action"
+import { Clock } from "lucide-react"
+import { GetPresence, GetTodayPresence } from "@/app/action/agent/presence/action"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatDate } from "@/components/dashboard/espaceTravail/utilitaires/dates"
 import { obtenirCouleurBadgeStatut } from "@/components/dashboard/espaceTravail/utilitaires/statuts"
-import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { computePresenceStatus } from "@/utilities/presence"
 
@@ -46,10 +45,6 @@ const PAGE_SIZE = 14
 export default function AgentDashPresence() {
   const [todayPresence, setTodayPresence] = useState<Presence | null>(null)
   const [history, setHistory] = useState<Presence[]>([])
-  const [loading, setLoading] = useState(false)
-  const [isworking, setIsworking] = useState(false)
-  const [canCheckIn, setCanCheckIn] = useState(false)
-  const [canCheckOut, setCanCheckOut] = useState(false)
   const [todayMessage, setTodayMessage] = useState("")
   const [todaySchedule, setTodaySchedule] = useState<TodayPresenceResponse["schedule"]>(null)
   const [todayDisplayStatut, setTodayDisplayStatut] = useState<string | null>(null)
@@ -58,9 +53,6 @@ export default function AgentDashPresence() {
 
   async function fetchToday() {
     const data = (await GetTodayPresence()) as TodayPresenceResponse
-    setIsworking(Boolean(data?.working))
-    setCanCheckIn(Boolean(data?.canCheckIn))
-    setCanCheckOut(Boolean(data?.canCheckOut))
     setTodayPresence(data?.getData ?? null)
     setTodayDisplayStatut(data?.displayStatut ?? null)
     setTodayMessage(data?.message ?? "")
@@ -80,51 +72,6 @@ export default function AgentDashPresence() {
     }, 10000)
     return () => clearInterval(dayInterval)
   }, [])
-
-  async function handleCheckIn() {
-    const toastId = toast.loading("Enregistrement en cours...")
-
-    try {
-      setLoading(true)
-      const todayDate = new Date()
-      const data = await AddPointPresence({ todayDate })
-
-      if (!data.success) {
-        toast.error(data.message, { id: toastId })
-        return
-      }
-
-      await fetchToday()
-      await fetchHistory()
-      toast.success("Arrivee enregistree avec succes.", { id: toastId })
-    } catch (error) {
-      toast.error("Impossible d'enregistrer l'arrivee.", { id: toastId })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function handleCheckOut(id: number) {
-    const toastId = toast.loading("Enregistrement en cours...")
-
-    try {
-      setLoading(true)
-      const todayDate = new Date()
-      const data = await UpdatePresence({ todayDate, id, action: "check_out" })
-
-      if (!data.success) {
-        toast.error(data.message, { id: toastId })
-        return
-      }
-
-      await fetchToday()
-      toast.success("Depart enregistre avec succes.", { id: toastId })
-    } catch (error) {
-      toast.error("Impossible d'enregistrer le depart.", { id: toastId })
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const filteredHistory = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -238,37 +185,19 @@ export default function AgentDashPresence() {
                     : "--"}
                 </p>
               </div>
-
-              <div className="flex gap-3">
-                {!todayPresence.heureArrivee && canCheckIn && (
-                  <Button onClick={handleCheckIn} disabled={loading}>
-                    <LogIn size={16} className="mr-2" />
-                    Pointer arrivee
-                  </Button>
-                )}
-
-                {todayPresence.heureArrivee && !todayPresence.heureDepart && canCheckOut && (
-                  <Button onClick={() => handleCheckOut(todayPresence.id)} disabled={loading}>
-                    <LogOut size={16} className="mr-2" />
-                    Pointer depart
-                  </Button>
-                )}
-              </div>
             </>
           ) : (
-            canCheckIn && (
-              <Button onClick={handleCheckIn} disabled={loading}>
-                <LogIn size={16} className="mr-2" />
-                Pointer arrivee
-              </Button>
-            )
-          )}
-
-          {!todayPresence && !canCheckIn && !loading && (
             <div className="text-sm text-muted-foreground">
-              Le pointage est indisponible pour le moment.
+              Aucun pointage enregistre aujourd'hui.
             </div>
           )}
+
+          <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            Le pointage d'arrivee et de depart se fait uniquement via le pointage biometrque.
+          </div>
+          <Button asChild variant="outline">
+            <Link href="/pointage/biometrique">Pointer via biometrie</Link>
+          </Button>
         </CardContent>
       </Card>
 

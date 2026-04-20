@@ -20,7 +20,7 @@ type ReferenceFace = {
   nom: string;
   prenom: string;
   fullName: string;
-  photoUrl: string;
+  descriptors: number[][];
 };
 
 type RecognitionEvent = {
@@ -28,6 +28,17 @@ type RecognitionEvent = {
   kind: "success" | "error" | "info";
   text: string;
   at: number;
+};
+
+type AccessWarning = {
+  reason: "permission" | "references";
+  title: string;
+  message: string;
+};
+
+type LocalReferencesCache = {
+  data: ReferenceFace[];
+  expiresAt: number;
 };
 
 type LifecycleStatus =
@@ -45,6 +56,8 @@ const FACE_MATCH_THRESHOLD = 0.48;
 const MIN_STREAK_FOR_POINTAGE = 2;
 const SUCCESS_COOLDOWN_MS = 45_000;
 const ERROR_COOLDOWN_MS = 12_000;
+const LOCAL_REFERENCES_CACHE_TTL_MS = 90_000;
+const DIRECTION_CONTACT_URL = "https://cria.cd/contact";
 
 function formatClock(value: number) {
   return new Date(value).toLocaleTimeString("fr-FR", {
@@ -76,6 +89,7 @@ export default function PointageBiometriquePage() {
   const cooldownByAgentRef = useRef<Map<number, number>>(new Map());
   const pendingPointageRef = useRef<Set<number>>(new Set());
   const isRunningRef = useRef(false);
+  const localReferencesCacheRef = useRef<LocalReferencesCache | null>(null);
 
   const [status, setStatus] = useState<LifecycleStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -83,6 +97,7 @@ export default function PointageBiometriquePage() {
   const [referencesReady, setReferencesReady] = useState(0);
   const [facesInFrame, setFacesInFrame] = useState(0);
   const [events, setEvents] = useState<RecognitionEvent[]>([]);
+  const [accessWarning, setAccessWarning] = useState<AccessWarning | null>(null);
 
   const statusLabel = useMemo(() => {
     if (status === "loading-models") return "Chargement des modeles...";
@@ -104,6 +119,12 @@ export default function PointageBiometriquePage() {
       },
       ...prev,
     ].slice(0, 10));
+  }
+
+  function activateAccessWarning(warning: AccessWarning) {
+    stopRecognition("error");
+    setErrorMessage(warning.message);
+    setAccessWarning(warning);
   }
 
   function clearOverlay() {
@@ -197,47 +218,6 @@ export default function PointageBiometriquePage() {
     }
   }
 
-  async function extractReferenceDescriptor(
-    faceapi: FaceApiModule,
-    image: HTMLImageElement
-  ) {
-    const optionsList = [
-      { inputSize: 416, scoreThreshold: 0.45 },
-      { inputSize: 512, scoreThreshold: 0.3 },
-      { inputSize: 320, scoreThreshold: 0.2 },
-    ] as const;
-
-    for (const option of optionsList) {
-      const detectorOptions = new faceapi.TinyFaceDetectorOptions(option);
-      const singleDetection = await faceapi
-        .detectSingleFace(image, detectorOptions)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-      if (singleDetection?.descriptor) {
-        return singleDetection.descriptor;
-      }
-
-      const allDetections = await faceapi
-        .detectAllFaces(image, detectorOptions)
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-      if (allDetections.length) {
-        const largestFace = allDetections.reduce((currentLargest, current) => {
-          const currentArea = current.detection.box.width * current.detection.box.height;
-          const largestArea =
-            currentLargest.detection.box.width * currentLargest.detection.box.height;
-          return currentArea > largestArea ? current : currentLargest;
-        });
-
-        if (largestFace?.descriptor) {
-          return largestFace.descriptor;
-        }
-      }
-    }
-
-    return null;
-  }
-
   async function loadReferencesMatcher(faceapi: FaceApiModule) {
     setStatus("loading-references");
     setReferencesTotal(0);
@@ -246,81 +226,94 @@ export default function PointageBiometriquePage() {
     knownAgentsRef.current.clear();
 
     try {
-      const referencesResponse = await fetch("/api/biometrie/references", {
-        method: "GET",
-        cache: "no-store",
-      });
+      let references: ReferenceFace[] = [];
+      let referencesSource: "local-memory" | "api" = "api";
+      const localCache = localReferencesCacheRef.current;
 
-      const referencesPayload = await referencesResponse.json().catch(() => null);
-      if (!referencesResponse.ok) {
-        const message = String(
-          referencesPayload?.message ??
-            "Impossible de charger les references biometrques."
-        );
-        setErrorMessage(message);
-        pushEvent("error", message);
-        return;
+      if (localCache && localCache.expiresAt > Date.now()) {
+        references = localCache.data;
+        referencesSource = "local-memory";
+      } else {
+        const referencesResponse = await fetch("/api/biometrie/references", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        const referencesPayload = await referencesResponse.json().catch(() => null);
+        if (!referencesResponse.ok) {
+          const message = String(
+            referencesPayload?.message ??
+              "Impossible de charger les references biometrques."
+          );
+
+          if (referencesResponse.status === 401 || referencesResponse.status === 403) {
+            activateAccessWarning({
+              reason: "permission",
+              title: "Pointage biometrque non autorise",
+              message:
+                "Vous n'avez pas l'autorisation de pointer par biometrie. Contactez la direction RH.",
+            });
+            return;
+          }
+
+          setErrorMessage(message);
+          pushEvent("error", message);
+          return;
+        }
+
+        references = Array.isArray(referencesPayload?.data)
+          ? (referencesPayload.data as ReferenceFace[])
+          : [];
+
+        localReferencesCacheRef.current = {
+          data: references,
+          expiresAt: Date.now() + LOCAL_REFERENCES_CACHE_TTL_MS,
+        };
       }
-
-      const references = Array.isArray(referencesPayload?.data)
-        ? (referencesPayload.data as ReferenceFace[])
-        : [];
 
       setReferencesTotal(references.length);
       if (!references.length) {
-        const message =
-          "Aucune reference chargee. La camera reste active, mais le pointage auto est inactif.";
-        setErrorMessage(message);
-        pushEvent("info", message);
+        activateAccessWarning({
+          reason: "references",
+          title: "Referentiel biometrque introuvable",
+          message:
+            "Aucun referentiel biometrque actif n'est disponible en base pour votre perimetre. Contactez la direction RH.",
+        });
         return;
       }
 
       const labeledDescriptors: import("face-api.js").LabeledFaceDescriptors[] = [];
       const knownAgents = new Map<number, ReferenceFace>();
       let preparedCount = 0;
-      let skippedCount = 0;
 
       for (const reference of references) {
-        if (!reference.photoUrl) {
-          skippedCount += 1;
+        const descriptors = Array.isArray(reference.descriptors)
+          ? reference.descriptors
+              .filter((descriptor) => Array.isArray(descriptor) && descriptor.length === 128)
+              .map((descriptor) => Float32Array.from(descriptor.map((value) => Number(value))))
+              .filter((descriptor) => descriptor.length === 128)
+          : [];
+
+        if (!descriptors.length) {
           continue;
         }
 
-        try {
-          const image = await faceapi.fetchImage(reference.photoUrl);
-          const descriptor = await extractReferenceDescriptor(faceapi, image);
-          if (!descriptor) {
-            skippedCount += 1;
-            continue;
-          }
-
-          labeledDescriptors.push(
-            new faceapi.LabeledFaceDescriptors(String(reference.agentId), [
-              descriptor,
-            ])
-          );
-          knownAgents.set(reference.agentId, reference);
-          preparedCount += 1;
-          setReferencesReady(preparedCount);
-        } catch {
-          skippedCount += 1;
-          continue;
-        }
+        labeledDescriptors.push(
+          new faceapi.LabeledFaceDescriptors(String(reference.agentId), descriptors)
+        );
+        knownAgents.set(reference.agentId, reference);
+        preparedCount += 1;
+        setReferencesReady(preparedCount);
       }
 
       if (!labeledDescriptors.length) {
-        const message =
-          "Aucun visage exploitable n'a ete extrait des photos. Utilise une photo nette, frontale, bien eclairee. Camera active, pointage auto inactif.";
-        setErrorMessage(message);
-        pushEvent("error", message);
+        activateAccessWarning({
+          reason: "references",
+          title: "Referentiel biometrque invalide",
+          message:
+            "Les referentiels biometrques trouves sont invalides ou incomplets. Contactez la direction RH.",
+        });
         return;
-      }
-
-      if (skippedCount > 0) {
-        pushEvent(
-          "info",
-          `${skippedCount} photo(s) reference ignoree(s): visage non detecte ou image invalide.`
-        );
       }
 
       matcherRef.current = new faceapi.FaceMatcher(
@@ -329,9 +322,12 @@ export default function PointageBiometriquePage() {
       );
       knownAgentsRef.current = knownAgents;
       setErrorMessage("");
+      setAccessWarning(null);
       pushEvent(
         "info",
-        `References pretes: ${labeledDescriptors.length} profil(s) detectables.`
+        referencesSource === "local-memory"
+          ? `References biometrques rechargees depuis la memoire locale (${labeledDescriptors.length} profil(s)).`
+          : `References biometrques pretes: ${labeledDescriptors.length} profil(s) detectables.`
       );
     } catch {
       const message =
@@ -519,13 +515,16 @@ export default function PointageBiometriquePage() {
       return;
     }
     if (!canUseBiometric) {
-      const message =
-        "Acces refuse: permission presence.biometric (ou presence.sign legacy) requise.";
-      setErrorMessage(message);
-      pushEvent("error", message);
+      activateAccessWarning({
+        reason: "permission",
+        title: "Pointage biometrque non autorise",
+        message:
+          "Vous n'avez pas l'autorisation de pointer par biometrie. Contactez la direction RH.",
+      });
       return;
     }
 
+    setAccessWarning(null);
     setErrorMessage("");
     setEvents([]);
     setReferencesTotal(0);
@@ -577,6 +576,119 @@ export default function PointageBiometriquePage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (authPending) {
+      return;
+    }
+
+    if (!canUseBiometric) {
+      activateAccessWarning({
+        reason: "permission",
+        title: "Pointage biometrque non autorise",
+        message:
+          "Vous n'avez pas l'autorisation de pointer par biometrie. Contactez la direction RH.",
+      });
+      return;
+    }
+
+    setAccessWarning((current) =>
+      current?.reason === "permission" ? null : current
+    );
+  }, [authPending, canUseBiometric]);
+
+  useEffect(() => {
+    if (authPending || !canUseBiometric) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const preflightReferences = async () => {
+      try {
+        const response = await fetch("/api/biometrie/references", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            activateAccessWarning({
+              reason: "permission",
+              title: "Pointage biometrque non autorise",
+              message:
+                "Vous n'avez pas l'autorisation de pointer par biometrie. Contactez la direction RH.",
+            });
+          }
+          return;
+        }
+
+        const references = Array.isArray(payload?.data)
+          ? (payload.data as ReferenceFace[])
+          : [];
+
+        localReferencesCacheRef.current = {
+          data: references,
+          expiresAt: Date.now() + LOCAL_REFERENCES_CACHE_TTL_MS,
+        };
+
+        if (!references.length) {
+          activateAccessWarning({
+            reason: "references",
+            title: "Referentiel biometrque introuvable",
+            message:
+              "Aucun referentiel biometrque actif n'est disponible en base pour votre perimetre. Contactez la direction RH.",
+          });
+          return;
+        }
+
+        setAccessWarning((current) =>
+          current?.reason === "references" ? null : current
+        );
+      } catch {
+        // Ignore preflight network errors here and keep runtime fallback on startRecognition.
+      }
+    };
+
+    void preflightReferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authPending, canUseBiometric]);
+
+  if (accessWarning && !authPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6 py-8">
+        <div className="w-full max-w-md space-y-6 text-center">
+          <div className="flex justify-center">
+            <div className="rounded-full bg-muted p-4">
+              <AlertCircle className="h-10 w-10 text-rose-600" />
+            </div>
+          </div>
+
+          <h1 className="text-2xl font-semibold tracking-tight">{accessWarning.title}</h1>
+          <p className="text-muted-foreground">{accessWarning.message}</p>
+
+          <div className="space-y-3">
+            <Button asChild className="w-full">
+              <Link href="/dashboard/presenceAbsence">Retour Dashboard</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <a href={DIRECTION_CONTACT_URL} target="_blank" rel="noopener noreferrer">
+                Contacter la direction
+              </a>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex w-full flex-col gap-4 px-2 py-4 sm:px-3 md:px-4">
       <div className="space-y-1">
@@ -588,130 +700,141 @@ export default function PointageBiometriquePage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader className="space-y-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div className="space-y-1">
-              <CardTitle>Camera de Detection</CardTitle>
-              <CardDescription>
-                Les visages reconnus sont encadres par un carre vert puis pointes automatiquement.
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href="/dashboard/presenceAbsence">
-                <Button variant="outline" size="sm">
-                  Retour Dashboard
+      <div className="grid gap-4 md:grid-cols-[7fr_3fr]">
+        <Card>
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-1">
+                <CardTitle>Camera de Detection</CardTitle>
+                <CardDescription>
+                  Les visages reconnus sont encadres par un carre vert puis pointes automatiquement.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href="/dashboard/presenceAbsence">
+                  <Button variant="outline" size="sm">
+                    Retour Dashboard
+                  </Button>
+                </Link>
+                <Button
+                  onClick={() => void startRecognition()}
+                  disabled={
+                    !canUseBiometric ||
+                    status === "loading-models" ||
+                    status === "loading-references" ||
+                    status === "starting-camera" ||
+                    Boolean(authPending)
+                  }
+                  size="sm"
+                >
+                  {(status === "loading-models" ||
+                    status === "loading-references" ||
+                    status === "starting-camera") && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  <Camera className="mr-2 h-4 w-4" />
+                  Demarrer
                 </Button>
-              </Link>
-              <Button
-                onClick={() => void startRecognition()}
-                disabled={
-                  !canUseBiometric ||
-                  status === "loading-models" ||
-                  status === "loading-references" ||
-                  status === "starting-camera" ||
-                  Boolean(authPending)
-                }
-                size="sm"
-              >
-                {(status === "loading-models" ||
-                  status === "loading-references" ||
-                  status === "starting-camera") && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                <Camera className="mr-2 h-4 w-4" />
-                Demarrer
-              </Button>
-              <Button
-                onClick={() => stopRecognition("stopped")}
-                disabled={!isRunningRef.current && status !== "error"}
-                variant="secondary"
-                size="sm"
-              >
-                <Square className="mr-2 h-4 w-4" />
-                Arreter
-              </Button>
+                <Button
+                  onClick={() => stopRecognition("stopped")}
+                  disabled={!isRunningRef.current && status !== "error"}
+                  variant="secondary"
+                  size="sm"
+                >
+                  <Square className="mr-2 h-4 w-4" />
+                  Arreter
+                </Button>
+              </div>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={status === "running" ? "default" : "secondary"}>
-              {statusLabel}
-            </Badge>
-            <Badge variant="outline">Visages detectes: {facesInFrame}</Badge>
-            <Badge variant="outline">
-              References pretes: {referencesReady}/{referencesTotal}
-            </Badge>
-            {!canUseBiometric && (
-              <Badge variant="destructive">
-                Pas de permission presence.biometric
-              </Badge>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="px-0 pb-0 pt-0">
-          <div className="relative overflow-hidden border-y bg-black">
-            <video
-              ref={videoRef}
-              muted
-              playsInline
-              autoPlay
-              className="h-[70vh] min-h-[440px] w-full object-cover md:min-h-[620px]"
-            />
-            <canvas
-              ref={canvasRef}
-              className="pointer-events-none absolute inset-0 h-full w-full"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {errorMessage && (
-        <Card className="border-rose-200">
-          <CardContent className="flex items-start gap-2 py-4 text-sm text-rose-700">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{errorMessage}</span>
+          </CardHeader>
+          <CardContent className="px-0 pb-0 pt-0">
+            <div className="relative overflow-hidden border-y bg-black">
+              <video
+                ref={videoRef}
+                muted
+                playsInline
+                autoPlay
+                className="h-[70vh] min-h-[440px] w-full object-cover md:min-h-[620px]"
+              />
+              <canvas
+                ref={canvasRef}
+                className="pointer-events-none absolute inset-0 h-full w-full"
+              />
+            </div>
           </CardContent>
         </Card>
-      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <UserRoundCheck className="h-4 w-4" />
-            Journal Temps Reel
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {events.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Aucun evenement pour l'instant.
-            </p>
-          )}
-          {events.map((event) => (
-            <div key={event.id}>
-              <div className="flex items-start justify-between gap-3 text-sm">
-                <div className="flex items-center gap-2">
-                  {event.kind === "success" && (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  )}
-                  {event.kind === "error" && (
-                    <AlertCircle className="h-4 w-4 text-rose-600" />
-                  )}
-                  {event.kind === "info" && (
-                    <Camera className="h-4 w-4 text-sky-600" />
-                  )}
-                  <span>{event.text}</span>
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatClock(event.at)}
-                </span>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Informations de Presence</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={status === "running" ? "default" : "secondary"}>
+                  {statusLabel}
+                </Badge>
+                <Badge variant="outline">Visages detectes: {facesInFrame}</Badge>
+                <Badge variant="outline">
+                  References pretes: {referencesReady}/{referencesTotal}
+                </Badge>
+                {!canUseBiometric && (
+                  <Badge variant="destructive">
+                    Pas de permission presence.biometric
+                  </Badge>
+                )}
               </div>
-              <Separator className="mt-3" />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+
+          {errorMessage && (
+            <Card className="border-rose-200">
+              <CardContent className="flex items-start gap-2 py-4 text-sm text-rose-700">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{errorMessage}</span>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <UserRoundCheck className="h-4 w-4" />
+                Journal Temps Reel
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {events.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Aucun evenement pour l'instant.
+                </p>
+              )}
+              {events.map((event) => (
+                <div key={event.id}>
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <div className="flex items-center gap-2">
+                      {event.kind === "success" && (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      )}
+                      {event.kind === "error" && (
+                        <AlertCircle className="h-4 w-4 text-rose-600" />
+                      )}
+                      {event.kind === "info" && (
+                        <Camera className="h-4 w-4 text-sky-600" />
+                      )}
+                      <span>{event.text}</span>
+                    </div>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatClock(event.at)}
+                    </span>
+                  </div>
+                  <Separator className="mt-3" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

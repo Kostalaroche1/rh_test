@@ -61,10 +61,12 @@ export default function RhTypeConge() {
   const currentPage = Math.min(page, totalPages);
   const paginatedTypeHolidays = filteredTypeHolidays.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  async function recordHoliday(formData: FormData) {
+  async function recordHoliday(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const toastId = toast.loading("Enregistrement en cours...");
     setLoadingId("record");
     try {
+      const formData = new FormData(event.currentTarget);
       const payload = {
         code: formData.get("code"),
         libelle: formData.get("libelle"),
@@ -78,6 +80,7 @@ export default function RhTypeConge() {
       }
       toast.success(response.message, { id: toastId });
       setOpenNewConge(false);
+      event.currentTarget.reset();
       await loadTypes();
     } catch {
       toast.error("Erreur serveur", { id: toastId });
@@ -174,7 +177,7 @@ export default function RhTypeConge() {
               <DialogHeader>
                 <DialogTitle>Ajouter un type de conge</DialogTitle>
               </DialogHeader>
-              <form className="flex flex-col gap-4" action={recordHoliday}>
+              <form className="flex flex-col gap-4" onSubmit={recordHoliday}>
                 <Input placeholder="Code conge ex. FORMATION" name="code" required />
                 <Input placeholder="Description conge" name="libelle" required />
                 <Input placeholder="Duree" type="number" name="dureeMax" required />

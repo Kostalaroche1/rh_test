@@ -79,15 +79,6 @@ export async function POST(req: Request) {
   }
 
   const schedule = dayContext.schedule;
-  if (!schedule.isWithinSchedule) {
-    return NextResponse.json(
-      {
-        message: `Pointage indisponible. Horaire de travail aujourd'hui: ${schedule.startLabel} a ${schedule.endLabel}.`,
-      },
-      { status: 400 }
-    );
-  }
-
   const existingPresence = await prisma.presence.findUnique({
     where: {
       agentId_date: {
@@ -105,16 +96,47 @@ export async function POST(req: Request) {
       );
     }
 
-    if (existingPresence.heureArrivee) {
+    if (existingPresence.heureArrivee && !existingPresence.heureDepart) {
+      const now = new Date();
+      const data = await prisma.presence.update({
+        where: { id: existingPresence.id },
+        data: {
+          heureDepart: now,
+          updatedAt: now,
+        },
+      });
+
       return NextResponse.json(
         {
-          message: "Presence deja signee aujourd'hui.",
+          message: "Depart pointe avec succes.",
+          alreadySigned: false,
+          completed: true,
+          data,
+        },
+        { status: 200 }
+      );
+    }
+
+    if (existingPresence.heureArrivee && existingPresence.heureDepart) {
+      return NextResponse.json(
+        {
+          message: "Arrivee et depart deja pointes aujourd'hui.",
           alreadySigned: true,
+          completed: true,
           data: existingPresence,
         },
         { status: 200 }
       );
     }
+  }
+
+  if (!schedule.isWithinSchedule) {
+    return NextResponse.json(
+      {
+        message: `Pointage indisponible. Horaire de travail aujourd'hui: ${schedule.startLabel} a ${schedule.endLabel}.`,
+      },
+      { status: 400 }
+    );
   }
 
   const now = new Date();
@@ -142,8 +164,9 @@ export async function POST(req: Request) {
 
   return NextResponse.json(
     {
-      message: "Presence pointee avec succes.",
+      message: "Arrivee pointee avec succes.",
       alreadySigned: false,
+      completed: false,
       data,
     },
     { status: 200 }

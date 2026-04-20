@@ -4,6 +4,7 @@ import CoquillePageTableauBord from "@/components/dashboard/commun/CoquillePageT
 import { DataTable } from "@/components/dashboard/tabord/tables/tableUser";
 import EspaceEmployes from "@/components/dashboard/espaceTravail/EspaceEmployes";
 import TableauBordEspaceTravail from "@/components/dashboard/espaceTravail/TableauBordEspaceTravail";
+import ReferentielBiometriqueForm from "@/components/dashboard/agent/biometrie/ReferentielBiometriqueForm";
 import { useAgents } from "@/app/contexts/agents/context";
 import { useAuth } from "@/app/contexts/auth/context";
 import { hasAnyPermission } from "@/security/permissions";
@@ -31,6 +32,7 @@ export default function Page() {
     "role.read",
     "permission.read",
   ]);
+  const canManageBiometricReferences = hasAnyPermission(auth, ["agent.update"]);
 
   return (
     <CoquillePageTableauBord>
@@ -39,6 +41,9 @@ export default function Page() {
           <TabsList className="mb-4">
             {/* <TabsTrigger value="dashboard">Dashboard</TabsTrigger> */}
             <TabsTrigger value="gestion">Gestion agents</TabsTrigger>
+            {canManageBiometricReferences && (
+              <TabsTrigger value="biometrie">Referentiel biometrique</TabsTrigger>
+            )}
           </TabsList>
           {/* <TabsContent value="dashboard">
             <TableauBordEspaceTravail />
@@ -50,6 +55,11 @@ export default function Page() {
               onRefresh={refetchAgents}
             />
           </TabsContent>
+          {canManageBiometricReferences && (
+            <TabsContent value="biometrie">
+              <ReferentielBiometriqueForm />
+            </TabsContent>
+          )}
         </Tabs>
       ) : (
         <EspaceEmployes />
@@ -57,4 +67,3 @@ export default function Page() {
     </CoquillePageTableauBord>
   );
 }
-

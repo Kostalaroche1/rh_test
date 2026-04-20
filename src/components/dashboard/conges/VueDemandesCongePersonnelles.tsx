@@ -88,9 +88,11 @@ export default function AgentDemandeConge() {
     setOpenDelete(true);
   }
 
-  async function createDemande(formData: FormData) {
+  async function createDemande(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const toastId = toast.loading("Enregistrement en cours...");
     try {
+      const formData = new FormData(event.currentTarget);
       const payload = {
         dateDebut: formData.get("dateDebut"),
         dateFin: formData.get("dateFin"),
@@ -112,6 +114,7 @@ export default function AgentDemandeConge() {
 
       toast.success("Demande de conge creee avec succes.", { id: toastId });
       setOpenCreate(false);
+      event.currentTarget.reset();
       await loadData();
     } catch {
       toast.error("Erreur serveur", { id: toastId });
@@ -267,7 +270,7 @@ export default function AgentDemandeConge() {
               <DialogHeader>
                 <DialogTitle>Faire une demande de conge</DialogTitle>
               </DialogHeader>
-              <form className="flex flex-col gap-4" action={createDemande}>
+              <form className="flex flex-col gap-4" onSubmit={createDemande}>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="dateDebut">Date de debut</Label>
