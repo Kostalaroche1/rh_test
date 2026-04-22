@@ -253,15 +253,36 @@ export default function PointageBiometriquePage() {
   }
 
   async function startCameraStream() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error("Cette machine ne supporte pas l'acces camera.");
-    }
-
     if (!window.isSecureContext) {
       throw new Error(
-        "Acces camera bloque: ouvre l'application en HTTPS ou en http://localhost."
+        "Acces camera bloque: sur mobile il faut HTTPS (ou http://localhost sur le meme appareil)."
       );
     }
+
+    const hasModernGetUserMedia = Boolean(
+      navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function"
+    );
+    const legacyGetUserMedia =
+      (navigator as any).getUserMedia ||
+      (navigator as any).webkitGetUserMedia ||
+      (navigator as any).mozGetUserMedia ||
+      null;
+
+    if (!hasModernGetUserMedia && !legacyGetUserMedia) {
+      throw new Error(
+        "Ce navigateur ne fournit pas l'API camera. Essayez Chrome/Firefox recent et verifiez les permissions."
+      );
+    }
+
+    const getMediaStream = (constraints: MediaStreamConstraints) => {
+      if (hasModernGetUserMedia) {
+        return navigator.mediaDevices.getUserMedia(constraints);
+      }
+
+      return new Promise<MediaStream>((resolve, reject) => {
+        legacyGetUserMedia.call(navigator, constraints, resolve, reject);
+      });
+    };
 
     const cameraStrategies: MediaStreamConstraints[] = [
       {
@@ -294,7 +315,7 @@ export default function PointageBiometriquePage() {
     let lastError: unknown = null;
     for (const constraints of cameraStrategies) {
       try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        stream = await getMediaStream(constraints);
         break;
       } catch (error) {
         lastError = error;
@@ -302,6 +323,17 @@ export default function PointageBiometriquePage() {
     }
 
     if (!stream) {
+      const message = String((lastError as any)?.message ?? "").toLowerCase();
+      const securityLike =
+        message.includes("secure") ||
+        message.includes("https") ||
+        message.includes("permission policy");
+      if (securityLike) {
+        throw new Error(
+          "Acces camera refuse par le navigateur. Ouvrez l'application en HTTPS et autorisez la camera."
+        );
+      }
+
       throw (lastError instanceof Error
         ? lastError
         : new Error("Impossible d'ouvrir la camera sur cet appareil."));

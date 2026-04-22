@@ -16,7 +16,9 @@
 # next.js
 /.next/
 /out/
-/public
+/public/agent-photos
+/public/images
+/public/*.svg
 
 # production
 /build
