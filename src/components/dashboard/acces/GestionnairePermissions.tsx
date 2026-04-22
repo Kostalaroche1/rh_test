@@ -1312,12 +1312,12 @@ export default function GestionnairePermissions() {
       <Dialog open={Boolean(permissionModal)} onOpenChange={() => undefined}>
         <DialogContent
           showCloseButton={false}
-          className="h-[92vh] w-[98vw] max-w-[min(1400px,98vw)] sm:max-w-[min(1400px,98vw)] overflow-hidden rounded-2xl p-0"
+          className="h-[92dvh] max-h-[96dvh] w-[98vw] max-w-[min(1400px,98vw)] overflow-y-auto overflow-x-hidden rounded-2xl p-0 sm:h-[92vh] sm:max-h-[92vh] sm:max-w-[min(1400px,98vw)] sm:overflow-hidden"
           onEscapeKeyDown={(event) => event.preventDefault()}
           onInteractOutside={(event) => event.preventDefault()}
         >
-          <div className="flex h-full flex-col">
-            <DialogHeader className="border-b px-8 py-5">
+          <div className="flex h-full min-h-0 flex-col">
+            <DialogHeader className="border-b px-4 py-4 sm:px-8 sm:py-5">
               <DialogTitle>
                 {permissionModal?.roleName} - {permissionModal?.moduleLabel}
               </DialogTitle>
@@ -1326,7 +1326,7 @@ export default function GestionnairePermissions() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="flex items-center justify-end gap-2 border-b px-8 py-3">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-b px-4 py-3 sm:px-8">
               <Button
                 type="button"
                 size="sm"
@@ -1355,8 +1355,8 @@ export default function GestionnairePermissions() {
               </Button>
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-8 py-6">
-              <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 touch-pan-y overscroll-contain sm:px-8 sm:py-6">
+              <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,1fr))] sm:[grid-template-columns:repeat(auto-fit,minmax(300px,1fr))]">
                 {modalPermissionItems.map((permission) => {
                   const checked = permissionModal
                     ? (roleSelections[permissionModal.roleId] ?? []).includes(permission.id)
@@ -1368,7 +1368,7 @@ export default function GestionnairePermissions() {
                   return (
                     <div
                       key={`modal-${permission.id}`}
-                      className="flex min-h-[188px] flex-col gap-4 rounded-xl border bg-background p-4"
+                      className="flex min-h-[172px] flex-col gap-4 rounded-xl border bg-background p-4 sm:min-h-[188px]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -1420,7 +1420,7 @@ export default function GestionnairePermissions() {
               </div>
             </div>
 
-            <DialogFooter className="border-t px-8 py-4 sm:justify-between">
+            <DialogFooter className="border-t px-4 py-4 sm:justify-between sm:px-8">
               <Button variant="outline" onClick={closePermissionModal}>
                 Close
               </Button>

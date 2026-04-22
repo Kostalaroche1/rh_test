@@ -29,6 +29,8 @@ export default function CurrentUserScopeCard({
   station,
   direction,
   niveauDirection,
+  affectationLabel,
+  affectationState,
   onPhotoUpdated,
 }: {
   agentId?: number | null;
@@ -39,6 +41,8 @@ export default function CurrentUserScopeCard({
   station?: string | null;
   direction?: string | null;
   niveauDirection?: string | null;
+  affectationLabel?: string | null;
+  affectationState?: "ACTIVE" | "ENDED" | "UNDEFINED" | null;
   onPhotoUpdated?: (path: string) => void;
 }) {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -134,6 +138,17 @@ export default function CurrentUserScopeCard({
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
+          <Badge
+            variant={
+              affectationState === "ACTIVE"
+                ? "default"
+                : affectationState === "ENDED"
+                ? "destructive"
+                : "secondary"
+            }
+          >
+            {affectationLabel || "Affectation non definie"}
+          </Badge>
           <Badge variant="outline">
             <MapPin className="mr-1 h-3.5 w-3.5" />
             Province: {province || "Non definie"}

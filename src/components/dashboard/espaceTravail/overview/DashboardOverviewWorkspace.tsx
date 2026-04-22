@@ -142,16 +142,28 @@ export default function DashboardOverviewWorkspace() {
     return Array.isArray(dashboard?.AgentsPresences) ? dashboard!.AgentsPresences! : [];
   }, [dashboard]);
 
+  const connectedAgentFallback = useMemo(() => {
+    return dashboard?.connectedAgent ?? null;
+  }, [dashboard]);
+
   const connectedAgent = useMemo(() => {
     const authMatricule = String(auth?.matricule ?? "").trim().toUpperCase();
-    if (!authMatricule) return null;
+    const scopedMatch =
+      authMatricule
+        ? allAgents.find(
+            (agent) => String(agent?.matricule ?? "").trim().toUpperCase() === authMatricule
+          ) ?? null
+        : null;
+    if (scopedMatch) return scopedMatch;
 
-    return (
-      allAgents.find(
-        (agent) => String(agent?.matricule ?? "").trim().toUpperCase() === authMatricule
-      ) ?? null
-    );
-  }, [allAgents, auth?.matricule]);
+    if (!connectedAgentFallback) return null;
+    if (!authMatricule) return connectedAgentFallback;
+
+    const fallbackMatricule = String(connectedAgentFallback?.matricule ?? "")
+      .trim()
+      .toUpperCase();
+    return fallbackMatricule === authMatricule ? connectedAgentFallback : null;
+  }, [allAgents, auth?.matricule, connectedAgentFallback]);
 
   const connectedRattachement = useMemo(() => {
     return resolveAgentRattachement(connectedAgent);
@@ -315,13 +327,13 @@ export default function DashboardOverviewWorkspace() {
     : [];
 
   return (
-    <div className="erp-page">
+    <div className="erp-page min-w-0 overflow-x-hidden">
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2">
           <LayoutDashboard className="h-6 w-6" />
-          <h1 className="text-3xl font-bold">Espace de travail</h1>
+          <h1 className="text-2xl font-bold sm:text-3xl">Espace de travail</h1>
         </div>
-        <p className="text-muted-foreground">
+        <p className="text-sm text-muted-foreground sm:text-base">
           Vue enrichie selon vos permissions: stations (types), directions (unites), affectations et repartitions.
         </p>
       </div>
@@ -375,19 +387,21 @@ export default function DashboardOverviewWorkspace() {
         station={connectedRattachement?.station ?? null}
         direction={connectedRattachement?.direction ?? null}
         niveauDirection={connectedRattachement?.niveauDirection ?? null}
+        affectationState={connectedRattachement?.affectationState ?? "UNDEFINED"}
+        affectationLabel={connectedRattachement?.affectationLabel ?? "Affectation non definie"}
       />
 
       {canReadOverview && (
         <>
-          <section className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-            <Card className="erp-panel">
+          <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <Card className="erp-panel min-w-0">
               <CardHeader className="pb-3">
                 <CardTitle>Vue generale</CardTitle>
               </CardHeader>
-              <div className="space-y-4 px-6 pb-6">
+              <div className="space-y-4 px-3 pb-4 sm:px-6 sm:pb-6">
                 {isPendingDashboard ? (
                   <>
-                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                       <Skeleton className="h-28 w-full" />
                       <Skeleton className="h-28 w-full" />
                       <Skeleton className="h-28 w-full" />
@@ -407,7 +421,7 @@ export default function DashboardOverviewWorkspace() {
               </div>
             </Card>
 
-            <div className="flex flex-col gap-4">
+            <div className="min-w-0 flex flex-col gap-4">
               {canReadNotifications && (
                 <NotificationsCard
                   notifications={latestNotifications}
@@ -458,18 +472,18 @@ export default function DashboardOverviewWorkspace() {
 
       {canReadPlanifications && (
         <Card className="border border-border bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
               <CardTitle className="text-lg">Planifications prioritaires a venir</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Les priorites critiques et elevees remontent en premier sur les 14 prochains jours.
               </p>
             </div>
-            <div className="rounded-xl border border-border bg-muted p-2">
+            <div className="rounded-xl border border-border bg-muted p-2 self-start sm:self-auto">
               <CalendarClock className="h-5 w-5" />
             </div>
           </CardHeader>
-          <div className="space-y-3 px-6 pb-6">
+          <div className="space-y-3 px-3 pb-4 sm:px-6 sm:pb-6">
             {upcomingPlanifications.length > 0 ? (
               upcomingPlanifications.map((item) => (
                 <div
@@ -522,7 +536,7 @@ export default function DashboardOverviewWorkspace() {
       />
 
       <Card className="border border-dashed border-border bg-card/60">
-        <CardHeader className="flex flex-row items-center gap-3">
+        <CardHeader className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
           <Settings2 className="h-5 w-5 text-muted-foreground" />
           <div>
             <CardTitle className="text-base">Principe de maintenance</CardTitle>

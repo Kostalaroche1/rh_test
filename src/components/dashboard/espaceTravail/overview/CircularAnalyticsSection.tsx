@@ -317,7 +317,7 @@ export default function CircularAnalyticsSection({
           Les diagrammes ci-dessous sont regroupes par province, station, direction, sous-direction, bureau et sexe selon vos permissions.
         </p>
       )}
-      <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">{cards}</div>
+      <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">{cards}</div>
     </section>
   );
 }

@@ -11,7 +11,6 @@ import {
   getScopedUnitIdsForPermissions,
 } from "@/server/access/scope";
 import { emitAffectationExpiryAlerts } from "@/server/services/affectation-alert.service";
-import { AgentWithDetails } from "@/utilities/type";
 
 export async function GET() {
   try {
@@ -357,72 +356,86 @@ export async function GET() {
       }
     }
 
-    const AgentsServicesPresences: AgentWithDetails[] = await prisma.agent.findMany({
-      where: scopedAgents ?? undefined,
-      select: {
-        id: true,
-        matricule: true,
-        genre: true,
-        photo: true,
-        datenais: true,
-        prenom: true,
-        nom: true,
-        statut: true,
-        affectations: {
-          select: {
-            id: true,
-            dateDebut: true,
-            dateFin: true,
-            principale: true,
-            actif: true,
-            statutOrganisationnel: true,
-            typeOrgaUniteProvince: {
-              select: {
-                typeUnite: { select: { id: true, nom: true, code: true, parentId: true } },
-                province: { select: { id: true, nom: true, code: true } },
-                uniteOrganisationnelle: {
-                  select: { id: true, nom: true, code: true, parentId: true, niveau: true },
-                },
-              },
-            },
-            grade: { select: { id: true, libelle: true } },
-            fonction: {
-              select: {
-                id: true,
-                libelle: true,
-                poste: { select: { id: true, libelle: true } },
+    const agentDashboardSelect = {
+      id: true,
+      matricule: true,
+      genre: true,
+      photo: true,
+      datenais: true,
+      prenom: true,
+      nom: true,
+      statut: true,
+      affectations: {
+        select: {
+          id: true,
+          dateDebut: true,
+          dateFin: true,
+          principale: true,
+          actif: true,
+          statutOrganisationnel: true,
+          typeOrgaUniteProvince: {
+            select: {
+              typeUnite: { select: { id: true, nom: true, code: true, parentId: true } },
+              province: { select: { id: true, nom: true, code: true } },
+              uniteOrganisationnelle: {
+                select: { id: true, nom: true, code: true, parentId: true, niveau: true },
               },
             },
           },
-        },
-        presences: {
-          select: {
-            heureDepart: true,
-            statut: true,
-            heureArrivee: true,
-            date: true,
-            validePar: {
-              select: {
-                compteAgent: {
-                  select: { agent: { select: { id: true, nom: true } } },
-                },
-              },
-            },
-            confirmePar: {
-              select: {
-                compteAgent: {
-                  select: { agent: { select: { id: true, nom: true } } },
-                },
-              },
+          grade: { select: { id: true, libelle: true } },
+          fonction: {
+            select: {
+              id: true,
+              libelle: true,
+              poste: { select: { id: true, libelle: true } },
             },
           },
-        },
-        actif: true,
-        demandeConge: {
-          select: { id: true, statut: true, dateDemande: true, dateDebut: true, dateFin: true },
         },
       },
-    });
+      presences: {
+        select: {
+          heureDepart: true,
+          statut: true,
+          heureArrivee: true,
+          date: true,
+          validePar: {
+            select: {
+              compteAgent: {
+                select: { agent: { select: { id: true, nom: true } } },
+              },
+            },
+          },
+          confirmePar: {
+            select: {
+              compteAgent: {
+                select: { agent: { select: { id: true, nom: true } } },
+              },
+            },
+          },
+        },
+      },
+      actif: true,
+      demandeConge: {
+        select: { id: true, statut: true, dateDemande: true, dateDebut: true, dateFin: true },
+      },
+    } as const;
+
+    const [AgentsServicesPresences, connectedAgentRecord] = await Promise.all([
+      prisma.agent.findMany({
+        where: scopedAgents ?? undefined,
+        select: agentDashboardSelect,
+      }),
+      prisma.compteAgent.findUnique({
+        where: { utilisateurId: user.userId },
+        select: {
+          agent: {
+            select: agentDashboardSelect,
+          },
+        },
+      }),
+    ]);
+
+    const connectedAgent = connectedAgentRecord?.agent ?? null;
 
     return NextResponse.json(
       {
@@ -434,6 +447,7 @@ export async function GET() {
           actif: agentsActif,
           enconges: congesValides.length,
           AgentsPresences: AgentsServicesPresences,
+          connectedAgent,
           congesStatut: {
             valide: congesValides.length,
             enattente: congesAttente,
