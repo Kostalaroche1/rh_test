@@ -167,7 +167,7 @@
   }
 
   .erp-page {
-    @apply flex flex-col gap-6 p-4 md:p-8;
+    @apply min-w-0 flex flex-col gap-6 p-3 sm:p-4 md:p-8;
   }
 
   .erp-panel {

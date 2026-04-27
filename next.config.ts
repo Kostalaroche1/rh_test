@@ -1,6 +1,24 @@
+import os from "node:os";
 import type { NextConfig } from "next";
 
+function getAllowedDevOrigins(): string[] {
+  const envOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  const lanOrigins = Object.values(os.networkInterfaces())
+    .flat()
+    .filter((network): network is NonNullable<typeof network> => Boolean(network))
+    .filter((network) => network.family === "IPv4" && !network.internal)
+    .map((network) => network.address);
+
+  return Array.from(new Set(["localhost", "127.0.0.1", ...lanOrigins, ...envOrigins]));
+}
+
 const nextConfig: NextConfig = {
+  // Allow mobile devices on LAN to fetch dev assets without cross-origin warnings.
+  allowedDevOrigins: getAllowedDevOrigins(),
   typescript: {
     // TypeScript is validated explicitly with `npx tsc --noEmit`.
     // On this Windows environment, Next's internal TypeScript build phase

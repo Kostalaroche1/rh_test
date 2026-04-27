@@ -150,6 +150,7 @@ export type DashAdminPayload = {
     hasGlobalProvinceAccess?: boolean;
   };
   AgentsPresences?: AgentDashboardItem[];
+  connectedAgent?: AgentDashboardItem | null;
 };
 
 export type PieDatum = {

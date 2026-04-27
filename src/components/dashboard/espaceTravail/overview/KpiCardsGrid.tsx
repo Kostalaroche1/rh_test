@@ -13,12 +13,12 @@ export default function KpiCardsGrid({ items }: { items: KpiItem[] }) {
   if (!items.length) return null;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
-        <Card key={item.title} className={`dashboard-stat-card py-4 ${item.tone}`}>
+        <Card key={item.title} className={`dashboard-stat-card py-3 sm:py-4 ${item.tone}`}>
           <CardHeader className="gap-1 px-4 pb-2">
             <p className="dashboard-stat-title">{item.title}</p>
-            <CardTitle className="dashboard-stat-value text-3xl">{item.value}</CardTitle>
+            <CardTitle className="dashboard-stat-value text-2xl sm:text-3xl">{item.value}</CardTitle>
           </CardHeader>
           {item.description && (
             <CardContent className="px-4 pt-0">

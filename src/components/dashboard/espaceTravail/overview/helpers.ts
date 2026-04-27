@@ -114,6 +114,17 @@ function getDirectionLevelLabel(level: "DIRECTION" | "SOUS_DIRECTION" | "BUREAU"
   return "Bureau";
 }
 
+function formatDateTimeLabel(value: Date | null) {
+  if (!value) return "";
+  return value.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function getCurrentAffectation(agent: AgentDashboardItem | null | undefined) {
   const affectations = Array.isArray(agent?.affectations) ? agent!.affectations! : [];
   const now = new Date();
@@ -237,19 +248,71 @@ function incrementNumericMap(map: Map<number, number>, key: number | null | unde
 }
 
 export function resolveAgentRattachement(agent: AgentDashboardItem | null | undefined) {
+  const affectations = Array.isArray(agent?.affectations) ? agent!.affectations! : [];
+  if (!affectations.length) {
+    return {
+      province: null,
+      station: null,
+      direction: null,
+      niveauDirection: null,
+      affectationState: "UNDEFINED" as const,
+      affectationLabel: "Affectation non definie",
+    };
+  }
+
+  const now = new Date();
   const affectation = getCurrentAffectation(agent);
-  if (!affectation?.typeOrgaUniteProvince) {
-    return null;
+  const activeAffectation = affectations.find((item) => isAffectationActive(item, now));
+
+  const affectationEndDate = parseDateValue(affectation?.dateFin);
+  const looksEnded =
+    !activeAffectation &&
+    Boolean(
+      affectation?.actif === false ||
+        String(affectation?.statutOrganisationnel ?? "").toUpperCase() === "TERMINEE" ||
+        (affectationEndDate ? affectationEndDate < now : false)
+    );
+
+  const recentlyEnded =
+    looksEnded &&
+    Boolean(affectationEndDate && now.getTime() - affectationEndDate.getTime() <= 48 * 60 * 60 * 1000);
+
+  let affectationState: "ACTIVE" | "ENDED" | "UNDEFINED" = "UNDEFINED";
+  let affectationLabel = "Affectation non definie";
+
+  if (activeAffectation) {
+    affectationState = "ACTIVE";
+    affectationLabel = "Affectation active";
+  } else if (looksEnded) {
+    affectationState = "ENDED";
+    if (affectationEndDate) {
+      affectationLabel = recentlyEnded
+        ? `Affectation vient de se terminer (${formatDateTimeLabel(affectationEndDate)})`
+        : `Affectation terminee (${formatDateTimeLabel(affectationEndDate)})`;
+    } else {
+      affectationLabel = "Affectation terminee";
+    }
   }
 
   const snapshot = buildAssignmentSnapshot(affectation, normalizeGender(agent?.genre));
-  if (!snapshot) return null;
+  if (!snapshot) {
+    return {
+      province: null,
+      station: null,
+      direction: null,
+      niveauDirection: null,
+      affectationState,
+      affectationLabel,
+    };
+  }
 
   return {
     province: snapshot.provinceLabel,
     station: snapshot.typeLabel,
     direction: snapshot.directionLabel,
     niveauDirection: snapshot.directionLevelLabel,
+    affectationState,
+    affectationLabel,
   };
 }
 

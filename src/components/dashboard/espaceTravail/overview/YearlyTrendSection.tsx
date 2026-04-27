@@ -37,12 +37,12 @@ export default function YearlyTrendSection({
 
   return (
     <div className="grid gap-4 xl:grid-cols-2">
-      <Card className="erp-panel">
+      <Card className="erp-panel min-w-0">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Presences par annee</CardTitle>
           <CardDescription>Lignes de tendance avec une couleur par annee.</CardDescription>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent className="h-56 sm:h-72">
           <ChartContainer config={config} className="h-full w-full">
             <LineChart data={presenceData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
               <CartesianGrid vertical={false} />
@@ -65,12 +65,12 @@ export default function YearlyTrendSection({
         </CardContent>
       </Card>
 
-      <Card className="erp-panel">
+      <Card className="erp-panel min-w-0">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Conges par annee</CardTitle>
           <CardDescription>Area chart annuel avec couleurs distinctes.</CardDescription>
         </CardHeader>
-        <CardContent className="h-72">
+        <CardContent className="h-56 sm:h-72">
           <ChartContainer config={config} className="h-full w-full">
             <AreaChart data={congesData} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
               <defs>

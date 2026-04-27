@@ -15,6 +15,10 @@ function parseAgentId(value: unknown) {
   return parsed;
 }
 
+function parseConfirmDeparture(value: unknown) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
 export async function POST(req: Request) {
   const auth = await getAuthenticatedUser();
   if (!auth) {
@@ -29,6 +33,7 @@ export async function POST(req: Request) {
 
   const payload = await req.json().catch(() => null);
   const agentId = parseAgentId(payload?.agentId);
+  const confirmDeparture = parseConfirmDeparture(payload?.confirmDeparture);
 
   if (!agentId) {
     return NextResponse.json({ message: "agentId invalide" }, { status: 400 });
@@ -97,6 +102,26 @@ export async function POST(req: Request) {
     }
 
     if (existingPresence.heureArrivee && !existingPresence.heureDepart) {
+      if (!confirmDeparture) {
+        return NextResponse.json(
+          {
+            message: "Confirmation requise pour pointer le depart.",
+            requiresDepartureConfirmation: true,
+            action: "DEPART",
+            alreadySigned: false,
+            completed: false,
+            data: {
+              id: existingPresence.id,
+              date: existingPresence.date,
+              heureArrivee: existingPresence.heureArrivee,
+              heureDepart: existingPresence.heureDepart,
+              statut: existingPresence.statut,
+            },
+          },
+          { status: 200 }
+        );
+      }
+
       const now = new Date();
       const data = await prisma.presence.update({
         where: { id: existingPresence.id },
@@ -109,6 +134,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           message: "Depart pointe avec succes.",
+          requiresDepartureConfirmation: false,
+          action: "DEPART",
           alreadySigned: false,
           completed: true,
           data,
@@ -121,6 +148,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           message: "Arrivee et depart deja pointes aujourd'hui.",
+          requiresDepartureConfirmation: false,
+          action: "AUCUNE",
           alreadySigned: true,
           completed: true,
           data: existingPresence,
@@ -165,6 +194,8 @@ export async function POST(req: Request) {
   return NextResponse.json(
     {
       message: "Arrivee pointee avec succes.",
+      requiresDepartureConfirmation: false,
+      action: "ARRIVEE",
       alreadySigned: false,
       completed: false,
       data,
