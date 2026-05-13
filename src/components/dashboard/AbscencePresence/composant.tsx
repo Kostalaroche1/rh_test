@@ -37,12 +37,12 @@ export default function GestionPresenceAbsenceRich() {
   const { auth }: any = useAuth();
   const [dialogOuvert, setDialogOuvert] = useState(false);
   const { data: donneesStats, isPending: enChargementStats, refetch: refetchGetAdmin } = useGet(["DashAgentAdmin"], GetDashAgentAdmin);
-  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.validate", "presence.confirm"]);
+  const canReadPresence = hasAnyPermission(auth, ["presence.read", "presence.validate", "presence.confirm", "presence.update"]);
   const canManagePresence = hasAnyPermission(auth, ["presence.validate", "presence.confirm", "presence.update"]);
   const canSignPresence = hasAnyPermission(auth, ["presence.sign", "presence.biometric"]);
   const canConfirmPresence = hasAnyPermission(auth, ["presence.confirm"]);
   const canValidatePresence = hasAnyPermission(auth, ["presence.validate"]);
-  const canReviewPresence = hasAnyPermission(auth, ["presence.read"]);
+  const canReviewPresence = hasAnyPermission(auth, ["presence.read", "presence.update"]);
 
   const donneesCamembert = [
     { name: "Actif", value: donneesStats?.actif ?? 0, color: "#16a34a" },

@@ -13,7 +13,7 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
+                                    
 model Utilisateur {
   id           Int      @id @default(autoincrement())
   login        String   @unique
@@ -672,8 +672,7 @@ model Presence {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@unique([agentId, date]) // One presence per agent per day
+  @@index([agentId, date])
 }
 
 model HoraireTravail {
