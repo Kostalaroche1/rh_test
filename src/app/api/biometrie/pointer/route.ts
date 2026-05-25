@@ -5,18 +5,22 @@ import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import { canAccessAgentForPermissions } from "@/server/access/scope";
 import { getPresenceDayContextForAgent } from "@/server/horaireAgent";
+import { getKinshasaMinutes } from "@/server/presence-pointage";
 
 function parseAgentId(value: unknown) {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
     return null;
   }
-
   return parsed;
 }
 
-function parseConfirmDeparture(value: unknown) {
-  return value === true || value === "true" || value === 1 || value === "1";
+function getArrivalStatus(input: {
+  now: Date;
+  scheduleStartMinutes: number;
+}) {
+  const minutes = getKinshasaMinutes(input.now);
+  return minutes > input.scheduleStartMinutes ? "RETARD" : "PRESENCE";
 }
 
 export async function POST(req: Request) {
@@ -33,8 +37,6 @@ export async function POST(req: Request) {
 
   const payload = await req.json().catch(() => null);
   const agentId = parseAgentId(payload?.agentId);
-  const confirmDeparture = parseConfirmDeparture(payload?.confirmDeparture);
-
   if (!agentId) {
     return NextResponse.json({ message: "agentId invalide" }, { status: 400 });
   }
@@ -84,81 +86,6 @@ export async function POST(req: Request) {
   }
 
   const schedule = dayContext.schedule;
-  const existingPresence = await prisma.presence.findUnique({
-    where: {
-      agentId_date: {
-        agentId,
-        date: dayContext.todayDate,
-      },
-    },
-  });
-
-  if (existingPresence) {
-    if (["CONGE", "OFF", "ABSENT"].includes(existingPresence.statut)) {
-      return NextResponse.json(
-        { message: `Pointage refuse. Le statut du jour est ${existingPresence.statut}.` },
-        { status: 400 }
-      );
-    }
-
-    if (existingPresence.heureArrivee && !existingPresence.heureDepart) {
-      if (!confirmDeparture) {
-        return NextResponse.json(
-          {
-            message: "Confirmation requise pour pointer le depart.",
-            requiresDepartureConfirmation: true,
-            action: "DEPART",
-            alreadySigned: false,
-            completed: false,
-            data: {
-              id: existingPresence.id,
-              date: existingPresence.date,
-              heureArrivee: existingPresence.heureArrivee,
-              heureDepart: existingPresence.heureDepart,
-              statut: existingPresence.statut,
-            },
-          },
-          { status: 200 }
-        );
-      }
-
-      const now = new Date();
-      const data = await prisma.presence.update({
-        where: { id: existingPresence.id },
-        data: {
-          heureDepart: now,
-          updatedAt: now,
-        },
-      });
-
-      return NextResponse.json(
-        {
-          message: "Depart pointe avec succes.",
-          requiresDepartureConfirmation: false,
-          action: "DEPART",
-          alreadySigned: false,
-          completed: true,
-          data,
-        },
-        { status: 200 }
-      );
-    }
-
-    if (existingPresence.heureArrivee && existingPresence.heureDepart) {
-      return NextResponse.json(
-        {
-          message: "Arrivee et depart deja pointes aujourd'hui.",
-          requiresDepartureConfirmation: false,
-          action: "AUCUNE",
-          alreadySigned: true,
-          completed: true,
-          data: existingPresence,
-        },
-        { status: 200 }
-      );
-    }
-  }
-
   if (!schedule.isWithinSchedule) {
     return NextResponse.json(
       {
@@ -169,36 +96,84 @@ export async function POST(req: Request) {
   }
 
   const now = new Date();
-  const statut = schedule.currentMinutes > schedule.startMinutes ? "RETARD" : "PRESENCE";
+  const blockedStatus = await prisma.presence.findFirst({
+    where: {
+      agentId,
+      date: dayContext.todayDate,
+      statut: { in: ["CONGE", "OFF", "ABSENT"] },
+    },
+    orderBy: [{ id: "desc" }],
+  });
+  if (blockedStatus) {
+    return NextResponse.json(
+      {
+        message: `Pointage refuse. Le statut du jour est ${blockedStatus.statut}.`,
+      },
+      { status: 400 }
+    );
+  }
 
-  const data = existingPresence
-    ? await prisma.presence.update({
-        where: { id: existingPresence.id },
-        data: {
-          heureArrivee: now,
-          statut,
-          statutWorkflow: "BROUILLON",
-          updatedAt: now,
-        },
-      })
-    : await prisma.presence.create({
-        data: {
-          agentId,
-          date: dayContext.todayDate,
-          heureArrivee: now,
-          statut,
-          statutWorkflow: "BROUILLON",
-        },
-      });
+  const latest = await prisma.presence.findFirst({
+    where: {
+      agentId,
+      date: dayContext.todayDate,
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+  });
+
+  let action: "ARRIVEE" | "DEPART" = "ARRIVEE";
+  let data;
+
+  if (latest && latest.heureArrivee && !latest.heureDepart) {
+    action = "DEPART";
+    data = await prisma.presence.update({
+      where: { id: latest.id },
+      data: {
+        heureDepart: now,
+        updatedAt: now,
+      },
+    });
+  } else {
+    action = "ARRIVEE";
+    const statut = getArrivalStatus({
+      now,
+      scheduleStartMinutes: schedule.startMinutes,
+    });
+    data = await prisma.presence.create({
+      data: {
+        agentId,
+        date: dayContext.todayDate,
+        heureArrivee: now,
+        heureDepart: null,
+        statut,
+        statutWorkflow: "BROUILLON",
+      },
+    });
+  }
+
+  const agent = await prisma.agent.findUnique({
+    where: { id: agentId },
+    select: { nom: true, prenom: true, matricule: true },
+  });
 
   return NextResponse.json(
     {
-      message: "Arrivee pointee avec succes.",
-      requiresDepartureConfirmation: false,
-      action: "ARRIVEE",
-      alreadySigned: false,
-      completed: false,
+      message:
+        action === "ARRIVEE"
+          ? "Arrivee pointee automatiquement."
+          : "Depart pointe automatiquement.",
+      action,
+      completed: true,
       data,
+      latestPointage: {
+        id: `${data.id}-${action}`,
+        agentId,
+        date: data.date,
+        type: action,
+        heurePointage: action === "ARRIVEE" ? data.heureArrivee : data.heureDepart,
+        fullName: agent ? `${agent.nom} ${agent.prenom}`.trim() : `Agent #${agentId}`,
+        matricule: agent?.matricule ?? "-",
+      },
     },
     { status: 200 }
   );

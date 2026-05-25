@@ -13,7 +13,7 @@ export async function GET() {
 
   try {
     await requireAccess({
-      permissions: ["presence.read", "presence.confirm", "presence.validate"],
+      permissions: ["presence.read", "presence.confirm", "presence.validate", "presence.update"],
     });
   } catch {
     return NextResponse.json({ message: "Acces interdit" }, { status: 403 });
@@ -23,6 +23,7 @@ export async function GET() {
     "presence.read",
     "presence.confirm",
     "presence.validate",
+    "presence.update",
   ]);
 
   const getData = await prisma.presence.findMany({

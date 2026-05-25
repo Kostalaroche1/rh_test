@@ -36,6 +36,7 @@ const MENU_PERMISSIONS: Record<string, string[]> = {
   ],
   "/dashboard/presenceAbsence": [
     "presence.read",
+    "presence.update",
     "presence.sign",
     "presence.biometric",
     "presence.confirm",

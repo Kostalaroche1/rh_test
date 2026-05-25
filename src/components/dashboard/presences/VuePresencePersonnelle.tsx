@@ -30,6 +30,13 @@ type TodayPresenceResponse = {
   getData?: Presence | null
   displayStatut?: string | null
   message?: string
+  latestPointage?: {
+    id: string
+    date: string
+    type: "ARRIVEE" | "DEPART"
+    heurePointage: string
+    source?: string
+  } | null
   schedule?: {
     nomHoraire?: string
     heureDebut?: string
@@ -48,6 +55,7 @@ export default function AgentDashPresence() {
   const [todayMessage, setTodayMessage] = useState("")
   const [todaySchedule, setTodaySchedule] = useState<TodayPresenceResponse["schedule"]>(null)
   const [todayDisplayStatut, setTodayDisplayStatut] = useState<string | null>(null)
+  const [latestPointage, setLatestPointage] = useState<TodayPresenceResponse["latestPointage"]>(null)
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(1)
 
@@ -57,6 +65,7 @@ export default function AgentDashPresence() {
     setTodayDisplayStatut(data?.displayStatut ?? null)
     setTodayMessage(data?.message ?? "")
     setTodaySchedule(data?.schedule ?? null)
+    setLatestPointage(data?.latestPointage ?? null)
   }
 
   async function fetchHistory() {
@@ -189,6 +198,17 @@ export default function AgentDashPresence() {
           ) : (
             <div className="text-sm text-muted-foreground">
               Aucun pointage enregistre aujourd'hui.
+            </div>
+          )}
+
+          {latestPointage && (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              Derniere information: {latestPointage.type === "ARRIVEE" ? "Arrivee" : "Depart"} le{" "}
+              {new Date(latestPointage.date).toLocaleDateString("fr-FR")} a{" "}
+              {new Date(latestPointage.heurePointage).toLocaleTimeString("fr-FR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
             </div>
           )}
 

@@ -87,6 +87,22 @@ export async function getAllPresence() {
     }
 }
 
+export async function getAllPresencePointages() {
+    try {
+        const responses = await fetch('../api/agent/presence/pointages', {
+            method: 'GET',
+            next: { revalidate: 10 }
+        });
+        if (!responses.ok) {
+            return []
+        }
+        const response = await responses.json();
+        return response.getData;
+    } catch (error) {
+        return [];
+    }
+}
+
 export async function UpdatePresence(data: any) {
     try {
         const responses = await fetch('../api/agent/presence', {
@@ -114,6 +130,35 @@ export async function UpdatePresence(data: any) {
         return {
             success: false,
             message: "Erreur réseau."
+        }
+    }
+}
+
+export async function UpdatePresencePointage(data: any) {
+    try {
+        const responses = await fetch('../api/agent/presence/pointages', {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        const result = await responses.json()
+
+        if (!responses.ok) {
+            return {
+                success: false,
+                message: result.message || "Une erreur est survenue."
+            }
+        }
+
+        return {
+            success: true,
+            data: result
+        }
+
+    } catch (error) {
+        return {
+            success: false,
+            message: "Erreur rÃ©seau."
         }
     }
 }

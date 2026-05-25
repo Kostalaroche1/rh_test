@@ -9,14 +9,6 @@ import { useAuth } from "@/app/contexts/auth/context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { hasAnyPermission } from "@/security/permissions";
 
@@ -49,22 +41,22 @@ type LocalReferencesCache = {
   expiresAt: number;
 };
 
-type PendingDepartureCandidate = {
+type LatestPointagePayload = {
+  id: string;
   agentId: number;
+  date: string;
+  type: "ARRIVEE" | "DEPART";
+  heurePointage: string;
   fullName: string;
   matricule: string;
-  distance: number | null;
-  detectedAt: number;
-  confirming: boolean;
-  errorMessage?: string;
 };
 
 type PointageResponsePayload = {
   message?: string;
-  requiresDepartureConfirmation?: boolean;
   action?: "ARRIVEE" | "DEPART" | "AUCUNE";
   completed?: boolean;
   alreadySigned?: boolean;
+  latestPointage?: LatestPointagePayload;
 };
 
 type LifecycleStatus =
@@ -114,7 +106,6 @@ export default function PointageBiometriquePage() {
   const streakByAgentRef = useRef<Map<number, number>>(new Map());
   const cooldownByAgentRef = useRef<Map<number, number>>(new Map());
   const pendingPointageRef = useRef<Set<number>>(new Set());
-  const pendingDepartureByAgentRef = useRef<Set<number>>(new Set());
   const isRunningRef = useRef(false);
   const localReferencesCacheRef = useRef<LocalReferencesCache | null>(null);
 
@@ -125,8 +116,7 @@ export default function PointageBiometriquePage() {
   const [facesInFrame, setFacesInFrame] = useState(0);
   const [events, setEvents] = useState<RecognitionEvent[]>([]);
   const [accessWarning, setAccessWarning] = useState<AccessWarning | null>(null);
-  const [pendingDepartures, setPendingDepartures] = useState<PendingDepartureCandidate[]>([]);
-  const [departureModalOpen, setDepartureModalOpen] = useState(false);
+  const [latestPointage, setLatestPointage] = useState<LatestPointagePayload | null>(null);
 
   const statusLabel = useMemo(() => {
     if (status === "loading-models") return "Chargement des modeles...";
@@ -148,60 +138,6 @@ export default function PointageBiometriquePage() {
       },
       ...prev,
     ].slice(0, 10));
-  }
-
-  function clearPendingDepartures() {
-    pendingDepartureByAgentRef.current.clear();
-    setPendingDepartures([]);
-    setDepartureModalOpen(false);
-  }
-
-  function queueDepartureConfirmation(agentId: number, distance: number) {
-    const agent = knownAgentsRef.current.get(agentId);
-    pendingDepartureByAgentRef.current.add(agentId);
-    setDepartureModalOpen(true);
-    setPendingDepartures((prev) => {
-      const existing = prev.find((item) => item.agentId === agentId);
-      if (existing) {
-        return prev.map((item) =>
-          item.agentId === agentId
-            ? {
-                ...item,
-                distance: Number.isFinite(distance) ? distance : item.distance,
-                detectedAt: Date.now(),
-                confirming: false,
-                errorMessage: undefined,
-              }
-            : item
-        );
-      }
-
-      return [
-        ...prev,
-        {
-          agentId,
-          fullName: agent?.fullName ?? `Agent #${agentId}`,
-          matricule: agent?.matricule ?? "-",
-          distance: Number.isFinite(distance) ? distance : null,
-          detectedAt: Date.now(),
-          confirming: false,
-        },
-      ];
-    });
-  }
-
-  function updatePendingDeparture(
-    agentId: number,
-    updater: (current: PendingDepartureCandidate) => PendingDepartureCandidate
-  ) {
-    setPendingDepartures((prev) =>
-      prev.map((item) => (item.agentId === agentId ? updater(item) : item))
-    );
-  }
-
-  function removePendingDeparture(agentId: number) {
-    pendingDepartureByAgentRef.current.delete(agentId);
-    setPendingDepartures((prev) => prev.filter((item) => item.agentId !== agentId));
   }
 
   function activateAccessWarning(warning: AccessWarning) {
@@ -248,7 +184,6 @@ export default function PointageBiometriquePage() {
     stopCamera();
     streakByAgentRef.current.clear();
     pendingPointageRef.current.clear();
-    clearPendingDepartures();
     setStatus(nextStatus);
   }
 
@@ -506,19 +441,8 @@ export default function PointageBiometriquePage() {
     }
   }
 
-  async function submitBiometricPointage(
-    agentId: number,
-    distance: number,
-    options?: { confirmDeparture?: boolean; silent?: boolean }
-  ) {
-    const confirmDeparture = options?.confirmDeparture === true;
-    const silent = options?.silent === true;
-
+  async function submitBiometricPointage(agentId: number, distance: number) {
     if (pendingPointageRef.current.has(agentId)) {
-      return false;
-    }
-
-    if (!confirmDeparture && pendingDepartureByAgentRef.current.has(agentId)) {
       return false;
     }
 
@@ -534,7 +458,6 @@ export default function PointageBiometriquePage() {
         body: JSON.stringify({
           agentId,
           distance,
-          confirmDeparture,
         }),
       });
 
@@ -543,13 +466,6 @@ export default function PointageBiometriquePage() {
 
       if (!response.ok) {
         cooldownByAgentRef.current.set(agentId, Date.now() + ERROR_COOLDOWN_MS);
-        if (confirmDeparture) {
-          updatePendingDeparture(agentId, (current) => ({
-            ...current,
-            confirming: false,
-            errorMessage: message || "Erreur de confirmation du depart.",
-          }));
-        }
         pushEvent(
           "error",
           `${agent?.fullName ?? `Agent #${agentId}`} : ${message || "Pointage refuse."}`
@@ -557,20 +473,9 @@ export default function PointageBiometriquePage() {
         return false;
       }
 
-      if (payload?.requiresDepartureConfirmation) {
-        queueDepartureConfirmation(agentId, distance);
-        if (!silent) {
-          pushEvent(
-            "info",
-            `${agent?.fullName ?? `Agent #${agentId}`} : confirmez l'heure de depart dans la fenetre de validation.`
-          );
-        }
-        return false;
-      }
-
       cooldownByAgentRef.current.set(agentId, Date.now() + SUCCESS_COOLDOWN_MS);
-      if (confirmDeparture) {
-        removePendingDeparture(agentId);
+      if (payload?.latestPointage) {
+        setLatestPointage(payload.latestPointage);
       }
       pushEvent(
         "success",
@@ -579,13 +484,6 @@ export default function PointageBiometriquePage() {
       return true;
     } catch {
       cooldownByAgentRef.current.set(agentId, Date.now() + ERROR_COOLDOWN_MS);
-      if (confirmDeparture) {
-        updatePendingDeparture(agentId, (current) => ({
-          ...current,
-          confirming: false,
-          errorMessage: "Erreur reseau lors de la confirmation du depart.",
-        }));
-      }
       pushEvent(
         "error",
         `${agent?.fullName ?? `Agent #${agentId}`} : Erreur reseau lors du pointage.`
@@ -593,52 +491,6 @@ export default function PointageBiometriquePage() {
       return false;
     } finally {
       pendingPointageRef.current.delete(agentId);
-    }
-  }
-
-  async function confirmDepartureForAgent(agentId: number) {
-    const candidate = pendingDepartures.find((item) => item.agentId === agentId);
-    if (!candidate || candidate.confirming) {
-      return;
-    }
-
-    updatePendingDeparture(agentId, (current) => ({
-      ...current,
-      confirming: true,
-      errorMessage: undefined,
-    }));
-
-    const success = await submitBiometricPointage(agentId, candidate.distance ?? 0, {
-      confirmDeparture: true,
-      silent: true,
-    });
-
-    if (!success) {
-      updatePendingDeparture(agentId, (current) => ({
-        ...current,
-        confirming: false,
-      }));
-    }
-  }
-
-  function rejectDepartureForAgent(agentId: number) {
-    const candidate = pendingDepartures.find((item) => item.agentId === agentId);
-    removePendingDeparture(agentId);
-    cooldownByAgentRef.current.set(agentId, Date.now() + ERROR_COOLDOWN_MS);
-    pushEvent(
-      "info",
-      `${candidate?.fullName ?? `Agent #${agentId}`} : depart non confirme.`
-    );
-  }
-
-  function rejectAllPendingDepartures() {
-    const all = [...pendingDepartures];
-    clearPendingDepartures();
-    for (const candidate of all) {
-      cooldownByAgentRef.current.set(candidate.agentId, Date.now() + ERROR_COOLDOWN_MS);
-    }
-    if (all.length > 0) {
-      pushEvent("info", "Aucune confirmation de depart n'a ete validee.");
     }
   }
 
@@ -722,17 +574,9 @@ export default function PointageBiometriquePage() {
 
           const cooldownUntil = cooldownByAgentRef.current.get(agentId) ?? 0;
           const inCooldown = Date.now() < cooldownUntil;
-          const awaitingDepartureConfirmation =
-            pendingDepartureByAgentRef.current.has(agentId);
-
-          if (awaitingDepartureConfirmation) {
-            strokeColor = "#f59e0b";
-            label = `${label} (depart a confirmer)`;
-          }
 
           if (
             !inCooldown &&
-            !awaitingDepartureConfirmation &&
             streak >= MIN_STREAK_FOR_POINTAGE &&
             !submittedInFrame.has(agentId)
           ) {
@@ -790,7 +634,6 @@ export default function PointageBiometriquePage() {
     setEvents([]);
     setReferencesTotal(0);
     setReferencesReady(0);
-    clearPendingDepartures();
 
     try {
       setStatus("loading-models");
@@ -837,14 +680,6 @@ export default function PointageBiometriquePage() {
       stopCamera();
     };
   }, []);
-
-  useEffect(() => {
-    if (pendingDepartures.length === 0) {
-      setDepartureModalOpen(false);
-      return;
-    }
-    setDepartureModalOpen(true);
-  }, [pendingDepartures.length]);
 
   useEffect(() => {
     if (authPending) {
@@ -966,7 +801,7 @@ export default function PointageBiometriquePage() {
           Pointage Biometrique
         </h1>
         <p className="text-sm text-muted-foreground">
-          Reconnaissance faciale asynchrone sur flux camera: arrivee automatique, depart avec confirmation.
+          Reconnaissance faciale asynchrone sur flux camera: arrivees et departs enregistres automatiquement pendant les heures de travail.
         </p>
       </div>
 
@@ -977,7 +812,7 @@ export default function PointageBiometriquePage() {
               <div className="space-y-1">
                 <CardTitle>Camera de Detection</CardTitle>
                 <CardDescription>
-                  Les visages reconnus sont encadres en vert. L'arrivee est automatique; le depart demande une confirmation.
+                  Les visages reconnus sont encadres en vert. Chaque detection valide enregistre automatiquement une entree ou une sortie.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1054,6 +889,17 @@ export default function PointageBiometriquePage() {
                   </Badge>
                 )}
               </div>
+              {latestPointage && (
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <div className="font-medium text-foreground">Derniere information enregistree</div>
+                  <div className="mt-1">
+                    {latestPointage.fullName} ({latestPointage.matricule}) |{" "}
+                    {latestPointage.type === "ARRIVEE" ? "Arrivee" : "Depart"} |{" "}
+                    {new Date(latestPointage.heurePointage).toLocaleString("fr-FR")}
+                  </div>
+                  <div>{new Date(latestPointage.date).toLocaleDateString("fr-FR")}</div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1106,78 +952,6 @@ export default function PointageBiometriquePage() {
         </div>
       </div>
 
-      <Dialog
-        open={pendingDepartures.length > 0 ? true : departureModalOpen}
-        onOpenChange={(open) => {
-          if (!open && pendingDepartures.length > 0) return;
-          setDepartureModalOpen(open);
-        }}
-      >
-        <DialogContent className="max-w-2xl" showCloseButton={pendingDepartures.length === 0}>
-          <DialogHeader>
-            <DialogTitle>Confirmation des pointages de depart</DialogTitle>
-            <DialogDescription>
-              {pendingDepartures.length > 1
-                ? "Plusieurs visages reconnus ont une arrivee deja pointee. Confirmez ou refusez chaque depart."
-                : "Le visage reconnu a deja une arrivee pointee. Confirmez ou refusez le depart."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
-            {pendingDepartures.map((candidate) => (
-              <div
-                key={`pending-departure-${candidate.agentId}`}
-                className="rounded-lg border border-border bg-card p-3"
-              >
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold">{candidate.fullName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Matricule: {candidate.matricule} | Detecte a {formatClock(candidate.detectedAt)}
-                    </p>
-                    {candidate.errorMessage && (
-                      <p className="text-xs text-rose-600">{candidate.errorMessage}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => void confirmDepartureForAgent(candidate.agentId)}
-                      disabled={candidate.confirming}
-                    >
-                      {candidate.confirming ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : null}
-                      Confirmer depart
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => rejectDepartureForAgent(candidate.agentId)}
-                      disabled={candidate.confirming}
-                    >
-                      Non
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <DialogFooter className="sm:justify-between">
-            <p className="text-xs text-muted-foreground">
-              Tant qu'un depart n'est pas confirme, le systeme ne le pointera pas automatiquement.
-            </p>
-            <Button
-              variant="secondary"
-              onClick={rejectAllPendingDepartures}
-              disabled={pendingDepartures.length === 0}
-            >
-              Refuser tous les departs
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
