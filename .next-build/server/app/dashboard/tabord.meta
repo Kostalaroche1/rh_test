@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/dashboard/layout,_N_T_/dashboard/tabord/layout,_N_T_/dashboard/tabord/page,_N_T_/dashboard/tabord"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/dashboard/tabord/__PAGE__",
+    "/dashboard/tabord",
+    "/dashboard",
+    "/_index",
+    "/_head"
+  ]
+}

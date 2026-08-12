@@ -1,0 +1,20 @@
+{
+  "node": {
+    "0042699821c90a4138123258fdb4865e5a20e9328c": {
+      "workers": {
+        "app/dashboard/agents/[id]/page": {
+          "moduleId": 269452,
+          "async": false,
+          "exportedName": "getAuthenticatedUser",
+          "filename": "src/security/auth.ts"
+        }
+      },
+      "layer": {
+        "app/dashboard/agents/[id]/page": "action-browser"
+      },
+      "exportedName": "getAuthenticatedUser",
+      "filename": "src/security/auth.ts"
+    }
+  },
+  "edge": {}
+}

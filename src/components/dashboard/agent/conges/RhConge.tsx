@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { hasAnyPermission } from "@/security/permissions";
 import { TypeConge } from "@/utilities/type";
@@ -178,10 +179,22 @@ export default function RhTypeConge() {
                 <DialogTitle>Ajouter un type de conge</DialogTitle>
               </DialogHeader>
               <form className="flex flex-col gap-4" onSubmit={recordHoliday}>
-                <Input placeholder="Code conge ex. FORMATION" name="code" required />
-                <Input placeholder="Description conge" name="libelle" required />
-                <Input placeholder="Duree" type="number" name="dureeMax" required />
-                <Input placeholder="Montant allocation en franc" type="number" name="allocation" required />
+                <div className="grid gap-2">
+                  <Label htmlFor="type-conge-create-code">Code</Label>
+                  <Input id="type-conge-create-code" placeholder="Code conge ex. FORMATION" name="code" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="type-conge-create-libelle">Description</Label>
+                  <Input id="type-conge-create-libelle" placeholder="Description conge" name="libelle" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="type-conge-create-duree">Duree maximale</Label>
+                  <Input id="type-conge-create-duree" placeholder="Duree" type="number" name="dureeMax" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="type-conge-create-allocation">Allocation conge</Label>
+                  <Input id="type-conge-create-allocation" placeholder="Montant allocation en franc" type="number" name="allocation" required />
+                </div>
                 <Button type="submit" className="mt-2" disabled={loadingId === "record"}>Creer</Button>
               </form>
             </DialogContent>
@@ -194,10 +207,22 @@ export default function RhTypeConge() {
               </DialogHeader>
               {selectedType && (
                 <form onSubmit={editTypeConge} className="flex flex-col gap-4">
-                  <Input value={selectedType.code} onChange={(e) => setSelectedType({ ...selectedType, code: e.target.value })} />
-                  <Input value={selectedType.libelle} onChange={(e) => setSelectedType({ ...selectedType, libelle: e.target.value })} />
-                  <Input type="number" value={selectedType.dureeMax} onChange={(e) => setSelectedType({ ...selectedType, dureeMax: Number(e.target.value) })} />
-                  <Input type="number" value={selectedType.allocationConge} placeholder="Allocation conge en franc" onChange={(e) => setSelectedType({ ...selectedType, allocationConge: Number(e.target.value) })} />
+                  <div className="grid gap-2">
+                    <Label htmlFor="type-conge-edit-code">Code</Label>
+                    <Input id="type-conge-edit-code" value={selectedType.code} onChange={(e) => setSelectedType({ ...selectedType, code: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="type-conge-edit-libelle">Description</Label>
+                    <Input id="type-conge-edit-libelle" value={selectedType.libelle} onChange={(e) => setSelectedType({ ...selectedType, libelle: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="type-conge-edit-duree">Duree maximale</Label>
+                    <Input id="type-conge-edit-duree" type="number" value={selectedType.dureeMax} onChange={(e) => setSelectedType({ ...selectedType, dureeMax: Number(e.target.value) })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="type-conge-edit-allocation">Allocation conge</Label>
+                    <Input id="type-conge-edit-allocation" type="number" value={selectedType.allocationConge} placeholder="Allocation conge en franc" onChange={(e) => setSelectedType({ ...selectedType, allocationConge: Number(e.target.value) })} />
+                  </div>
                   <Button type="submit" disabled={loadingId === selectedType.id}>Valider</Button>
                 </form>
               )}
@@ -220,6 +245,8 @@ export default function RhTypeConge() {
     </>
   );
 }
+
+
 
 
 

@@ -12,6 +12,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "node prisma/seed.js",
+    "db:seed:rtnc-demo": "node prisma/seed-rtnc-demo.js",
     "db:bootstrap-admin": "node prisma/bootstrap-admin.js",
     "db:bootstrap": "node prisma/seed.js && node prisma/bootstrap-admin.js",
     "seed:provinces": "node scripts/seed-provinces.js",
@@ -85,3 +86,4 @@
     "typescript": "^5"
   }
 }
+

@@ -1,0 +1,10 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/carrieres/retraite/proche/route.js")
+R.c("server/chunks/[root-of-the-server]__57f7ca75._.js")
+R.c("server/chunks/node_modules_next_dist_79f1aee4._.js")
+R.c("server/chunks/node_modules_next_f5199d09._.js")
+R.c("server/chunks/node_modules_3704b130._.js")
+R.c("server/chunks/[root-of-the-server]__00b89f99._.js")
+R.c("server/chunks/[root-of-the-server]__d7355d04._.js")
+R.c("server/chunks/_next-internal_server_app_api_carrieres_retraite_proche_route_actions_cd1199c7.js")
+R.m(693902)
+module.exports=R.m(693902).exports

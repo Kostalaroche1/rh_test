@@ -129,7 +129,7 @@ const [agent, setAgent] = useState<Agent>({
               />
             </div>
             <div className="grid gap-3">
-  <Label>État civil</Label>
+  <Label htmlFor="agent-create-admin-etat-civil">État civil</Label>
   <Select
     value={agent.statut}
     disabled={loading}
@@ -140,7 +140,7 @@ const [agent, setAgent] = useState<Agent>({
       }))
     }
   >
-    <SelectTrigger disabled={loading}>
+    <SelectTrigger id="agent-create-admin-etat-civil" disabled={loading}>
       <SelectValue placeholder="Sélectionnez l’état civil" />
     </SelectTrigger>
     <SelectContent>
@@ -152,7 +152,7 @@ const [agent, setAgent] = useState<Agent>({
   </Select>
 </div>
        <div className="grid gap-3">
-  <Label>Genre</Label>
+  <Label htmlFor="agent-create-admin-genre">Genre</Label>
   <Select
     value={agent.statut}
     disabled={loading}
@@ -163,7 +163,7 @@ const [agent, setAgent] = useState<Agent>({
       }))
     }
   >
-    <SelectTrigger disabled={loading}>
+    <SelectTrigger id="agent-create-admin-genre" disabled={loading}>
       <SelectValue placeholder="Sélectionnez le Genre" />
     </SelectTrigger>
     <SelectContent>
@@ -212,3 +212,5 @@ const [agent, setAgent] = useState<Agent>({
     </Dialog>
   );
 }
+
+

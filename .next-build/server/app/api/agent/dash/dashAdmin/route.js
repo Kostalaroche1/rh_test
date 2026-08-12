@@ -1,0 +1,11 @@
+var R=require("../../../../../chunks/[turbopack]_runtime.js")("server/app/api/agent/dash/dashAdmin/route.js")
+R.c("server/chunks/[root-of-the-server]__6db2cfbf._.js")
+R.c("server/chunks/node_modules_next_f5199d09._.js")
+R.c("server/chunks/node_modules_next_dist_esm_build_templates_app-route_965d2d02.js")
+R.c("server/chunks/node_modules_3704b130._.js")
+R.c("server/chunks/node_modules_next_dist_79f1aee4._.js")
+R.c("server/chunks/[root-of-the-server]__00b89f99._.js")
+R.c("server/chunks/[root-of-the-server]__d7355d04._.js")
+R.c("server/chunks/_next-internal_server_app_api_agent_dash_dashAdmin_route_actions_b1a0aa68.js")
+R.m(690056)
+module.exports=R.m(690056).exports

@@ -1,0 +1,3 @@
+{
+  "/api/session/heartbeat/route": "app/api/session/heartbeat/route.js"
+}

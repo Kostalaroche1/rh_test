@@ -295,14 +295,17 @@ export default function HoraireTravailTable() {
         </div>
       )}
       {canReadHoraireTravail && (
-      <>
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Input
-          className="w-full md:max-w-sm"
-          placeholder="Rechercher nom, heure, createur..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <>
+        <div className="w-full md:max-w-sm">
+          <Label htmlFor="horaires-travail-recherche">Recherche</Label>
+          <Input
+            id="horaires-travail-recherche"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Rechercher nom, heure, createur..."
+            className="w-full"
+          />
+        </div>
 
         {canManageHoraireTravail && (
           <Button type="button" onClick={handleOpenCreate}>
@@ -310,9 +313,7 @@ export default function HoraireTravailTable() {
             Ajouter un horaire
           </Button>
         )}
-      </div>
-
-      <Table>
+          <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Nom</TableHead>
@@ -333,28 +334,30 @@ export default function HoraireTravailTable() {
                 <TableCell>{formatTime(item.heureFin)}</TableCell>
                 <TableCell>{item._count?.horaireAgent ?? 0}</TableCell>
                 <TableCell>{item.creerPar?.login ?? "--"}</TableCell>
-                {canManageHoraireTravail && <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="ghost">
-                        <IconDotsVertical />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleOpenEdit(item)}>
-                        <IconPencil className="mr-2 h-4 w-4" />
-                        Modifier
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => setDeleteTarget(item)}
-                      >
-                        <IconTrash className="mr-2 h-4 w-4" />
-                        Supprimer
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>}
+                {canManageHoraireTravail && (
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost">
+                          <IconDotsVertical />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleOpenEdit(item)}>
+                          <IconPencil className="mr-2 h-4 w-4" />
+                          Modifier
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => setDeleteTarget(item)}
+                        >
+                          <IconTrash className="mr-2 h-4 w-4" />
+                          Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
 
@@ -382,8 +385,8 @@ export default function HoraireTravailTable() {
         </TableBody>
       </Table>
 
-      {!isPending && filteredData.length > 0 && (
-        <div className="flex flex-col gap-3 border-t px-1 pt-3 md:flex-row md:items-center md:justify-between">
+          {!isPending && filteredData.length > 0 && (
+            <div className="flex flex-col gap-3 border-t px-1 pt-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Lignes par page</span>
             <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
@@ -437,27 +440,27 @@ export default function HoraireTravailTable() {
               <IconChevronsRight className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) {
-            resetForm();
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "Modifier un horaire" : "Creer un horaire"}
-            </DialogTitle>
-            <DialogDescription>
-              Renseignez le nom et la plage horaire de travail.
-            </DialogDescription>
-          </DialogHeader>
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) {
+                resetForm();
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {isEditing ? "Modifier un horaire" : "Creer un horaire"}
+                </DialogTitle>
+                <DialogDescription>
+                  Renseignez le nom et la plage horaire de travail.
+                </DialogDescription>
+              </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -599,37 +602,37 @@ export default function HoraireTravailTable() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
 
-      <AlertDialog
-        open={Boolean(deleteTarget)}
-        onOpenChange={() => setDeleteTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cet horaire ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est definitive. Si cet horaire est deja affecte a des
-              agents, la suppression sera refusee.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={(event) => {
-                event.preventDefault();
-                handleDelete();
-              }}
-              disabled={deleting}
-            >
-              {deleting ? "Suppression..." : "Supprimer"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      </>
+          <AlertDialog
+            open={Boolean(deleteTarget)}
+            onOpenChange={() => setDeleteTarget(null)}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Supprimer cet horaire ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cette action est definitive. Si cet horaire est deja affecte a des
+                  agents, la suppression sera refusee.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    handleDelete();
+                  }}
+                  disabled={deleting}
+                >
+                  {deleting ? "Suppression..." : "Supprimer"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
       )}
     </div>
   );

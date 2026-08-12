@@ -370,23 +370,24 @@ export default function TableHoraireAgent() {
         </div>
       )}
       {canReadHoraireAgent && (
-      <>
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher agent ou horaire..."
-          className="w-full md:max-w-sm"
-        />
+        <>
+        <div className="w-full md:max-w-sm">
+          <Label htmlFor="horaires-employe-recherche">Recherche</Label>
+          <Input
+            id="horaires-employe-recherche"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Rechercher agent ou horaire..."
+            className="w-full"
+          />
+        </div>
         {canManageHoraireAgent && (
           <Button type="button" onClick={openCreate}>
             <IconPlus className="mr-2 h-4 w-4" />
             Ajouter Horaire Agent
           </Button>
         )}
-      </div>
-
-      <Table>
+          <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Agent</TableHead>
@@ -417,28 +418,30 @@ export default function TableHoraireAgent() {
                     .join(", ") || "--"}
                 </TableCell>
                 <TableCell>{row.creerPar?.login ?? "--"}</TableCell>
-                {canManageHoraireAgent && <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="ghost">
-                        <IconDotsVertical />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEdit(row)}>
-                        <IconPencil className="mr-2 h-4 w-4" />
-                        Modifier
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => setDeleteTarget(row)}
-                      >
-                        <IconTrash className="mr-2 h-4 w-4" />
-                        Supprimer
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>}
+                {canManageHoraireAgent && (
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost">
+                          <IconDotsVertical />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEdit(row)}>
+                          <IconPencil className="mr-2 h-4 w-4" />
+                          Modifier
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => setDeleteTarget(row)}
+                        >
+                          <IconTrash className="mr-2 h-4 w-4" />
+                          Supprimer
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
 
@@ -460,8 +463,8 @@ export default function TableHoraireAgent() {
         </TableBody>
       </Table>
 
-      {!isPending && filteredRows.length > 0 && (
-        <div className="mt-4 flex flex-col gap-3 border-t pt-3 md:flex-row md:items-center md:justify-between">
+          {!isPending && filteredRows.length > 0 && (
+            <div className="mt-4 flex flex-col gap-3 border-t pt-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground">Lignes par page</span>
             <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
@@ -515,23 +518,23 @@ export default function TableHoraireAgent() {
               <IconChevronsRight className="h-4 w-4" />
             </Button>
           </div>
-        </div>
-      )}
+            </div>
+          )}
 
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) resetForm();
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isEditing ? "Modifier Horaire Agent" : "Ajouter Horaire Agent"}</DialogTitle>
-            <DialogDescription>
-              Selectionnez un agent, un horaire, la periode et les jours appliques.
-            </DialogDescription>
-          </DialogHeader>
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (!open) resetForm();
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{isEditing ? "Modifier Horaire Agent" : "Ajouter Horaire Agent"}</DialogTitle>
+                <DialogDescription>
+                  Selectionnez un agent, un horaire, la periode et les jours appliques.
+                </DialogDescription>
+              </DialogHeader>
 
           <form className="space-y-4" onSubmit={submitForm}>
             <div className="space-y-2">
@@ -627,33 +630,33 @@ export default function TableHoraireAgent() {
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+            </DialogContent>
+          </Dialog>
 
-      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cet horaire agent ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Cette action est definitive.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleting}
-              onClick={(event) => {
-                event.preventDefault();
-                confirmDelete();
-              }}
-            >
-              {deleting ? "Suppression..." : "Supprimer"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      </>
+          <AlertDialog open={Boolean(deleteTarget)} onOpenChange={() => setDeleteTarget(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Supprimer cet horaire agent ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cette action est definitive.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={deleting}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    confirmDelete();
+                  }}
+                >
+                  {deleting ? "Suppression..." : "Supprimer"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
       )}
     </CardWrap>
   );

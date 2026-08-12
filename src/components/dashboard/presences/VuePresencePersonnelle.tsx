@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatDate } from "@/components/dashboard/espaceTravail/utilitaires/dates"
 import { obtenirCouleurBadgeStatut } from "@/components/dashboard/espaceTravail/utilitaires/statuts"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { computePresenceStatus } from "@/utilities/presence"
 
 type Presence = {
@@ -228,17 +229,20 @@ export default function AgentDashPresence() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher date, heure, statut..."
-              className="w-full md:max-w-sm"
-            />
+            <div className="w-full md:max-w-sm">
+              <Label htmlFor="presence-personnelle-recherche">Recherche</Label>
+              <Input
+                id="presence-personnelle-recherche"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher date, heure, statut..."
+                className="w-full"
+              />
+            </div>
             <p className="text-sm text-muted-foreground">
               Total: {history.length} | Resultats: {filteredHistory.length}
             </p>
           </div>
-
           <Table>
             <TableHeader>
               <TableRow>
@@ -316,4 +320,5 @@ export default function AgentDashPresence() {
     </div>
   )
 }
+
 

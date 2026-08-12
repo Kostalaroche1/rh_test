@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/pointage/layout,_N_T_/pointage/biometrique/layout,_N_T_/pointage/biometrique/page,_N_T_/pointage/biometrique"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/pointage/biometrique/__PAGE__",
+    "/pointage/biometrique",
+    "/pointage",
+    "/_index",
+    "/_head"
+  ]
+}

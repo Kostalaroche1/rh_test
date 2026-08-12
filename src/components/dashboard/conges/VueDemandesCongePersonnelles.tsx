@@ -287,9 +287,9 @@ export default function AgentDemandeConge() {
                     <Input id="dateDemande" type="date" name="dateDemande" defaultValue={todayInputValue()} min={todayInputValue()} required />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label>Type de conge</Label>
+                    <Label htmlFor="demande-conge-type">Type de conge</Label>
                     <Select name="typeCongeId">
-                      <SelectTrigger>
+                      <SelectTrigger id="demande-conge-type">
                         <SelectValue placeholder="Choisir un type de conge" />
                       </SelectTrigger>
                       <SelectContent>
@@ -333,14 +333,14 @@ export default function AgentDemandeConge() {
                     <Input id="editDateDemande" type="date" value={formatInputDate(demande.dateDemande)} onChange={(e) => setDemande((prev) => ({ ...prev, dateDemande: e.target.value }))} required />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <Label>Type de conge</Label>
+                    <Label htmlFor="demande-conge-type-edit">Type de conge</Label>
                     <Select value={demande.typeConge?.id ? String(demande.typeConge.id) : ""} onValueChange={(value) => {
                       const selected = typeConges.find((type) => type.id === Number(value));
                       if (selected) {
                         setDemande((prev) => ({ ...prev, typeConge: selected }));
                       }
                     }}>
-                      <SelectTrigger>
+                      <SelectTrigger id="demande-conge-type-edit">
                         <SelectValue placeholder="Choisir un type de conge" />
                       </SelectTrigger>
                       <SelectContent>
@@ -382,6 +382,7 @@ export default function AgentDemandeConge() {
     </>
   );
 }
+
 
 
 

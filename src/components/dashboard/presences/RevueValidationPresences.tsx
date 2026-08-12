@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { CheckCircle } from "lucide-react"
 import { getAllPresence, UpdatePresence } from "@/app/action/agent/presence/action"
@@ -122,17 +123,20 @@ export default function RHPresences() {
 
         <CardContent>
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher agent, service, date, statut..."
-              className="w-full md:max-w-sm"
-            />
+            <div className="w-full md:max-w-sm">
+              <Label htmlFor="presences-validation-recherche">Recherche</Label>
+              <Input
+                id="presences-validation-recherche"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Rechercher agent, service, date, statut..."
+                className="w-full"
+              />
+            </div>
             <p className="text-sm text-muted-foreground">
               Total: {presences.length} | Resultats: {filteredPresences.length}
             </p>
           </div>
-
           <div className="overflow-x-auto">
             <Table className="w-full text-sm">
               <TableHeader className="border-b text-muted-foreground">
@@ -226,4 +230,5 @@ export default function RHPresences() {
     </div>
   )
 }
+
 

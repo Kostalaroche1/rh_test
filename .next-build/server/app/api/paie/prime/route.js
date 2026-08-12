@@ -1,0 +1,10 @@
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/paie/prime/route.js")
+R.c("server/chunks/[root-of-the-server]__07342fdd._.js")
+R.c("server/chunks/node_modules_next_dist_79f1aee4._.js")
+R.c("server/chunks/node_modules_next_f5199d09._.js")
+R.c("server/chunks/[root-of-the-server]__d7355d04._.js")
+R.c("server/chunks/[root-of-the-server]__00b89f99._.js")
+R.c("server/chunks/node_modules_3704b130._.js")
+R.c("server/chunks/_next-internal_server_app_api_paie_prime_route_actions_5b6ea16a.js")
+R.m(676141)
+module.exports=R.m(676141).exports

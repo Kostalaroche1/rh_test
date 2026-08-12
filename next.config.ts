@@ -17,6 +17,9 @@ function getAllowedDevOrigins(): string[] {
 }
 
 const nextConfig: NextConfig = {
+  // Keep build artifacts out of `.next` because this Windows workspace
+  // intermittently leaves that directory locked between runs.
+  distDir: ".next-build",
   // Allow mobile devices on LAN to fetch dev assets without cross-origin warnings.
   allowedDevOrigins: getAllowedDevOrigins(),
   typescript: {
@@ -34,3 +37,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

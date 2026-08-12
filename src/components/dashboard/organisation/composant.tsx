@@ -52,6 +52,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -833,21 +834,27 @@ export default function OrganisationDashboard() {
           <form onSubmit={handleSubmit} className="space-y-3">
             {activeForm === "PROVINCE" && (
               <>
+                <Label htmlFor="organisation-province-nom">Nom</Label>
                 <Input
+                  id="organisation-province-nom"
                   placeholder="Nom"
                   value={formData.nom || ""}
                   onChange={(e) =>
                     setFormData((p: any) => ({ ...p, nom: e.target.value }))
                   }
                 />
+                <Label htmlFor="organisation-province-code">Code</Label>
                 <Input
+                  id="organisation-province-code"
                   placeholder="Code (ex: KIN)"
                   value={formData.code || ""}
                   onChange={(e) =>
                     setFormData((p: any) => ({ ...p, code: e.target.value.toUpperCase() }))
                   }
                 />
+                <Label htmlFor="organisation-province-description">Description</Label>
                 <Input
+                  id="organisation-province-description"
                   placeholder="Description"
                   value={formData.description || ""}
                   onChange={(e) =>
@@ -859,12 +866,18 @@ export default function OrganisationDashboard() {
 
             {activeForm === "TYPE_UNITE" && (
               <>
-                <Input placeholder="Nom" value={formData.nom || ""} onChange={(e) => setFormData((p: any) => ({ ...p, nom: e.target.value }))} />
-                <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
-                <Input placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
-                <Input placeholder="Ordre" type="number" value={formData.ordre || "0"} onChange={(e) => setFormData((p: any) => ({ ...p, ordre: e.target.value }))} />
+                <Label htmlFor="organisation-type-unite-nom">Nom</Label>
+                <Input id="organisation-type-unite-nom" placeholder="Nom" value={formData.nom || ""} onChange={(e) => setFormData((p: any) => ({ ...p, nom: e.target.value }))} />
+                <Label htmlFor="organisation-type-unite-code">Code</Label>
+                <Input id="organisation-type-unite-code" placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
+                <Label htmlFor="organisation-type-unite-description">Description</Label>
+                <Input id="organisation-type-unite-description" placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
+                <Label htmlFor="organisation-type-unite-ordre">Ordre</Label>
+                <Input id="organisation-type-unite-ordre" placeholder="Ordre" type="number" value={formData.ordre || "0"} onChange={(e) => setFormData((p: any) => ({ ...p, ordre: e.target.value }))} />
+                <Label htmlFor="organisation-type-unite-province">Province de rattachement</Label>
                 <p className="text-xs font-medium text-muted-foreground">Province de rattachement</p>
                 <select
+                  id="organisation-type-unite-province"
                   className="w-full rounded border p-2"
                   value={formData.provinceId || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, provinceId: e.target.value, parentId: "" }))}
@@ -876,7 +889,9 @@ export default function OrganisationDashboard() {
                     </option>
                   ))}
                 </select>
+                <Label htmlFor="organisation-type-unite-parent">Station parente</Label>
                 <select
+                  id="organisation-type-unite-parent"
                   className="w-full rounded border p-2"
                   value={formData.parentId || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, parentId: e.target.value }))}
@@ -907,10 +922,12 @@ export default function OrganisationDashboard() {
 
             {activeForm === "UNITE" && (
               <>
+                <Label htmlFor="organisation-unite-province">Province</Label>
                 <p className="text-xs font-medium text-muted-foreground">
                   Province (obligatoire)
                 </p>
                 <select
+                  id="organisation-unite-province"
                   className="w-full rounded border p-2"
                   value={formData.provinceId || ""}
                   onChange={(e) =>
@@ -935,7 +952,9 @@ export default function OrganisationDashboard() {
                     Aucune province disponible. Verifiez migration/seed et permission `province.read`.
                   </p>
                 ) : null}
+                <Label htmlFor="organisation-unite-type">Station</Label>
                 <select
+                  id="organisation-unite-type"
                   className="w-full rounded border p-2"
                   value={formData.typeUniteId || ""}
                   onChange={(e) =>
@@ -955,27 +974,36 @@ export default function OrganisationDashboard() {
                   ))}
                 </select>
                 {!editingItem && (
-                  <select
-                    className="w-full rounded border p-2"
-                    value={formData.uniteExistanteId || ""}
-                    onChange={(e) => setFormData((p: any) => ({ ...p, uniteExistanteId: e.target.value }))}
-                  >
-                    <option value="">-- Nouvelle direction (par defaut) --</option>
-                    {availableExistingUnites.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.code} - {item.nom}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <Label htmlFor="organisation-unite-existante">Direction existante</Label>
+                    <select
+                      id="organisation-unite-existante"
+                      className="w-full rounded border p-2"
+                      value={formData.uniteExistanteId || ""}
+                      onChange={(e) => setFormData((p: any) => ({ ...p, uniteExistanteId: e.target.value }))}
+                    >
+                      <option value="">-- Nouvelle direction (par defaut) --</option>
+                      {availableExistingUnites.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.code} - {item.nom}
+                        </option>
+                      ))}
+                    </select>
+                  </>
                 )}
                 {!formData.uniteExistanteId && (
                   <>
-                    <Input placeholder="Nom" value={formData.nom || ""} onChange={(e) => setFormData((p: any) => ({ ...p, nom: e.target.value }))} />
-                    <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
-                    <Input placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
+                    <Label htmlFor="organisation-unite-nom">Nom</Label>
+                    <Input id="organisation-unite-nom" placeholder="Nom" value={formData.nom || ""} onChange={(e) => setFormData((p: any) => ({ ...p, nom: e.target.value }))} />
+                    <Label htmlFor="organisation-unite-code">Code</Label>
+                    <Input id="organisation-unite-code" placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
+                    <Label htmlFor="organisation-unite-description">Description</Label>
+                    <Input id="organisation-unite-description" placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
                   </>
                 )}
+                <Label htmlFor="organisation-unite-parent">Direction parente</Label>
                 <select
+                  id="organisation-unite-parent"
                   className="w-full rounded border p-2"
                   value={formData.parentId || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, parentId: e.target.value }))}
@@ -998,10 +1026,14 @@ export default function OrganisationDashboard() {
 
             {activeForm === "POSTE" && (
               <>
-                <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
-                <Input placeholder="Libelle" value={formData.libelle || ""} onChange={(e) => setFormData((p: any) => ({ ...p, libelle: e.target.value }))} />
-                <Input placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
-                <select className="w-full rounded border p-2" value={formData.uniteOrganisationnelleId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, uniteOrganisationnelleId: e.target.value }))}>
+                <Label htmlFor="organisation-poste-code">Code</Label>
+                <Input id="organisation-poste-code" placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
+                <Label htmlFor="organisation-poste-libelle">Libelle</Label>
+                <Input id="organisation-poste-libelle" placeholder="Libelle" value={formData.libelle || ""} onChange={(e) => setFormData((p: any) => ({ ...p, libelle: e.target.value }))} />
+                <Label htmlFor="organisation-poste-description">Description</Label>
+                <Input id="organisation-poste-description" placeholder="Description" value={formData.description || ""} onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))} />
+                <Label htmlFor="organisation-poste-direction">Direction</Label>
+                <select id="organisation-poste-direction" className="w-full rounded border p-2" value={formData.uniteOrganisationnelleId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, uniteOrganisationnelleId: e.target.value }))}>
                   <option value="">-- Selectionnez la direction --</option>
                   {(unites as any[]).map((item) => <option key={item.id} value={item.id}>{getIndent(item.niveau, item.nom)}</option>)}
                 </select>
@@ -1010,9 +1042,12 @@ export default function OrganisationDashboard() {
 
             {activeForm === "FONCTION" && (
               <>
-                <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
-                <Input placeholder="Libelle" value={formData.libelle || ""} onChange={(e) => setFormData((p: any) => ({ ...p, libelle: e.target.value }))} />
-                <select className="w-full rounded border p-2" value={formData.posteId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, posteId: e.target.value }))}>
+                <Label htmlFor="organisation-fonction-code">Code</Label>
+                <Input id="organisation-fonction-code" placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
+                <Label htmlFor="organisation-fonction-libelle">Libelle</Label>
+                <Input id="organisation-fonction-libelle" placeholder="Libelle" value={formData.libelle || ""} onChange={(e) => setFormData((p: any) => ({ ...p, libelle: e.target.value }))} />
+                <Label htmlFor="organisation-fonction-poste">Poste</Label>
+                <select id="organisation-fonction-poste" className="w-full rounded border p-2" value={formData.posteId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, posteId: e.target.value }))}>
                   <option value="">-- Selectionnez le poste --</option>
                   {(postes as any[]).map((item) => <option key={item.id} value={item.id}>{item.libelle}</option>)}
                 </select>
@@ -1021,15 +1056,19 @@ export default function OrganisationDashboard() {
 
             {activeForm === "GRADE" && (
               <>
-                <Input placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
-                <Input placeholder="Libelle" value={formData.libelle || ""} onChange={(e) => setFormData((p: any) => ({ ...p, libelle: e.target.value }))} />
-                <Input placeholder="Indice salarial" type="number" value={formData.indiceSalarial || ""} onChange={(e) => setFormData((p: any) => ({ ...p, indiceSalarial: e.target.value }))} />
+                <Label htmlFor="organisation-grade-code">Code</Label>
+                <Input id="organisation-grade-code" placeholder="Code" value={formData.code || ""} onChange={(e) => setFormData((p: any) => ({ ...p, code: e.target.value }))} />
+                <Label htmlFor="organisation-grade-libelle">Libelle</Label>
+                <Input id="organisation-grade-libelle" placeholder="Libelle" value={formData.libelle || ""} onChange={(e) => setFormData((p: any) => ({ ...p, libelle: e.target.value }))} />
+                <Label htmlFor="organisation-grade-indice">Indice salarial</Label>
+                <Input id="organisation-grade-indice" placeholder="Indice salarial" type="number" value={formData.indiceSalarial || ""} onChange={(e) => setFormData((p: any) => ({ ...p, indiceSalarial: e.target.value }))} />
               </>
             )}
 
             {activeForm === "AFFECTATION" && (
               <>
-                <select className="w-full rounded border p-2" value={formData.agentId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, agentId: e.target.value }))}>
+                <Label htmlFor="organisation-affectation-agent">Agent</Label>
+                <select id="organisation-affectation-agent" className="w-full rounded border p-2" value={formData.agentId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, agentId: e.target.value }))}>
                   <option value="">-- Selectionnez l'agent --</option>
                   {(agents as any[]).filter((item) => item?.compteAgent?.agent).map((item) => (
                     <option key={item.compteAgent.agent.id} value={item.compteAgent.agent.id}>
@@ -1037,7 +1076,9 @@ export default function OrganisationDashboard() {
                     </option>
                   ))}
                 </select>
+                <Label htmlFor="organisation-affectation-province">Province</Label>
                 <select
+                  id="organisation-affectation-province"
                   className="w-full rounded border p-2"
                   value={formData.provinceId || ""}
                   onChange={(e) =>
@@ -1056,7 +1097,9 @@ export default function OrganisationDashboard() {
                     </option>
                   ))}
                 </select>
+                <Label htmlFor="organisation-affectation-station">Station</Label>
                 <select
+                  id="organisation-affectation-station"
                   className="w-full rounded border p-2"
                   value={formData.typeUniteId || ""}
                   onChange={(e) =>
@@ -1074,7 +1117,8 @@ export default function OrganisationDashboard() {
                     </option>
                   ))}
                 </select>
-                <select className="w-full rounded border p-2" value={formData.uniteOrganisationnelleId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, uniteOrganisationnelleId: e.target.value }))}>
+                <Label htmlFor="organisation-affectation-direction">Direction</Label>
+                <select id="organisation-affectation-direction" className="w-full rounded border p-2" value={formData.uniteOrganisationnelleId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, uniteOrganisationnelleId: e.target.value }))}>
                   <option value="">-- Selectionnez la direction --</option>
                   {filteredUnitesByProvinceAndType.map((item) => (
                     <option key={`${item.id}-${item.mappingId ?? "x"}`} value={item.id}>
@@ -1082,22 +1126,29 @@ export default function OrganisationDashboard() {
                     </option>
                   ))}
                 </select>
-                <select className="w-full rounded border p-2" value={formData.posteId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, posteId: e.target.value }))}>
+                <Label htmlFor="organisation-affectation-poste">Poste</Label>
+                <select id="organisation-affectation-poste" className="w-full rounded border p-2" value={formData.posteId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, posteId: e.target.value }))}>
                   <option value="">-- Selectionnez le poste --</option>
                   {(postes as any[]).map((item) => <option key={item.id} value={item.id}>{item.libelle}</option>)}
                 </select>
-                <select className="w-full rounded border p-2" value={formData.fonctionId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, fonctionId: e.target.value }))}>
+                <Label htmlFor="organisation-affectation-fonction">Fonction</Label>
+                <select id="organisation-affectation-fonction" className="w-full rounded border p-2" value={formData.fonctionId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, fonctionId: e.target.value }))}>
                   <option value="">-- Selectionnez la fonction --</option>
                   {(fonctions as any[]).map((item) => <option key={item.id} value={item.id}>{item.libelle}</option>)}
                 </select>
-                <select className="w-full rounded border p-2" value={formData.gradeId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, gradeId: e.target.value }))}>
+                <Label htmlFor="organisation-affectation-grade">Grade</Label>
+                <select id="organisation-affectation-grade" className="w-full rounded border p-2" value={formData.gradeId || ""} onChange={(e) => setFormData((p: any) => ({ ...p, gradeId: e.target.value }))}>
                   <option value="">-- Selectionnez le grade --</option>
                   {(grades as any[]).map((item) => <option key={item.id} value={item.id}>{item.libelle}</option>)}
                 </select>
-                <Input type="date" value={formData.dateDebut || ""} onChange={(e) => setFormData((p: any) => ({ ...p, dateDebut: e.target.value }))} />
-                <Input type="date" value={formData.dateFin || ""} onChange={(e) => setFormData((p: any) => ({ ...p, dateFin: e.target.value }))} />
-                <Input placeholder="Motif" value={formData.motif || ""} onChange={(e) => setFormData((p: any) => ({ ...p, motif: e.target.value }))} />
-                <select className="w-full rounded border p-2" value={formData.type || ""} onChange={(e) => setFormData((p: any) => ({ ...p, type: e.target.value }))}>
+                <Label htmlFor="organisation-affectation-date-debut">Date de debut</Label>
+                <Input id="organisation-affectation-date-debut" type="date" value={formData.dateDebut || ""} onChange={(e) => setFormData((p: any) => ({ ...p, dateDebut: e.target.value }))} />
+                <Label htmlFor="organisation-affectation-date-fin">Date de fin</Label>
+                <Input id="organisation-affectation-date-fin" type="date" value={formData.dateFin || ""} onChange={(e) => setFormData((p: any) => ({ ...p, dateFin: e.target.value }))} />
+                <Label htmlFor="organisation-affectation-motif">Motif</Label>
+                <Input id="organisation-affectation-motif" placeholder="Motif" value={formData.motif || ""} onChange={(e) => setFormData((p: any) => ({ ...p, motif: e.target.value }))} />
+                <Label htmlFor="organisation-affectation-type">Type d'affectation</Label>
+                <select id="organisation-affectation-type" className="w-full rounded border p-2" value={formData.type || ""} onChange={(e) => setFormData((p: any) => ({ ...p, type: e.target.value }))}>
                   <option value="">-- Selectionnez le type d'affectation --</option>
                   <option value="PROMOTION">Promotion</option>
                   <option value="MUTATION">Mutation</option>
@@ -1111,7 +1162,6 @@ export default function OrganisationDashboard() {
                 </select>
               </>
             )}
-
             <Button
               type="submit"
               className="w-full"
@@ -1146,4 +1196,6 @@ export default function OrganisationDashboard() {
     </div>
   );
 }
+
+
 

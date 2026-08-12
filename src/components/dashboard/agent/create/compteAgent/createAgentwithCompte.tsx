@@ -120,11 +120,14 @@ export function CreateAgentWithAccount({ refetchAgWA }: Props) {
         <div className="grid gap-4">
           <div className="grid grid-cols-2 gap-3">
             {/* Nom */}
-            <div className="relative border-2 rounded-full">
-              <Input
-                placeholder="Nom"
-                disabled={loading}
-                className="
+            <div className="grid gap-2">
+              <Label htmlFor="agent-account-nom">Nom</Label>
+              <div className="relative border-2 rounded-full">
+                <Input
+                  id="agent-account-nom"
+                  placeholder="Nom"
+                  disabled={loading}
+                  className="
                       pl-10
                       border-0
                       shadow-none
@@ -132,92 +135,23 @@ export function CreateAgentWithAccount({ refetchAgWA }: Props) {
                       focus:ring-0
                       focus-visible:ring-0
                       focus-visible:outline-none"
-                value={form.nom}
-                onChange={(e) => setForm({ ...form, nom: e.target.value })}
-                required
-              />
-              <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-            </div>
-
-            {/* Prénom */}
-            <div className="relative border-2 rounded-full">
-              <Input
-                placeholder="Prénom"
-                disabled={loading}
-                className="
-                      pl-10
-                      border-0
-                      shadow-none
-                      focus:outline-none
-                      focus:ring-0
-                      focus-visible:ring-0
-                      focus-visible:outline-none"
-                value={form.prenom}
-                onChange={(e) => setForm({ ...form, prenom: e.target.value })}
-                required
-              />
-              <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-            </div>
-<div className="relative border-2 rounded-full col-span-2">
-              <Select
-                onValueChange={(value) => setForm({ ...form, genre: value })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="genre?" />
-                </SelectTrigger>
-                <SelectContent>
-                 <SelectItem value={"MASCULIN"}>Masculin</SelectItem>
-                  <SelectItem value={"FEMININ"}>Feminin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-                         <Label>  Date Naissances</Label>
-<div className="relative border-2 rounded-full col-span-2">
-                  <Input
-                placeholder="date Entree"
-                type="date"
-                disabled={loading}
-                className="
-                      pl-10
-                      border-0
-                      shadow-none
-                      focus:outline-none
-                      focus:ring-0
-                      focus-visible:ring-0
-                      focus-visible:outline-none"
-                value={form.datenais}
-                onChange={(e) => setForm({ ...form, datenais: e.target.value })}
-                required
-              />
-              <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+                  value={form.nom}
+                  onChange={(e) => setForm({ ...form, nom: e.target.value })}
+                  required
+                />
+                <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
               </div>
-
-            <div className="relative border-2 rounded-full col-span-2">
-              <Input
-                type="email"
-                placeholder="email@example.com"
-                className="
-                      pl-10
-                      border-0
-                      shadow-none
-                      focus:outline-none
-                      focus:ring-0
-                      focus-visible:ring-0
-                      focus-visible:outline-none"
-                disabled={loading}
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                required
-              />
-              <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
             </div>
 
-            <div className="relative border-2 rounded-full col-span-2">
-              <Input
-                type="password"
-                placeholder="******"
-                className="
+            {/* Pr??nom */}
+            <div className="grid gap-2">
+              <Label htmlFor="agent-account-prenom">Pr??nom</Label>
+              <div className="relative border-2 rounded-full">
+                <Input
+                  id="agent-account-prenom"
+                  placeholder="Pr??nom"
+                  disabled={loading}
+                  className="
                       pl-10
                       border-0
                       shadow-none
@@ -225,66 +159,164 @@ export function CreateAgentWithAccount({ refetchAgWA }: Props) {
                       focus:ring-0
                       focus-visible:ring-0
                       focus-visible:outline-none"
-                disabled={loading}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required
-              />
-              <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
-            </div>
-           
-              <Label>  Date Entree</Label>
-<div className="relative border-2 rounded-full col-span-2">
-                  <Input
-                placeholder="date Entree"
-                type="date"
-                disabled={loading}
-                className="
-                      pl-10
-                      border-0
-                      shadow-none
-                      focus:outline-none
-                      focus:ring-0
-                      focus-visible:ring-0
-                      focus-visible:outline-none"
-                value={form.dataEntree}
-                onChange={(e) => setForm({ ...form, dataEntree: e.target.value })}
-                required
-              />
-              <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+                  value={form.prenom}
+                  onChange={(e) => setForm({ ...form, prenom: e.target.value })}
+                  required
+                />
+                <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
               </div>
-            {/* Role Select */}
-            <div className="relative border-2 rounded-full col-span-2">
-              <Select
-                onValueChange={(value) => setForm({ ...form, roleId: value })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choisir un rôle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.length > 0
-                    ? roles.map((role) => (
-                      <SelectItem value={"" + role.id} key={role.id}>
-                        {role.nom}
-                      </SelectItem>
-                    ))
-                    : <SelectItem value="null" disabled>Aucun rôle</SelectItem>}
-                </SelectContent>
-              </Select>
             </div>
-            <div className="relative border-2 rounded-full col-span-2">
+
+            <div className="grid gap-2 col-span-2">
+              <Label htmlFor="agent-account-genre">Genre</Label>
+              <div className="relative border-2 rounded-full col-span-2">
                 <Select
-                  onValueChange={(value) => setForm({ ...form, statut: value })}
+                  onValueChange={(value) => setForm({ ...form, genre: value })}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="choisir etat civil" />
+                  <SelectTrigger id="agent-account-genre" className="w-full">
+                    <SelectValue placeholder="genre?" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Célibataire" >Célibataire</SelectItem>
-                    <SelectItem value="Divorcé" >Divorcé</SelectItem>
-                    <SelectItem value="Marié" >Marié</SelectItem>
+                   <SelectItem value={"MASCULIN"}>Masculin</SelectItem>
+                    <SelectItem value={"FEMININ"}>Feminin</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-2 col-span-2">
+              <Label htmlFor="agent-account-datenais">  Date Naissances</Label>
+              <div className="relative border-2 rounded-full col-span-2">
+                <Input
+                  id="agent-account-datenais"
+                  placeholder="date Entree"
+                  type="date"
+                  disabled={loading}
+                  className="
+                      pl-10
+                      border-0
+                      shadow-none
+                      focus:outline-none
+                      focus:ring-0
+                      focus-visible:ring-0
+                      focus-visible:outline-none"
+                  value={form.datenais}
+                  onChange={(e) => setForm({ ...form, datenais: e.target.value })}
+                  required
+                />
+                <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+              </div>
+            </div>
+
+            <div className="grid gap-2 col-span-2">
+              <Label htmlFor="agent-account-email">Email</Label>
+              <div className="relative border-2 rounded-full col-span-2">
+                <Input
+                  id="agent-account-email"
+                  type="email"
+                  placeholder="email@example.com"
+                  className="
+                      pl-10
+                      border-0
+                      shadow-none
+                      focus:outline-none
+                      focus:ring-0
+                      focus-visible:ring-0
+                      focus-visible:outline-none"
+                  disabled={loading}
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  required
+                />
+                <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+              </div>
+            </div>
+
+            <div className="grid gap-2 col-span-2">
+              <Label htmlFor="agent-account-password">Mot de passe</Label>
+              <div className="relative border-2 rounded-full col-span-2">
+                <Input
+                  id="agent-account-password"
+                  type="password"
+                  placeholder="******"
+                  className="
+                      pl-10
+                      border-0
+                      shadow-none
+                      focus:outline-none
+                      focus:ring-0
+                      focus-visible:ring-0
+                      focus-visible:outline-none"
+                  disabled={loading}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  required
+                />
+                <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+              </div>
+            </div>
+           
+            <div className="grid gap-2 col-span-2">
+              <Label htmlFor="agent-account-date-entree">  Date Entree</Label>
+              <div className="relative border-2 rounded-full col-span-2">
+                <Input
+                  id="agent-account-date-entree"
+                  placeholder="date Entree"
+                  type="date"
+                  disabled={loading}
+                  className="
+                      pl-10
+                      border-0
+                      shadow-none
+                      focus:outline-none
+                      focus:ring-0
+                      focus-visible:ring-0
+                      focus-visible:outline-none"
+                  value={form.dataEntree}
+                  onChange={(e) => setForm({ ...form, dataEntree: e.target.value })}
+                  required
+                />
+                <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+              </div>
+            </div>
+            {/* Role Select */}
+            <div className="grid gap-2 col-span-2">
+              <Label htmlFor="agent-account-role">R??le</Label>
+              <div className="relative border-2 rounded-full col-span-2">
+                <Select
+                  onValueChange={(value) => setForm({ ...form, roleId: value })}
+                >
+                  <SelectTrigger id="agent-account-role" className="w-full">
+                    <SelectValue placeholder="Choisir un r??le" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.length > 0
+                      ? roles.map((role) => (
+                        <SelectItem value={"" + role.id} key={role.id}>
+                          {role.nom}
+                        </SelectItem>
+                      ))
+                      : <SelectItem value="null" disabled>Aucun r??le</SelectItem>}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2 col-span-2">
+              <Label htmlFor="agent-account-statut">??tat civil</Label>
+              <div className="relative border-2 rounded-full col-span-2">
+                  <Select
+                    onValueChange={(value) => setForm({ ...form, statut: value })}
+                  >
+                    <SelectTrigger id="agent-account-statut" className="w-full">
+                      <SelectValue placeholder="choisir etat civil" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="C??libataire" >C??libataire</SelectItem>
+                      <SelectItem value="Divorc??" >Divorc??</SelectItem>
+                      <SelectItem value="Mari??" >Mari??</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
           </div>
         </div>

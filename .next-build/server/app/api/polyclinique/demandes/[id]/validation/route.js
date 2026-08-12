@@ -1,0 +1,10 @@
+var R=require("../../../../../../chunks/[turbopack]_runtime.js")("server/app/api/polyclinique/demandes/[id]/validation/route.js")
+R.c("server/chunks/[root-of-the-server]__632719aa._.js")
+R.c("server/chunks/node_modules_next_dist_79f1aee4._.js")
+R.c("server/chunks/node_modules_next_f5199d09._.js")
+R.c("server/chunks/node_modules_3704b130._.js")
+R.c("server/chunks/[root-of-the-server]__d7355d04._.js")
+R.c("server/chunks/[root-of-the-server]__00b89f99._.js")
+R.c("server/chunks/ce889_server_app_api_polyclinique_demandes_[id]_validation_route_actions_664b9c25.js")
+R.m(278864)
+module.exports=R.m(278864).exports

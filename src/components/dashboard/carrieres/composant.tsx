@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -278,9 +279,9 @@ export default function GestionCarriere() {
           {canValidateCarriere && (
             <Dialog open={openDialog} onOpenChange={setOpenDialog}>
               <DialogContent>
-                <DialogHeader><DialogTitle>Nouvelle decision RH</DialogTitle></DialogHeader>
                 <form onSubmit={submitDecision} className="flex flex-col gap-4">
-                  <select className="rounded border p-2" disabled={validating} value={formData.typeContrat} onChange={(e) => setFormData({ ...formData, typeContrat: e.target.value })}>
+                  <Label htmlFor="carrieres-type-contrat">Type de contrat</Label>
+                  <select id="carrieres-type-contrat" className="rounded border p-2" disabled={validating} value={formData.typeContrat} onChange={(e) => setFormData({ ...formData, typeContrat: e.target.value })}>
                     <option value="">-- Selectionnez le type de contrat --</option>
                     <option value="CDI">CDI</option>
                     <option value="CDD">CDD</option>
@@ -288,7 +289,8 @@ export default function GestionCarriere() {
                     <option value="ALTERNANCE">Alternance</option>
                     <option value="INTERIM">Interim</option>
                   </select>
-                  <Input type="date" disabled={validating} onChange={(e) => setFormData({ ...formData, dateFin: e.target.value })} />
+                  <Label htmlFor="carrieres-date-fin">Date de fin</Label>
+                  <Input id="carrieres-date-fin" type="date" disabled={validating} onChange={(e) => setFormData({ ...formData, dateFin: e.target.value })} />
                   <Button type="submit" className="mt-2" disabled={validating}>{validating ? "Traitement..." : "Enregistrer"}</Button>
                 </form>
               </DialogContent>
@@ -299,3 +301,4 @@ export default function GestionCarriere() {
     </div>
   );
 }
+

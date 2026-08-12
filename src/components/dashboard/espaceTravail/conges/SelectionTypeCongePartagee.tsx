@@ -18,7 +18,7 @@ export function SelectionTypeConge({
 }: SelectionTypeCongeProps) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label>Type de conge</Label>
+      <Label htmlFor="workspace-type-conge-select">Type de conge</Label>
 
       <Select
         value={value ? String(value) : ""}
@@ -29,7 +29,7 @@ export function SelectionTypeConge({
           }
         }}
       >
-        <SelectTrigger className="w-full">
+        <SelectTrigger id="workspace-type-conge-select" className="w-full">
           <SelectValue placeholder="Choisir un type de conge" />
         </SelectTrigger>
         <SelectContent>
@@ -47,10 +47,10 @@ export function SelectionTypeConge({
 export function ChampSelectionTypeConge({ typeConges }: { typeConges: TypeConge[] }) {
   return (
     <div className="flex flex-col gap-2">
-      <Label>Type de conge</Label>
+      <Label htmlFor="workspace-type-conge-field">Type de conge</Label>
 
       <Select name="typeCongeId">
-        <SelectTrigger>
+        <SelectTrigger id="workspace-type-conge-field">
           <SelectValue placeholder="Choisir un type de conge" />
         </SelectTrigger>
         <SelectContent>
@@ -66,4 +66,6 @@ export function ChampSelectionTypeConge({ typeConges }: { typeConges: TypeConge[
 }
 
 export { formatInputDate };
+
+
 

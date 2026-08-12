@@ -123,11 +123,14 @@ setTimeout(() => setOpen(false), 500)
         <div className="grid gap-4">
           <div className="grid grid-cols-2 gap-3">
             {/* Nom */}
-            <div className="relative border-2 rounded-full">
-              <Input
-                placeholder="Nom"
-                disabled={loading}
-                className="
+            <div className="grid gap-2">
+              <Label htmlFor="agent-edit-nom">Nom</Label>
+              <div className="relative border-2 rounded-full">
+                <Input
+                  id="agent-edit-nom"
+                  placeholder="Nom"
+                  disabled={loading}
+                  className="
                       pl-10
                       border-0
                       shadow-none
@@ -135,19 +138,23 @@ setTimeout(() => setOpen(false), 500)
                       focus:ring-0
                       focus-visible:ring-0
                       focus-visible:outline-none"
-                value={form.nom}
-                onChange={(e) => setForm({ ...form, nom: e.target.value })}
-                required
-              />
-              <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+                  value={form.nom}
+                  onChange={(e) => setForm({ ...form, nom: e.target.value })}
+                  required
+                />
+                <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+              </div>
             </div>
 
-            {/* Prénom */}
-            <div className="relative border-2 rounded-full">
-              <Input
-                placeholder="Prénom"
-                disabled={loading}
-                className="
+            {/* Pr??nom */}
+            <div className="grid gap-2">
+              <Label htmlFor="agent-edit-prenom">Pr??nom</Label>
+              <div className="relative border-2 rounded-full">
+                <Input
+                  id="agent-edit-prenom"
+                  placeholder="Pr??nom"
+                  disabled={loading}
+                  className="
                       pl-10
                       border-0
                       shadow-none
@@ -155,11 +162,12 @@ setTimeout(() => setOpen(false), 500)
                       focus:ring-0
                       focus-visible:ring-0
                       focus-visible:outline-none"
-                value={form.prenom}
-                onChange={(e) => setForm({ ...form, prenom: e.target.value })}
-                required
-              />
-              <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+                  value={form.prenom}
+                  onChange={(e) => setForm({ ...form, prenom: e.target.value })}
+                  required
+                />
+                <PencilIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={20} />
+              </div>
             </div>
 
             {/* Email */}
@@ -205,34 +213,40 @@ setTimeout(() => setOpen(false), 500)
             </div> */}
 
             {/* Role Select */}
-            <div className="relative border-2 rounded-full col-span-2">
-              <Select onValueChange={(value) => setForm({ ...form, roleId: value })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choisir un rôle" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.length > 0
-                    ? roles.map((role) => (
-                      <SelectItem value={"" + role.id} key={role.id}>
-                        {role.nom}
-                      </SelectItem>
-                    ))
-                    : <SelectItem value="null" disabled>Aucun rôle</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-             <div className="relative border-2 rounded-full col-span-2">
-                <Select
-                  onValueChange={(value) => setForm({ ...form, statut: value })}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="choisir etat civil" />
+            <div className="grid gap-2 col-span-2">
+              <Label htmlFor="agent-edit-role">R??le</Label>
+              <div className="relative border-2 rounded-full col-span-2">
+                <Select onValueChange={(value) => setForm({ ...form, roleId: value })}>
+                  <SelectTrigger id="agent-edit-role" className="w-full">
+                    <SelectValue placeholder="Choisir un r??le" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Célibataire" >Célibataire</SelectItem>
-                    <SelectItem value="Divorcé" >Divorcé</SelectItem>
-                    <SelectItem value="Marié" >Marié</SelectItem>
+                    {roles.length > 0
+                      ? roles.map((role) => (
+                        <SelectItem value={"" + role.id} key={role.id}>
+                          {role.nom}
+                        </SelectItem>
+                      ))
+                      : <SelectItem value="null" disabled>Aucun r??le</SelectItem>}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+             <div className="grid gap-2 col-span-2">
+                <Label htmlFor="agent-edit-statut">??tat civil</Label>
+                <div className="relative border-2 rounded-full col-span-2">
+                  <Select
+                    onValueChange={(value) => setForm({ ...form, statut: value })}>
+                    <SelectTrigger id="agent-edit-statut" className="w-full">
+                      <SelectValue placeholder="choisir etat civil" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="C??libataire" >C??libataire</SelectItem>
+                      <SelectItem value="Divorc??" >Divorc??</SelectItem>
+                      <SelectItem value="Mari??" >Mari??</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
           </div>
         </div>

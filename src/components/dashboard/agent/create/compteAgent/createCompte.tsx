@@ -118,9 +118,9 @@ setTimeout(() => setOpen(false), 500)
             </div>
 
             <div className="space-y-1">
-              <Label>Rôle du compte</Label>
+              <Label htmlFor="agent-user-account-role">Rôle du compte</Label>
               <Select >
-                <SelectTrigger>
+                <SelectTrigger id="agent-user-account-role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -150,6 +150,7 @@ setTimeout(() => setOpen(false), 500)
     </>
   )
 }
+
 
 
 

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { getAllPresence, getAllPresencePointages, UpdatePresencePointage } from "@/app/action/agent/presence/action"
 import { formatDate, formatTime } from "@/components/dashboard/espaceTravail/utilitaires/dates"
@@ -231,12 +232,16 @@ export default function AdminPresences() {
 
         <CardContent>
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <Input
-              value={searchPresence}
-              onChange={(e) => setSearchPresence(e.target.value)}
-              placeholder="Rechercher agent, service, statut, date..."
-              className="w-full md:max-w-sm"
-            />
+            <div className="w-full md:max-w-sm">
+              <Label htmlFor="presences-ensemble-recherche">Recherche</Label>
+              <Input
+                id="presences-ensemble-recherche"
+                value={searchPresence}
+                onChange={(e) => setSearchPresence(e.target.value)}
+                placeholder="Rechercher agent, service, statut, date..."
+                className="w-full"
+              />
+            </div>
             <p className="text-sm text-muted-foreground">
               Total: {presences.length} | Resultats: {filteredPresences.length}
             </p>
@@ -338,12 +343,16 @@ export default function AdminPresences() {
           {canReadPointages && (
             <>
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <Input
-                  value={searchPointage}
-                  onChange={(e) => setSearchPointage(e.target.value)}
-                  placeholder="Rechercher agent, matricule, date, heure..."
-                  className="w-full md:max-w-sm"
-                />
+                <div className="w-full md:max-w-sm">
+                  <Label htmlFor="presences-pointages-recherche">Recherche</Label>
+                  <Input
+                    id="presences-pointages-recherche"
+                    value={searchPointage}
+                    onChange={(e) => setSearchPointage(e.target.value)}
+                    placeholder="Rechercher agent, matricule, date, heure..."
+                    className="w-full"
+                  />
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Total: {pointages.length} | Resultats: {filteredPointages.length}
                 </p>
@@ -486,3 +495,4 @@ export default function AdminPresences() {
     </div>
   )
 }
+
