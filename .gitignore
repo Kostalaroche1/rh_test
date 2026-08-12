@@ -19,7 +19,8 @@
 /public/agent-photos
 /public/images
 /public/*.svg
-
+# local
+/.next-build/
 # production
 /build
 

@@ -1,1 +1,0 @@
-{"version":3,"sources":["../../../../.next-internal/server/app/dashboard/polyclinique/page/actions.js%20%28server%20actions%20loader%29"],"sourcesContent":["export {getAuthenticatedUser as '0042699821c90a4138123258fdb4865e5a20e9328c'} from 'ACTIONS_MODULE0'\n"],"names":[],"mappings":"uOAAA,IAAA,EAAA,EAAA,CAAA,CAAA"}
