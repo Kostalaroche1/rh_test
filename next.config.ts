@@ -1,6 +1,8 @@
 import os from "node:os";
 import type { NextConfig } from "next";
 
+const isVercel = process.env.VERCEL === "1";
+
 function getAllowedDevOrigins(): string[] {
   const envOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
     .split(",")
@@ -19,7 +21,7 @@ function getAllowedDevOrigins(): string[] {
 const nextConfig: NextConfig = {
   // Keep build artifacts out of `.next` because this Windows workspace
   // intermittently leaves that directory locked between runs.
-  distDir: ".next-build",
+  distDir: isVercel ? ".next" : ".next-build",
   // Allow mobile devices on LAN to fetch dev assets without cross-origin warnings.
   allowedDevOrigins: getAllowedDevOrigins(),
   typescript: {
