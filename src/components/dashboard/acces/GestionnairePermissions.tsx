@@ -1551,7 +1551,14 @@ export default function GestionnairePermissions() {
             <Button variant="outline" onClick={() => setEditRole(null)}>
               Annuler
             </Button>
-            <Button onClick={handleUpdateRole} disabled={updatingRole || !role.governance?.manageable || !viewerContext.canUpdateRoles}>
+            <Button
+              onClick={handleUpdateRole}
+              disabled={
+                updatingRole ||
+                !editRole?.governance?.manageable ||
+                !viewerContext.canUpdateRoles
+              }
+            >
               {updatingRole ? "Traitement..." : "Enregistrer"}
             </Button>
           </DialogFooter>
