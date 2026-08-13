@@ -13,7 +13,9 @@ Le seed RTNC demo :
 ## Fichiers concernes
 
 - `prisma/seed-rtnc-demo.js`
+- `prisma/cleanup-rtnc-demo.js`
 - `package.json` avec le script `db:seed:rtnc-demo`
+- `package.json` avec le script `db:cleanup:rtnc-demo`
 
 ## Ce que le seed RTNC demo cree
 
@@ -70,17 +72,13 @@ npm run db:seed:rtnc-demo
 
 Comptes principaux de demonstration :
 
-- `admin.rtnc.demo`
-- `rh.central.rtnc.demo`
-- `dir.kin.rtnc.demo`
-- `rh.kin.rtnc.demo`
-- `chef.kin.rtnc.demo`
-- `agent.jt.kin.rtnc.demo`
-- `agent.tech.kin.rtnc.demo`
-- `dir.htk.rtnc.demo`
-- `rh.htk.rtnc.demo`
-- `dir.kon.rtnc.demo`
-- `dir.tsh.rtnc.demo`
+- `admin@rtnc.cd`
+- `rh.central@rtnc.cd`
+- `dir.kin@rtnc.cd`
+- `rh.kin@rtnc.cd`
+- `chef.kin@rtnc.cd`
+- `agent.jt.kin@rtnc.cd`
+- `agent.tech.kin@rtnc.cd`
 
 ## Niveau de realite des donnees
 
@@ -136,9 +134,9 @@ Ces roles sont construits pour s'adapter a la logique actuelle de l'application 
 ### Recommandation
 
 Faites la demonstration avec :
-- `rh.central.rtnc.demo` pour montrer la vue large RH
-- `dir.kin.rtnc.demo` pour montrer la vue provinciale
-- `agent.jt.kin.rtnc.demo` pour montrer la vue agent
+- `rh.central@rtnc.cd` pour montrer la vue large RH
+- `dir.kin@rtnc.cd` pour montrer la vue provinciale
+- `agent.jt.kin@rtnc.cd` pour montrer la vue agent
 
 ### Eviter pendant la presentation
 
@@ -153,7 +151,7 @@ Evitez pendant la demo :
 
 ### Scenario 1 : vue nationale RH
 
-Compte : `rh.central.rtnc.demo`
+Compte : `rh.central@rtnc.cd`
 
 Montrez :
 - tableau de bord global
@@ -170,7 +168,7 @@ Phrase simple a dire :
 
 ### Scenario 2 : vue provinciale
 
-Compte : `dir.kin.rtnc.demo`
+Compte : `dir.kin@rtnc.cd`
 
 Montrez :
 - la limitation aux donnees de la province de Kinshasa
@@ -184,7 +182,7 @@ Phrase simple a dire :
 
 ### Scenario 3 : vue chef de station
 
-Compte : `chef.kin.rtnc.demo`
+Compte : `chef.kin@rtnc.cd`
 
 Montrez :
 - l'acces limite a l'unite ou station
@@ -197,7 +195,27 @@ Phrase simple a dire :
 
 ### Scenario 4 : vue agent
 
-Compte : `agent.jt.kin.rtnc.demo`
+Compte : `agent.jt.kin@rtnc.cd`
+
+## Supprimer uniquement les donnees demo RTNC
+
+Si vous voulez retirer la couche de demonstration RTNC sans supprimer les seeds de base, utilisez :
+
+```bash
+npm run db:cleanup:rtnc-demo
+```
+
+Ce script vise uniquement :
+- les comptes demo RTNC
+- les agents demo RTNC
+- les roles demo RTNC
+- les unites RTNC creees par ce seed
+- les horaires, conges, presences, paies, notifications, rapports et planifications de demo associes
+
+Il ne doit pas supprimer :
+- les provinces
+- le seed principal
+- le bootstrap admin de base
 
 Montrez :
 - consultation de ses presences

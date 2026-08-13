@@ -15,12 +15,12 @@
 
 # next.js
 /.next/
+/.next-build/
 /out/
 /public/agent-photos
 /public/images
 /public/*.svg
-# local
-/.next-build/
+
 # production
 /build
 
