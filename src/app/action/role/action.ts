@@ -1,7 +1,7 @@
 // import { JsonObject, JsonValue } from "@/generated/prisma/runtime/client";
  export async function GetRole() { 
     try {
-     const responses = await fetch('../api/agent/role', {
+     const responses = await fetch('/api/agent/role', {
         method: 'GET',
         next : {revalidate : 10}
       });
@@ -15,7 +15,7 @@
 
   export async function AddRole(data :any) { 
     try {
-     const responses = await fetch('../api/agent/role', {
+     const responses = await fetch('/api/agent/role', {
         method: 'POST',
         headers : {'content-type' : 'application/json'},
         body : JSON.stringify(data)
@@ -30,7 +30,7 @@
 
  export async function UpdateRole(data :any) { 
     try {
-     const responses = await fetch('../api/agent/role', {
+     const responses = await fetch('/api/agent/role', {
         method: 'PUT',
         headers : {'content-type' : 'application/json'},
         body : JSON.stringify(data)
@@ -44,7 +44,7 @@
 
  export async function DeleteRole(data :any) { 
     try {
-     const responses = await fetch('../api/agent/role', {
+     const responses = await fetch('/api/agent/role', {
         method: 'DELETE',
         headers : {'content-type' : 'application/json'},
         body : JSON.stringify(data)
@@ -55,3 +55,4 @@
       return error;
     } 
   }
+

@@ -73,6 +73,7 @@ type RolePermissionItem = {
   id: number;
   nom: string;
   key?: string | null;
+  code?: string | null;
   description?: string | null;
   actif: boolean;
   _count?: {
@@ -86,6 +87,12 @@ type RolePermissionItem = {
     permissionId: number;
     portee: ScopeValue;
   }>;
+  governance?: {
+    ownership: "GLOBAL" | "PROVINCE";
+    provinceCode?: string | null;
+    provinceName?: string | null;
+    manageable?: boolean;
+  };
 };
 
 type ScopeValue =
@@ -105,6 +112,17 @@ type RolePermissionResponse = {
       libelle?: string | null;
       module?: string | null;
     }>;
+    viewer?: {
+      administrationLevel: "NONE" | "PROVINCE" | "GLOBAL";
+      isGlobalAdministrator: boolean;
+      managedProvinceCode?: string | null;
+      managedProvinceName?: string | null;
+      canCreateRoles: boolean;
+      canUpdateRoles: boolean;
+      canDeleteRoles: boolean;
+      canManagePermissionCatalog: boolean;
+      allowedScopes: ScopeValue[];
+    };
   };
   message?: string;
 };
@@ -145,6 +163,17 @@ const EMPTY_PERMISSION_ITEMS: PermissionItem[] = [];
 const EMPTY_ROLE_ITEMS: RolePermissionItem[] = [];
 const EMPTY_ASSIGNABLE_PERMISSIONS: NonNullable<RolePermissionResponse["data"]>["permissions"] =
   [];
+const DEFAULT_VIEWER_CONTEXT: NonNullable<NonNullable<RolePermissionResponse["data"]>["viewer"]> = {
+  administrationLevel: "NONE",
+  isGlobalAdministrator: false,
+  managedProvinceCode: null,
+  managedProvinceName: null,
+  canCreateRoles: false,
+  canUpdateRoles: false,
+  canDeleteRoles: false,
+  canManagePermissionCatalog: false,
+  allowedScopes: ["SOI_MEME", "UNITE", "UNITE_ET_DESCENDANTS"],
+};
 
 const RESOURCE_LABELS: Record<string, string> = {
   role: "Role",
@@ -339,6 +368,13 @@ export default function GestionnairePermissions() {
         (permission) => !HIDDEN_WORKFLOW_PERMISSIONS.has(canonicalizePermissionCode(permission.code))
       )
     : EMPTY_ASSIGNABLE_PERMISSIONS;
+  const viewerContext = rolePermissionResponse?.data?.viewer ?? DEFAULT_VIEWER_CONTEXT;
+  const allowedScopeValues = viewerContext.allowedScopes?.length
+    ? viewerContext.allowedScopes
+    : DEFAULT_VIEWER_CONTEXT.allowedScopes;
+  const defaultScopeValue: ScopeValue = allowedScopeValues.includes("PROVINCE")
+    ? "PROVINCE"
+    : allowedScopeValues[allowedScopeValues.length - 1] ?? "UNITE_ET_DESCENDANTS";
 
   useEffect(() => {
     const nextSelections: Record<number, number[]> = {};
@@ -354,6 +390,12 @@ export default function GestionnairePermissions() {
     setRoleSelections(nextSelections);
     setRoleScopes(nextScopes);
   }, [roles]);
+
+  useEffect(() => {
+    if (viewerContext.administrationLevel === "PROVINCE") {
+      setSelectedRoleView((current) => (current === "all" ? "manageable" : current));
+    }
+  }, [viewerContext.administrationLevel]);
 
   const { mutateAsync: createRole, isPending: creatingRole } = usePost(
     AddRole,
@@ -417,6 +459,14 @@ export default function GestionnairePermissions() {
   const visibleRoles = useMemo(() => {
     if (selectedRoleView === "all") {
       return filteredRoles;
+    }
+
+    if (selectedRoleView === "manageable") {
+      return filteredRoles.filter((role) => role.governance?.manageable);
+    }
+
+    if (selectedRoleView === "global") {
+      return filteredRoles.filter((role) => role.governance?.ownership === "GLOBAL");
     }
 
     const roleId = Number(selectedRoleView);
@@ -595,7 +645,7 @@ export default function GestionnairePermissions() {
     setRoleScopes((prev) => {
       const current = { ...(prev[roleId] ?? {}) };
       if (checked) {
-        current[permissionId] = current[permissionId] ?? "TOUTE_ORGANISATION";
+        current[permissionId] = current[permissionId] ?? defaultScopeValue;
       } else {
         delete current[permissionId];
       }
@@ -629,7 +679,7 @@ export default function GestionnairePermissions() {
 
       if (checked) {
         for (const permissionId of permissionIds) {
-          current[permissionId] = current[permissionId] ?? "TOUTE_ORGANISATION";
+          current[permissionId] = current[permissionId] ?? defaultScopeValue;
         }
       } else {
         for (const permissionId of permissionIds) {
@@ -685,6 +735,11 @@ export default function GestionnairePermissions() {
   }
 
   async function handleCreateRole() {
+    if (!viewerContext.canCreateRoles) {
+      toast.error("Votre portee ne permet pas de creer un role ici");
+      return;
+    }
+
     const nom = roleForm.nom.trim();
     const description = roleForm.description.trim();
 
@@ -721,6 +776,11 @@ export default function GestionnairePermissions() {
       return;
     }
 
+    if (!editRole.governance?.manageable || !viewerContext.canUpdateRoles) {
+      toast.error("Vous ne pouvez modifier que les roles geres dans votre espace d'administration");
+      return;
+    }
+
     const nom = editForm.nom.trim();
     const description = editForm.description.trim();
 
@@ -748,6 +808,11 @@ export default function GestionnairePermissions() {
   }
 
   async function handleToggleRole(role: RolePermissionItem) {
+    if (!role.governance?.manageable || !viewerContext.canUpdateRoles) {
+      toast.error("Vous ne pouvez changer l'etat que des roles geres dans votre espace d'administration");
+      return;
+    }
+
     const response: any = await updateRoleMeta({
       id: role.id,
       nom: role.nom,
@@ -769,6 +834,11 @@ export default function GestionnairePermissions() {
       return;
     }
 
+    if (!deleteRole.governance?.manageable || !viewerContext.canDeleteRoles) {
+      toast.error("Vous ne pouvez supprimer que les roles geres dans votre espace d'administration");
+      return;
+    }
+
     const response: any = await removeRole({ id: deleteRole.id });
     if (response?.status !== 200) {
       toast.error(response?.message ?? "Suppression impossible");
@@ -782,11 +852,17 @@ export default function GestionnairePermissions() {
   }
 
   async function handleSaveRole(roleId: number) {
+    const role = roles.find((item) => item.id === roleId);
+    if (!role?.governance?.manageable || !viewerContext.canUpdateRoles) {
+      toast.error("Vous ne pouvez modifier que les permissions des roles geres dans votre espace d'administration");
+      return;
+    }
+
     const permissionIds = roleSelections[roleId] ?? [];
     const portees = Object.fromEntries(
       permissionIds.map((permissionId) => [
         permissionId.toString(),
-        roleScopes[roleId]?.[permissionId] ?? "TOUTE_ORGANISATION",
+        roleScopes[roleId]?.[permissionId] ?? defaultScopeValue,
       ])
     );
 
@@ -846,7 +922,7 @@ export default function GestionnairePermissions() {
               type="button"
               variant="outline"
               onClick={handleBootstrapPermissions}
-              disabled={bootstrappingPermissions}
+              disabled={bootstrappingPermissions || !viewerContext.canManagePermissionCatalog}
             >
               <IconLinkPlus className="mr-2 h-4 w-4" />
               {bootstrappingPermissions ? "Sync..." : "Charger le catalogue"}
@@ -876,6 +952,8 @@ export default function GestionnairePermissions() {
                     </SelectItem>
                   ))}
                   <SelectItem value="all">Tout</SelectItem>
+                  <SelectItem value="manageable">Mes roles gerables</SelectItem>
+                  <SelectItem value="global">Roles globaux</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -994,7 +1072,7 @@ export default function GestionnairePermissions() {
               }
               placeholder="Description du role (optionnel)"
             />
-            <Button type="button" onClick={handleCreateRole} disabled={creatingRole}>
+            <Button type="button" onClick={handleCreateRole} disabled={creatingRole || !viewerContext.canCreateRoles}>
               <IconPlus className="mr-2 h-4 w-4" />
               {creatingRole ? "Creation..." : "Creer le role"}
             </Button>
@@ -1134,7 +1212,7 @@ export default function GestionnairePermissions() {
         </div>
 
         <div className="mb-4 grid gap-3 rounded-xl border bg-muted/20 p-3 md:grid-cols-2 xl:grid-cols-4">
-          {SCOPE_HELPERS.map((scope) => (
+          {SCOPE_HELPERS.filter((scope) => allowedScopeValues.includes(scope.value)).map((scope) => (
             <div key={scope.value} className="rounded-lg border bg-background px-3 py-2">
               <p className="text-sm font-medium">{scope.title}</p>
               <p className="mt-1 text-xs text-muted-foreground">{scope.description}</p>
@@ -1204,6 +1282,7 @@ export default function GestionnairePermissions() {
                       size="sm"
                       variant="outline"
                       onClick={() => openEditRole(role)}
+                      disabled={!role.governance?.manageable || !viewerContext.canUpdateRoles}
                     >
                       <IconEdit className="mr-2 h-4 w-4" />
                       Modifier
@@ -1213,7 +1292,7 @@ export default function GestionnairePermissions() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleToggleRole(role)}
-                      disabled={updatingRole}
+                      disabled={updatingRole || !role.governance?.manageable || !viewerContext.canUpdateRoles}
                     >
                       {role.actif ? "Desactiver" : "Activer"}
                     </Button>
@@ -1223,6 +1302,7 @@ export default function GestionnairePermissions() {
                       variant="outline"
                       className="text-destructive"
                       onClick={() => setDeleteRole(role)}
+                      disabled={!role.governance?.manageable || !viewerContext.canDeleteRoles}
                     >
                       <IconTrash className="mr-2 h-4 w-4" />
                       Supprimer
@@ -1273,8 +1353,9 @@ export default function GestionnairePermissions() {
                                   <button
                                     key={`${role.id}-${module.moduleKey}-${item.itemKey}`}
                                     type="button"
-                                    className="rounded-lg border bg-background px-3 py-3 text-left transition-colors hover:bg-muted/30"
+                                    className="rounded-lg border bg-background px-3 py-3 text-left transition-colors hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-60"
                                     onClick={() => openPermissionModalForItem(role, module, item)}
+                                    disabled={!role.governance?.manageable || !viewerContext.canUpdateRoles}
                                   >
                                     <div className="flex items-center justify-between gap-2">
                                       <p className="text-sm font-medium">{item.itemLabel}</p>
@@ -1362,8 +1443,8 @@ export default function GestionnairePermissions() {
                     ? (roleSelections[permissionModal.roleId] ?? []).includes(permission.id)
                     : false;
                   const selectedScope = permissionModal
-                    ? roleScopes[permissionModal.roleId]?.[permission.id] ?? "TOUTE_ORGANISATION"
-                    : "TOUTE_ORGANISATION";
+                    ? roleScopes[permissionModal.roleId]?.[permission.id] ?? defaultScopeValue
+                    : defaultScopeValue;
 
                   return (
                     <div
@@ -1406,9 +1487,9 @@ export default function GestionnairePermissions() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {Object.entries(SCOPE_LABELS).map(([value, label]) => (
+                            {allowedScopeValues.map((value) => (
                               <SelectItem key={`modal-scope-${value}`} value={value}>
-                                {label}
+                                {SCOPE_LABELS[value]}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1470,7 +1551,7 @@ export default function GestionnairePermissions() {
             <Button variant="outline" onClick={() => setEditRole(null)}>
               Annuler
             </Button>
-            <Button onClick={handleUpdateRole} disabled={updatingRole}>
+            <Button onClick={handleUpdateRole} disabled={updatingRole || !role.governance?.manageable || !viewerContext.canUpdateRoles}>
               {updatingRole ? "Traitement..." : "Enregistrer"}
             </Button>
           </DialogFooter>

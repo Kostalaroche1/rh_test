@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 
 import prisma from "@/lib/prisma";
 import { requireAccessControlAccess } from "@/security/authorization";
+import {
+  buildRoleNamespacePayload,
+  canManageRoleFromContext,
+  filterRolesForContext,
+  getAccessControlGovernanceContext,
+  getRoleGovernance,
+} from "@/server/access/access-control-governance";
 
 const ACCESS_CONTROL_PERMISSION_CODES = [
   "role.read",
@@ -55,45 +62,74 @@ async function hasAnotherAccessControlRole(excludedRoleId: number) {
 
 export async function GET() {
   try {
-    await requireAccessControlAccess(["role.read"]);
+    const auth = await requireAccessControlAccess(["role.read"]);
+    const governanceContext = await getAccessControlGovernanceContext(auth);
+
+    const roles = await prisma.role.findMany({
+      select: {
+        id: true,
+        key: true,
+        code: true,
+        nom: true,
+        description: true,
+        actif: true,
+        _count: {
+          select: {
+            utilisateurs: true,
+            rolePermission: true,
+          },
+        },
+      },
+      orderBy: [{ nom: "asc" }],
+    });
+
+    const filteredRoles = await filterRolesForContext(governanceContext, roles);
+    const data = await Promise.all(
+      filteredRoles.map(async (role) => {
+        const roleGovernance = await getRoleGovernance(role);
+        return {
+          ...role,
+          governance: {
+            ...roleGovernance,
+            manageable: await canManageRoleFromContext(governanceContext, role),
+          },
+        };
+      })
+    );
+
+    return NextResponse.json({
+      status: 200,
+      data,
+      viewer: {
+        administrationLevel: governanceContext.administrationLevel,
+        isGlobalAdministrator: governanceContext.isGlobalAdministrator,
+        managedProvinceCode: governanceContext.managedProvinceCode,
+        managedProvinceName: governanceContext.managedProvinceName,
+      },
+    });
   } catch (error: any) {
     return NextResponse.json(
       { status: 403, message: error?.message ?? "Acces interdit" },
       { status: error?.message === "Non authentifie" ? 401 : 403 }
     );
   }
-
-  const roles = await prisma.role.findMany({
-    select: {
-      id: true,
-      key: true,
-      nom: true,
-      description: true,
-      actif: true,
-      _count: {
-        select: {
-          utilisateurs: true,
-          rolePermission: true,
-        },
-      },
-    },
-    orderBy: [{ nom: "asc" }],
-  });
-
-  return NextResponse.json({ status: 200, data: roles });
 }
 
 export async function POST(req: Request) {
   try {
-    await requireAccessControlAccess(["role.create"]);
+    const auth = await requireAccessControlAccess(["role.create"]);
+    const governanceContext = await getAccessControlGovernanceContext(auth);
+
+    if (governanceContext.administrationLevel === "NONE") {
+      return NextResponse.json(
+        { status: 403, message: "Votre portee ne permet pas de creer des roles." },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json();
     const nom = String(body?.nom ?? "").trim();
     const description = String(body?.description ?? "").trim() || null;
-    const key = String(body?.key ?? nom)
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, "");
 
     if (!nom) {
       return NextResponse.json(
@@ -102,9 +138,15 @@ export async function POST(req: Request) {
       );
     }
 
+    const namespacePayload = buildRoleNamespacePayload(nom, governanceContext);
+
     const existingRole = await prisma.role.findFirst({
       where: {
-        OR: [{ nom }, { key }],
+        OR: [
+          { nom: namespacePayload.nom },
+          { key: namespacePayload.key },
+          { code: namespacePayload.code },
+        ],
       },
       select: { id: true },
     });
@@ -118,8 +160,9 @@ export async function POST(req: Request) {
 
     const role = await prisma.role.create({
       data: {
-        nom,
-        key,
+        nom: namespacePayload.nom,
+        key: namespacePayload.key,
+        code: namespacePayload.code,
         description,
       },
     });
@@ -135,14 +178,14 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   try {
-    await requireAccessControlAccess(["role.update"]);
+    const auth = await requireAccessControlAccess(["role.update"]);
+    const governanceContext = await getAccessControlGovernanceContext(auth);
 
     const body = await req.json();
     const id = Number(body?.id);
     const nom = String(body?.nom ?? "").trim();
     const description = String(body?.description ?? "").trim() || null;
-    const actif =
-      typeof body?.actif === "boolean" ? body.actif : undefined;
+    const actif = typeof body?.actif === "boolean" ? body.actif : undefined;
 
     if (!Number.isFinite(id)) {
       return NextResponse.json(
@@ -158,15 +201,13 @@ export async function PUT(req: Request) {
       );
     }
 
-    const key = String(body?.key ?? nom)
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, "");
-
     const role = await prisma.role.findUnique({
       where: { id },
       select: {
         id: true,
+        key: true,
+        code: true,
+        nom: true,
         actif: true,
         rolePermission: {
           select: {
@@ -182,6 +223,13 @@ export async function PUT(req: Request) {
       return NextResponse.json(
         { status: 404, message: "Role introuvable." },
         { status: 404 }
+      );
+    }
+
+    if (!(await canManageRoleFromContext(governanceContext, role))) {
+      return NextResponse.json(
+        { status: 403, message: "Vous ne pouvez modifier que les roles de votre espace d'administration." },
+        { status: 403 }
       );
     }
 
@@ -199,10 +247,15 @@ export async function PUT(req: Request) {
       }
     }
 
+    const namespacePayload = buildRoleNamespacePayload(nom, governanceContext);
     const existingRole = await prisma.role.findFirst({
       where: {
         id: { not: id },
-        OR: [{ nom }, { key }],
+        OR: [
+          { nom: namespacePayload.nom },
+          { key: namespacePayload.key },
+          { code: namespacePayload.code },
+        ],
       },
       select: { id: true },
     });
@@ -217,8 +270,9 @@ export async function PUT(req: Request) {
     const updatedRole = await prisma.role.update({
       where: { id },
       data: {
-        nom,
-        key,
+        nom: namespacePayload.nom,
+        key: namespacePayload.key,
+        code: namespacePayload.code,
         description,
         ...(actif === undefined ? {} : { actif }),
       },
@@ -235,7 +289,8 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    await requireAccessControlAccess(["role.delete"]);
+    const auth = await requireAccessControlAccess(["role.delete"]);
+    const governanceContext = await getAccessControlGovernanceContext(auth);
 
     const body = await req.json();
     const id = Number(body?.id);
@@ -251,6 +306,9 @@ export async function DELETE(req: Request) {
       where: { id },
       select: {
         id: true,
+        key: true,
+        code: true,
+        nom: true,
         actif: true,
         rolePermission: {
           select: {
@@ -266,6 +324,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json(
         { status: 404, message: "Role introuvable." },
         { status: 404 }
+      );
+    }
+
+    if (!(await canManageRoleFromContext(governanceContext, role))) {
+      return NextResponse.json(
+        { status: 403, message: "Vous ne pouvez supprimer que les roles de votre espace d'administration." },
+        { status: 403 }
       );
     }
 
@@ -285,6 +350,9 @@ export async function DELETE(req: Request) {
 
     await prisma.$transaction([
       prisma.rolePermission.deleteMany({
+        where: { roleId: id },
+      }),
+      prisma.reglePorteeRole.deleteMany({
         where: { roleId: id },
       }),
       prisma.role.delete({

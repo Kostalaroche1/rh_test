@@ -1,5 +1,5 @@
 export async function GetRolePermissions() {
-  const response = await fetch("../api/agent/role-permission", {
+  const response = await fetch("/api/agent/role-permission", {
     method: "GET",
     next: { revalidate: 10 },
   });
@@ -12,7 +12,7 @@ export async function UpdateRolePermissions(data: {
   permissionIds: number[];
   portees?: Record<string, string>;
 }) {
-  const response = await fetch("../api/agent/role-permission", {
+  const response = await fetch("/api/agent/role-permission", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(data),
@@ -20,3 +20,4 @@ export async function UpdateRolePermissions(data: {
 
   return response.json();
 }
+

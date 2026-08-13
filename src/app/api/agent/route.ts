@@ -5,6 +5,10 @@ import { modifierAgent } from "@/app/application/agent/modifierAgent";
 import { getAuthenticatedUser } from "@/security/auth";
 import { requireAccess } from "@/security/authorization";
 import { generateMatricule } from "@/services/generateMat";
+import {
+  canAssignRoleFromContext,
+  getAccessControlGovernanceContext,
+} from "@/server/access/access-control-governance";
 import { canAccessAgentForPermissions, getAccessibleAgentIdsForPermissions } from "@/server/access/scope";
 
 async function ensureAgentAccess(permission: string | string[]) {
@@ -133,6 +137,23 @@ export async function PUT(req: Request) {
   });
 
   if (utilisateurRole && data?.roleId != null) {
+    const role = await prisma.role.findUnique({
+      where: { id: Number(data.roleId) },
+      select: { id: true, key: true, code: true, nom: true },
+    });
+
+    if (!role) {
+      return NextResponse.json({ message: "Role introuvable" }, { status: 404 });
+    }
+
+    const governanceContext = await getAccessControlGovernanceContext(auth);
+    if (!(await canAssignRoleFromContext(governanceContext, role))) {
+      return NextResponse.json(
+        { message: "Vous ne pouvez attribuer que les roles autorises dans votre espace d'administration." },
+        { status: 403 }
+      );
+    }
+
     await prisma.utilisateurRole.update({
       where: { id: utilisateurRole.id },
       data: { roleId: Number(data.roleId) },
@@ -187,4 +208,3 @@ export async function DELETE(req: Request) {
 
   return NextResponse.json({ status: 200 }, { status: 200 });
 }
-

@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 
-import prisma from "@/lib/prisma";
 import { PorteeDonnees } from "@/generated/prisma";
+import prisma from "@/lib/prisma";
 import { requireAccessControlAccess } from "@/security/authorization";
+import {
+  canManageRoleFromContext,
+  filterRolesForContext,
+  getAccessControlGovernanceContext,
+  getAllowedScopesForContext,
+  getRoleGovernance,
+} from "@/server/access/access-control-governance";
 
 export async function GET() {
   try {
-    await requireAccessControlAccess(["role.read", "permission.read"]);
+    const auth = await requireAccessControlAccess(["role.read", "permission.read"]);
+    const governanceContext = await getAccessControlGovernanceContext(auth);
 
     const [roles, permissions] = await Promise.all([
       prisma.role.findMany({
@@ -14,6 +22,7 @@ export async function GET() {
           id: true,
           nom: true,
           key: true,
+          code: true,
           description: true,
           actif: true,
           _count: {
@@ -47,7 +56,35 @@ export async function GET() {
       }),
     ]);
 
-    return NextResponse.json({ status: 200, data: { roles, permissions } });
+    const filteredRoles = await filterRolesForContext(governanceContext, roles);
+    const enrichedRoles = await Promise.all(
+      filteredRoles.map(async (role) => ({
+        ...role,
+        governance: {
+          ...(await getRoleGovernance(role)),
+          manageable: await canManageRoleFromContext(governanceContext, role),
+        },
+      }))
+    );
+
+    return NextResponse.json({
+      status: 200,
+      data: {
+        roles: enrichedRoles,
+        permissions,
+        viewer: {
+          administrationLevel: governanceContext.administrationLevel,
+          isGlobalAdministrator: governanceContext.isGlobalAdministrator,
+          managedProvinceCode: governanceContext.managedProvinceCode,
+          managedProvinceName: governanceContext.managedProvinceName,
+          canCreateRoles: governanceContext.canCreateRoles,
+          canUpdateRoles: governanceContext.canUpdateRoles,
+          canDeleteRoles: governanceContext.canDeleteRoles,
+          canManagePermissionCatalog: governanceContext.canManagePermissionCatalog,
+          allowedScopes: getAllowedScopesForContext(governanceContext),
+        },
+      },
+    });
   } catch (error: any) {
     return NextResponse.json(
       { status: 403, message: error?.message ?? "Acces interdit" },
@@ -58,7 +95,8 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    await requireAccessControlAccess(["role.update", "permission.read"]);
+    const auth = await requireAccessControlAccess(["role.update", "permission.read"]);
+    const governanceContext = await getAccessControlGovernanceContext(auth);
 
     const body = await req.json();
     const roleId = Number(body?.roleId);
@@ -81,13 +119,20 @@ export async function PUT(req: Request) {
 
     const role = await prisma.role.findUnique({
       where: { id: roleId },
-      select: { id: true },
+      select: { id: true, key: true, code: true, nom: true },
     });
 
     if (!role) {
       return NextResponse.json(
         { status: 404, message: "Role introuvable." },
         { status: 404 }
+      );
+    }
+
+    if (!(await canManageRoleFromContext(governanceContext, role))) {
+      return NextResponse.json(
+        { status: 403, message: "Vous ne pouvez modifier que les permissions des roles de votre espace d'administration." },
+        { status: 403 }
       );
     }
 
@@ -106,14 +151,7 @@ export async function PUT(req: Request) {
       }
     }
 
-    const validPortees = new Set<PorteeDonnees>([
-      PorteeDonnees.SOI_MEME,
-      PorteeDonnees.UNITE,
-      PorteeDonnees.UNITE_ET_DESCENDANTS,
-      PorteeDonnees.PROVINCE,
-      PorteeDonnees.TOUTE_ORGANISATION,
-    ]);
-
+    const allowedScopes = new Set<PorteeDonnees>(getAllowedScopesForContext(governanceContext));
     const reglesPorteeData = uniquePermissionIds.map((permissionId) => {
       const rawPortee = porteesInput[String(permissionId)];
       if (!rawPortee) {
@@ -121,18 +159,14 @@ export async function PUT(req: Request) {
       }
 
       const requestedPortee = String(rawPortee) as PorteeDonnees;
-      const portee = validPortees.has(requestedPortee)
-        ? requestedPortee
-        : null;
-
-      if (!portee) {
-        throw new Error(`Portee invalide pour la permission ${permissionId}.`);
+      if (!allowedScopes.has(requestedPortee)) {
+        throw new Error(`Portee non autorisee pour la permission ${permissionId}.`);
       }
 
       return {
         roleId,
         permissionId,
-        portee,
+        portee: requestedPortee,
       };
     });
 
@@ -164,6 +198,7 @@ export async function PUT(req: Request) {
         id: true,
         nom: true,
         key: true,
+        code: true,
         actif: true,
         rolePermission: {
           select: {

@@ -1,5 +1,5 @@
 export async function GetPermissions() {
-  const response = await fetch("../api/agent/permission", {
+  const response = await fetch("/api/agent/permission", {
     method: "GET",
     next: { revalidate: 10 },
   });
@@ -8,7 +8,7 @@ export async function GetPermissions() {
 }
 
 export async function AddPermission(data: { code: string }) {
-  const response = await fetch("../api/agent/permission", {
+  const response = await fetch("/api/agent/permission", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(data),
@@ -16,3 +16,4 @@ export async function AddPermission(data: { code: string }) {
 
   return response.json();
 }
+
